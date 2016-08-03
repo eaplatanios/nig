@@ -19,7 +19,7 @@ class Learner(object):
         pass
 
 
-class TensorFlowLearner(object):
+class TensorFlowLearner(Learner):
     """Used for training a single TensorFlow model."""
     def train(self, model, train_data, validation_data=None, test_data=None):
         pass
@@ -31,9 +31,10 @@ class TensorFlowLearner(object):
         pass
 
 
-class TensorFlowMultiModelValidationSetLearner(object):
-    """Used for training multiple TensorFlow models that have the same input and predict the same quantities, using a
-    validation data set to pick the best model."""
+class TensorFlowMultiModelValidationSetLearner(Learner):
+    """Used for training multiple TensorFlow models that have the same input and
+    predict the same quantities, using a validation data set to pick the best
+    model."""
     def train(self, models, train_data, validation_data=None, test_data=None):
         pass
 
@@ -44,9 +45,10 @@ class TensorFlowMultiModelValidationSetLearner(object):
         pass
 
 
-class TensorFlowMultiModelCrossValidationLearner(object):
-    """Used for training multiple TensorFlow models that have the same input and predict the same quantities, using
-    cross-validation to pick the best model."""
+class TensorFlowMultiModelCrossValidationLearner(Learner):
+    """Used for training multiple TensorFlow models that have the same input and
+    predict the same quantities, using cross-validation to pick the best
+    model."""
     def train(self, models, train_data, validation_data=None, test_data=None):
         pass
 
@@ -57,9 +59,10 @@ class TensorFlowMultiModelCrossValidationLearner(object):
         pass
 
 
-class TensorFlowMultiModelNIGLearner(object):
-    """Used for training multiple TensorFlow models that have the same input and predict the same quantities, using the
-    NIG agreement-driven approach to train them jointly and allow them to make predictions jointly."""
+class TensorFlowMultiModelNIGLearner(Learner):
+    """Used for training multiple TensorFlow models that have the same input and
+    predict the same quantities, using the NIG agreement-driven approach to
+    train them jointly and allow them to make predictions jointly."""
     def train(self, models, train_data, validation_data=None, test_data=None):
         pass
 
