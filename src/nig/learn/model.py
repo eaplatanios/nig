@@ -1,7 +1,6 @@
 import abc
 import numpy as np
 import tensorflow as tf
-import os
 
 from nig.utilities import logger
 
@@ -11,6 +10,9 @@ __author__ = 'Emmanouil Antonios Platanios'
 class Model(object):
     __metaclass__ = abc.ABCMeta
 
+    def __init__(self, graph=tf.Graph()):
+        self.graph = graph
+
     @abc.abstractmethod
     def inference(self, inputs):
         pass
@@ -18,14 +20,10 @@ class Model(object):
 
 class MultiLayerPerceptron(Model):
     def __init__(self, input_size, output_size, hidden_layer_sizes,
-                 learning_rate, maximum_number_of_iterations=100000,
-                 working_directory=os.getcwd(), graph=tf.Graph()):
+                 graph=tf.Graph()):
+        super(MultiLayerPerceptron, self).__init__(graph)
         self.input_size = input_size
         self.output_size = output_size
-        self.learning_rate = learning_rate
-        self.maximum_number_of_iterations = maximum_number_of_iterations
-        self.working_directory = working_directory
-        self.graph = graph
         with self.graph.as_default():
             self.inputs = tf.placeholder(tf.float32, [None, input_size])
             if self.output_size == 1:

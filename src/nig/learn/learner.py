@@ -1,10 +1,17 @@
 import abc
+import os
 
 __author__ = 'Emmanouil Antonios Platanios'
 
 
 class Learner(object):
     __metaclass__ = abc.ABCMeta
+
+    def __init__(self, learning_rate=1e-2, maximum_number_of_iterations=100000,
+                 working_dir=os.getcwd()):
+        self.learning_rate = learning_rate
+        self.maximum_number_of_iterations = maximum_number_of_iterations
+        self.working_directory = working_dir
 
     @abc.abstractmethod
     def train(self, models, train_data, validation_data=None, test_data=None):
