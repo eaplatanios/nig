@@ -3,8 +3,9 @@ from __future__ import division
 
 import abc
 import numpy as np
+import pandas as pd
 
-from nig.utilities import pipe
+from nig.functions import pipe
 
 __author__ = 'Emmanouil Antonios Platanios'
 
@@ -15,7 +16,6 @@ class Iterator(object):
     def __iter__(self):
         return self
 
-    # This function is added for compatibility with Python 3
     def __next__(self):
         return self.next()
 
@@ -33,6 +33,14 @@ class Iterator(object):
                    cycle_shuffle=None, keep_last_batch=None):
         pass
 
+    @abc.abstractmethod
+    def __len__(self):
+        pass
+
+    @abc.abstractmethod
+    def remaining_length(self):
+        pass
+
 
 class BaseDataIterator(Iterator):
     __metaclass__ = abc.ABCMeta
@@ -48,7 +56,7 @@ class BaseDataIterator(Iterator):
         self.cycle_shuffle = cycle_shuffle
         self.keep_last_batch = keep_last_batch
         self.pipelines = self._preprocess_pipelines(None, pipelines)
-        self._total_length = len(data)
+        self._total_length = len(self)
         self._begin_index = 0
         self._end_index = -1
         self._reached_end = False
@@ -56,19 +64,15 @@ class BaseDataIterator(Iterator):
     @staticmethod
     def _preprocess_pipelines(current_pipelines, new_pipelines):
         if new_pipelines is not None:
-            if type(new_pipelines) is list:
+            if isinstance(new_pipelines, list):
                 return [(lambda x: x) if pipeline is None
                         else pipeline if callable(pipeline)
                         else pipe(*pipeline)
                         for pipeline in new_pipelines]
-            else:
-                return [pipeline if callable(pipeline)
-                        else pipe(*pipeline)
-                        for pipeline in new_pipelines]
+            return [new_pipelines]
         elif current_pipelines is not None:
             return current_pipelines
-        else:
-            return [lambda x: x]
+        return [lambda x: x]
 
     def next(self):
         next_data = None
@@ -85,15 +89,16 @@ class BaseDataIterator(Iterator):
                 if self.cycle_shuffle:
                     self.shuffle_data()
                 self._reached_end = False
-                end_index = self._end_index - self._total_length
+                self._end_index -= self._total_length
                 next_data = self.concatenate_data(
                     self.get_data(begin_index, -1),
-                    self.get_data(0, end_index)
+                    self.get_data(0, self._end_index)
                 )
             elif self.keep_last_batch:
                 next_data = self.get_data(begin_index, -1)
         if next_data is not None:
-            return tuple(pipeline(next_data) for pipeline in self.pipelines)
+            next_data = [pipeline(next_data) for pipeline in self.pipelines]
+            return tuple(next_data) if len(next_data) > 1 else next_data[0]
         raise StopIteration()
 
     @abc.abstractmethod
@@ -140,6 +145,9 @@ class BaseDataIterator(Iterator):
         return self.__class__(self.data, batch_size, shuffle, cycle,
                               cycle_shuffle, keep_last_batch, pipelines)
 
+    def remaining_length(self):
+        return len(self) - self._end_index if not self.cycle else -1
+
 
 class NPArrayIterator(BaseDataIterator):
     def shuffle_data(self):
@@ -150,3 +158,21 @@ class NPArrayIterator(BaseDataIterator):
 
     def concatenate_data(self, data_batch_1, data_batch_2):
         return np.vstack([data_batch_1, data_batch_2])
+
+    def __len__(self):
+        return len(self.data)
+
+
+class PDDataFrameIterator(BaseDataIterator):
+    def shuffle_data(self):
+        indices = np.random.permutation(np.arange(self._total_length))
+        self.data = self.data.iloc[indices]
+
+    def get_data(self, from_index, to_index):
+        return self.data.iloc[from_index:to_index]
+
+    def concatenate_data(self, data_batch_1, data_batch_2):
+        return pd.concat([data_batch_1, data_batch_2])
+
+    def __len__(self):
+        return len(self.data)

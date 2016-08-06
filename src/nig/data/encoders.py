@@ -4,6 +4,7 @@ from __future__ import division
 import abc
 import numpy as np
 
+from nig.functions import pipeline
 from nig.utilities import logger
 
 __author__ = 'Emmanouil Antonios Platanios'
@@ -12,23 +13,67 @@ __author__ = 'Emmanouil Antonios Platanios'
 class Encoder(object):
     __metaclass__ = abc.ABCMeta
 
+    def __init__(self):
+        self.encoder = Encoder.__encoder_function(self)
+        self.decoder = Encoder.__decoder_function(self)
+
     @abc.abstractmethod
     def encode(self, array):
         pass
-
-    def encoder(self):
-        return lambda array: self.encode(array)
 
     @abc.abstractmethod
     def decode(self, array):
         pass
 
-    def decoder(self):
-        return lambda array: self.decode(array)
+    @staticmethod
+    @pipeline(min_num_args=1)
+    def __encoder_function(encoder, data):
+        return encoder.encode(data)
+
+    @staticmethod
+    @pipeline(min_num_args=1)
+    def __decoder_function(encoder, data):
+        return encoder.decode(data)
+
+
+class DataTypeEncoder(Encoder):
+    def __init__(self, target_dtype, source_dtype=None):
+        super(DataTypeEncoder, self).__init__()
+        self.target_dtype = target_dtype
+        self.source_dtype = source_dtype
+
+    def encode(self, array):
+        self.source_dtype = array.dtype
+        return array.astype(self.target_dtype)
+
+    def decode(self, array):
+        if self.source_dtype is None:
+            raise ValueError('No source data type provided nor an array to '
+                             'encode before decoding, and thus inferring the '
+                             'data type.')
+        return array.astype(self.target_dtype)
+
+
+class ReshapeEncoder(Encoder):
+    def __init__(self, target_shape, source_shape=None):
+        super(ReshapeEncoder, self).__init__()
+        self.target_shape = target_shape
+        self.source_shape = source_shape
+
+    def encode(self, array):
+        self.source_shape = array.shape
+        return array.reshape(self.target_shape)
+
+    def decode(self, array):
+        if self.source_shape is None:
+            raise ValueError('No source shape provided nor an array to encode '
+                             'before decoding, and thus inferring the shape.')
+        return array.reshape(self.target_shape)
 
 
 class OneHotEncoder(Encoder):
     def __init__(self, encoding_size, encoding_map=None):
+        super(OneHotEncoder, self).__init__()
         self.encoding_size = encoding_size
         self.encoding_map = encoding_map
         self.decoding_map = None
