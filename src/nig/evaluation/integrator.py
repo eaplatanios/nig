@@ -39,13 +39,15 @@ class Integrator(object):
             integrate_data=False, seed=None, use_cli=False, working_dir='.',
             makina_jar='./nig/evaluation/makina.jar',
             use_csv=False, clean_up=True, jvm_options=None):
-        return self._run_jnius(predicted, observed, constraints,
-                               integrate_data, seed, makina_jar,
-                               jvm_options) if use_cli \
-            else self._run_command_line(predicted, observed,
-                                        constraints, integrate_data, seed,
-                                        working_dir, makina_jar, use_csv,
-                                        clean_up, jvm_options)
+        if use_cli:
+            return self._run_command_line(predicted, observed,
+                                          constraints, integrate_data, seed,
+                                          working_dir, makina_jar, use_csv,
+                                          clean_up, jvm_options)
+        else:
+            return self._run_jnius(predicted, observed, constraints,
+                                   integrate_data, seed, makina_jar,
+                                   jvm_options)
 
     def _run_jnius(self, predicted, observed, constraints, integrate_data,
                    seed, makina_jar, jvm_options):
