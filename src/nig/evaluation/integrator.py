@@ -39,13 +39,15 @@ class Integrator(object):
             integrate_data=False, seed=None, use_cli=False, working_dir='.',
             makina_jar='./nig/evaluation/makina.jar',
             use_csv=False, clean_up=True, jvm_options=None):
-        return self._run_jnius(predicted, observed, constraints,
-                               integrate_data, seed, makina_jar,
-                               jvm_options) if use_cli \
-            else self._run_command_line(predicted, observed,
-                                        constraints, integrate_data, seed,
-                                        working_dir, makina_jar, use_csv,
-                                        clean_up, jvm_options)
+        if use_cli:
+            return self._run_command_line(predicted, observed,
+                                          constraints, integrate_data, seed,
+                                          working_dir, makina_jar, use_csv,
+                                          clean_up, jvm_options)
+        else:
+            return self._run_jnius(predicted, observed, constraints,
+                                   integrate_data, seed, makina_jar,
+                                   jvm_options)
 
     def _run_jnius(self, predicted, observed, constraints, integrate_data,
                    seed, makina_jar, jvm_options):
@@ -68,31 +70,30 @@ class Integrator(object):
     def _run_command_line(self, predicted, observed, constraints,
                           integrate_data, seed, working_dir, makina_jar,
                           use_csv, clean_up, jvm_options):
-        file_ext = '.protobin'
-        if use_csv:
-            file_ext = '.csv'
-        predicted_file = os.path.join(working_dir, 'predicted' + file_ext)
-        observed_file = os.path.join(working_dir, 'observed' + file_ext)
-        constraints_file = os.path.join(working_dir, 'constraints.txt')
-        error_rates_file = os.path.join(working_dir, 'error_rates' + file_ext)
-        integrated_file = os.path.join(working_dir, 'integrated' + file_ext)
-        save_predicted_instances(predicted, predicted_file)
+        files = {}
+        file_ext = '.csv' if use_csv else '.protobin'
+        files['constraints'] = os.path.join(working_dir, 'constraints.txt')
+        for name in {'predicted', 'observed', 'error_rates', 'integrated'}:
+            files[name] = os.path.join(working_dir, name + file_ext)
+        save_predicted_instances(predicted, files['predicted'])
         if observed is not None:
-            save_observed_instances(observed, observed_file)
+            save_observed_instances(observed, files['observed'])
         if jvm_options is None:
             jvm_options = ['-Xmx4G']
         cli_options = ['java', '-cp', makina_jar]
         cli_options.extend(jvm_options)
         cli_options.extend(
-            ['makina.learn.classification.reflection.Integrator', '-d',
-             predicted_file, '-e', error_rates_file, '-m', self.name()])
+            ['makina.learn.classification.reflection.Integrator',
+             '-d', files['predicted'],
+             '-e', files['error_rates'],
+             '-m', self.name()])
         if self.options():
             cli_options.extend(['-o', ':'.join(self.options())])
         if constraints is not None:
-            save_constraints(constraints, constraints_file)
-            cli_options.extend(['-c', constraints_file])
+            save_constraints(constraints, files['constraints'])
+            cli_options.extend(['-c', files['constraints']])
         if integrate_data:
-            cli_options.extend(['-i', integrated_file])
+            cli_options.extend(['-i', files['integrated']])
         if seed is not None:
             cli_options.extend(['-s', seed])
         return_code = subprocess.Popen(cli_options).wait()
@@ -100,16 +101,14 @@ class Integrator(object):
             logger.error('An error occurred while running the command '
                          '{}.'.format(' '.join(cli_options)))
             return None
-        error_rates = load_error_rates([], error_rates_file)
-        integrated = load_predicted_instances([], integrated_file) \
-            if integrate_data else None
+        result = load_error_rates([], files['error_rates'])
+        if integrate_data:
+            integrated = load_predicted_instances([], files['integrated'])
+            result = (result, integrated)
         if clean_up:
-            silently_remove(predicted_file)
-            silently_remove(observed_file)
-            silently_remove(constraints_file)
-            silently_remove(error_rates_file)
-            silently_remove(integrated_file)
-        return error_rates if not integrate_data else error_rates, integrated
+            for name in files.iterkeys():
+                silently_remove(files[name])
+        return result
 
 
 class MajorityVoteIntegrator(Integrator):
