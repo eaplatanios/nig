@@ -16,10 +16,16 @@ from nig.learn.metrics import CrossEntropyOneHotEncodingMetric, \
 from nig.learn.learners import SimpleLearner
 from nig.learn.symbols import MultiLayerPerceptron
 
-optimizer = tf.train.GradientDescentOptimizer(1e-2)
-batch_size = 1000
-number_of_iterations = 2000
 use_one_hot_encoding = False
+architecture = [128, 32]
+activation = tf.nn.relu
+optimizer = tf.train.GradientDescentOptimizer(1e-2)
+batch_size = 100
+number_of_iterations = 5000
+logging_frequency = 100
+summary_frequency = 100
+checkpoint_frequency = 1000
+evaluation_frequency = 1000
 working_dir = os.getcwd()
 checkpoint_file_prefix = 'checkpoint'
 restore_sequentially = False
@@ -47,7 +53,7 @@ def get_iterator(tf_mnist_data, include_labels=True):
         tf_mnist_data >> aggregate, batch_size, shuffle=False, cycle=False,
         cycle_shuffle=False, keep_last_batch=True, pipelines=pipelines)
 
-symbol = MultiLayerPerceptron(784, 10, [128, 32], activation=tf.nn.relu,
+symbol = MultiLayerPerceptron(784, 10, architecture, activation=activation,
                               softmax_output=use_one_hot_encoding,
                               use_log=use_one_hot_encoding)
 
@@ -66,19 +72,23 @@ eval_metric = AccuracyOneHotEncodingMetric() if use_one_hot_encoding \
     else AccuracyIntegerEncodingMetric()
 
 callbacks = []
-callbacks.append(LoggerCallback(frequency=100, header_frequency=1000))
-callbacks.append(SummaryWriterCallback(frequency=100, working_dir=working_dir))
-callbacks.append(CheckpointWriterCallback(frequency=1000,
+callbacks.append(LoggerCallback(frequency=logging_frequency))
+callbacks.append(SummaryWriterCallback(frequency=summary_frequency,
+                                       working_dir=working_dir))
+callbacks.append(CheckpointWriterCallback(frequency=checkpoint_frequency,
                                           working_dir=working_dir,
                                           file_prefix=checkpoint_file_prefix))
 callbacks.append(EvaluationCallback(
-    frequency=1000, iterator=get_iterator(get_tf_mnist_data(data.train)),
+    frequency=evaluation_frequency,
+    iterator=get_iterator(get_tf_mnist_data(data.train)),
     metrics=eval_metric, name='Train Accuracy'))
 callbacks.append(EvaluationCallback(
-    frequency=1000, iterator=get_iterator(get_tf_mnist_data(data.validation)),
+    frequency=evaluation_frequency,
+    iterator=get_iterator(get_tf_mnist_data(data.validation)),
     metrics=eval_metric, name='Eval Accuracy'))
 callbacks.append(EvaluationCallback(
-    frequency=1000, iterator=get_iterator(get_tf_mnist_data(data.test)),
+    frequency=evaluation_frequency,
+    iterator=get_iterator(get_tf_mnist_data(data.test)),
     metrics=eval_metric, name='Test Accuracy'))
 
 learner.train(loss, get_iterator(get_tf_mnist_data(data.train)),
