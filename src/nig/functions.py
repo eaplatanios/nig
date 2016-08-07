@@ -98,8 +98,9 @@ class PipelineFunction(object):
             if self.ready(new_args, new_kwargs):
                 return self.__func(*new_args, **new_kwargs)
             else:
-                return PipelineFunction(self.__func, new_args, new_kwargs,
-                                        self.__unique_keys, self.__min_num_args)
+                return PipelineFunction(self.__func, self.__min_num_args,
+                                        new_args, new_kwargs,
+                                        self.__unique_keys)
         else:  # If no more arguments are passed in, evaluation is forced
             return self.__func(*self.__args, **self.__kwargs)
 
@@ -118,5 +119,8 @@ class PipelineFunction(object):
             result = self.__func(*args, **kwargs)
             return other.__func(*(other.__args + (result,)), **other.__kwargs)
 
-        return PipelineFunction(composed_function, self.__args, self.__kwargs,
-                                self.__unique_keys, self.__min_num_args)
+        composed = PipelineFunction(composed_function, self.__min_num_args,
+                                    self.__args, self.__kwargs,
+                                    self.__unique_keys)
+        composed.__no_default_args = self.__no_default_args
+        return composed

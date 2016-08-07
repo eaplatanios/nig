@@ -21,7 +21,7 @@ class Aggregator(PipelineFunction):
         pass
 
     @staticmethod
-    @pipeline(min_num_args=1)
+    @pipeline(min_num_args=2)
     def __aggregator_function(aggregator, data):
         return aggregator.aggregate(data)
 

@@ -6,6 +6,7 @@ from nig.learn.callbacks import *
 from nig.learn.metrics import *
 from nig.learn.learners import SimpleLearner
 from nig.learn.optimizers import gradient_descent
+from nig.learn.processors import norm_summary, norm_clipping
 from nig.learn.symbols import MultiLayerPerceptron
 
 __author__ = 'eaplatanios'
@@ -14,6 +15,8 @@ use_one_hot_encoding = False
 architecture = [64, 32, 16]
 activation = tf.nn.relu
 optimizer = gradient_descent(1e-1, decay_rate=0.99, learning_rate_summary=True)
+gradients_processor = None #norm_clipping(clip_norm=0.1) \
+                      #| norm_summary(name='gradients/norm')
 batch_size = 100
 max_iter = 100000
 loss_chg_tol = 1e-6
@@ -84,7 +87,7 @@ learner.train(loss, get_iterator(train_data), optimizer=optimizer,
               max_iter=max_iter, loss_chg_tol=loss_chg_tol,
               loss_chg_iter_below_tol=loss_chg_iter_below_tol,
               init_option=True, callbacks=callbacks, loss_summary=True,
-              gradient_norm_summary=False,
+              gradients_processor=gradients_processor,
               run_metadata_collection_frequency=1000,
               trace_level=tf.RunOptions.FULL_TRACE, working_dir=working_dir,
               checkpoint_file_prefix=checkpoint_file_prefix,

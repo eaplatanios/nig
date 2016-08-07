@@ -27,12 +27,12 @@ class Encoder(PipelineFunction):
         pass
 
     @staticmethod
-    @pipeline(min_num_args=1)
+    @pipeline(min_num_args=2)
     def __encoder_function(encoder, data):
         return encoder.encode(data)
 
     @staticmethod
-    @pipeline(min_num_args=1)
+    @pipeline(min_num_args=2)
     def __decoder_function(encoder, data):
         return encoder.decode(data)
 

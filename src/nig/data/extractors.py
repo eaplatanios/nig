@@ -21,7 +21,7 @@ class Extractor(PipelineFunction):
         pass
 
     @staticmethod
-    @pipeline(min_num_args=1)
+    @pipeline(min_num_args=2)
     def __extractor_function(extractor, data):
         return extractor.extract(data)
 

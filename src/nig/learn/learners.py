@@ -5,6 +5,7 @@ import os
 import sys
 
 from nig.data.iterators import NPArrayIterator
+from nig.learn.optimizers import gradient_descent
 from nig.utilities import logger
 
 __author__ = 'eaplatanios'
@@ -103,7 +104,7 @@ class Learner(object):
 
     @abc.abstractmethod
     def train(self, loss, train_data,
-              optimizer=tf.train.GradientDescentOptimizer(1e-2),
+              optimizer=None,
               init_option=-1, callbacks=None, working_dir=os.getcwd(),
               checkpoint_file_prefix='checkpoint', restore_sequentially=False,
               save_trained=False):
@@ -156,17 +157,14 @@ class SimpleLearner(Learner):
             self.predictions_op = self.symbols(self.inputs_op)
 
     def _train_op(self, loss, optimizer, loss_summary=False,
-                  gradient_norm_summary=False):
+                  gradients_processor=None):
         global_step = tf.contrib.framework.get_or_create_global_step()
         if loss_summary:
             tf.scalar_summary(loss.op.name, loss)
-        if gradient_norm_summary:
+        if gradients_processor is not None:
             trainable_variables = tf.trainable_variables()
             gradients = tf.gradients(loss, trainable_variables)
-            gradients_norm = tf.reduce_sum([tf.nn.l2_loss(gradient)
-                                            for gradient in gradients],
-                                           name='gradients_norm')
-            tf.scalar_summary(gradients_norm.op.name, gradients_norm)
+            gradients = gradients_processor(gradients)
             train_op = optimizer.apply_gradients(zip(gradients,
                                                      trainable_variables),
                                                  global_step=global_step)
@@ -176,10 +174,10 @@ class SimpleLearner(Learner):
 
     @graph_context
     def train(self, loss, train_data,
-              optimizer=tf.train.GradientDescentOptimizer(1e-2),
+              optimizer=None,
               max_iter=100000, loss_chg_tol=1e-3, loss_chg_iter_below_tol=5,
               init_option=-1, callbacks=None, loss_summary=False,
-              gradient_norm_summary=False,
+              gradients_processor=None,
               run_metadata_collection_frequency=1000,
               trace_level=tf.RunOptions.FULL_TRACE, working_dir=os.getcwd(),
               checkpoint_file_prefix='checkpoint',
@@ -196,7 +194,7 @@ class SimpleLearner(Learner):
             init_option:
             callbacks:
             loss_summary:
-            gradient_norm_summary:
+            gradients_processor:
             run_metadata_collection_frequency:
             trace_level (tf.RunOptions): Supported values include
                 `tf.RunOptions.{NO_TRACE, SOFTWARE_TRACE HARDWARE_TRACE,
@@ -209,6 +207,8 @@ class SimpleLearner(Learner):
         Returns:
 
         """
+        if optimizer is None:
+            gradient_descent(1e-1, decay_rate=0.99, learning_rate_summary=True)
         if isinstance(train_data, np.ndarray):
             train_data = NPArrayIterator(train_data, len(train_data),
                                          shuffle=False, cycle=False,
@@ -217,7 +217,7 @@ class SimpleLearner(Learner):
             optimizer = optimizer()
         loss_op = loss.tf_op(self.predictions_op, self.outputs_op)
         train_op = self._train_op(loss_op, optimizer, loss_summary,
-                                  gradient_norm_summary)
+                                  gradients_processor)
         summary_writer = tf.train.SummaryWriter(working_dir, self.graph)
         train_data_iter = train_data.reset_copy(cycle=True)
         saver = tf.train.Saver(restore_sequentially=restore_sequentially)
