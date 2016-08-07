@@ -47,10 +47,12 @@ class Input(Symbol):
 
 class MultiLayerPerceptron(Symbol):
     def __init__(self, input_size, output_size, hidden_layer_sizes,
-                 softmax_output=True):
+                 activation=tf.nn.sigmoid, softmax_output=True, use_log=True):
         super(MultiLayerPerceptron, self).__init__([input_size], [output_size])
         self.hidden_unit_sizes = hidden_layer_sizes
+        self.activation = activation
         self.softmax_output = softmax_output
+        self.use_log = use_log
 
     def __str__(self):
         return 'MultiLayerPerceptron[{}:{}:{}:{}]' \
@@ -69,7 +71,7 @@ class MultiLayerPerceptron(Symbol):
                     name='W'
                 )
                 biases = tf.Variable(tf.zeros([output_size]), name='b')
-                hidden = tf.nn.sigmoid(tf.matmul(hidden, weights) + biases)
+                hidden = self.activation(tf.matmul(hidden, weights) + biases)
             input_size = output_size
         output_size = self.output_shape[0]
         with tf.name_scope('output_softmax_linear'):
@@ -80,4 +82,11 @@ class MultiLayerPerceptron(Symbol):
             )
             biases = tf.Variable(tf.zeros([output_size]), name='b')
             outputs = tf.matmul(hidden, weights) + biases
-        return tf.nn.log_softmax(outputs) if self.softmax_output else outputs
+        if self.softmax_output and self.use_log:
+            return tf.nn.log_softmax(outputs)
+        elif self.softmax_output:
+            return tf.nn.softmax(outputs)
+        elif self.use_log:
+            return tf.log(outputs)
+        else:
+            return outputs

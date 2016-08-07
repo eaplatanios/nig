@@ -1,6 +1,10 @@
 __author__ = 'Emmanouil Antonios Platanios'
 
 
+def identity(arg):
+    return arg
+
+
 def compose(*functions):
     def inner(arg):
         for f in reversed(functions):

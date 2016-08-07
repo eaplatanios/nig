@@ -9,11 +9,19 @@ from nig.utilities import logger
 __author__ = 'Emmanouil Antonios Platanios'
 
 
+def graph_context(func):
+    def func_wrapper(self, *args, **kwargs):
+        with self.graph.as_default():
+            return func(self, *args, **kwargs)
+    return func_wrapper
+
+
 class Learner(object):
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, symbols, graph=tf.Graph(), session=tf.Session(),
-                 inputs_dtype=tf.float64, outputs_dtype=tf.float64):
+    def __init__(self, symbols, graph=tf.Graph(), session=None,
+                 inputs_dtype=tf.float64, outputs_dtype=tf.float64,
+                 output_shape=None, predict_postprocess=lambda x: x):
         self.symbols = symbols
         self.graph = graph
         self.session = session
@@ -32,18 +40,17 @@ class Learner(object):
         else:
             self.input_shape = self.symbols.input_shape
             self.output_shape = self.symbols.output_shape
+        if output_shape is not None:
+            self.output_shape = output_shape if isinstance(output_shape, list) \
+                else [output_shape]
         with self.graph.as_default():
             self.inputs_op = tf.placeholder(inputs_dtype,
                                             [None] + self.input_shape)
             self.outputs_op = tf.placeholder(outputs_dtype,
                                              [None] + self.output_shape)
-            # input_shape = [None] if self.input_shape is [1] \
-            #     else [None] + self.input_shape
-            # self.inputs_op = tf.placeholder(inputs_dtype, input_shape)
-            # output_shape = [None] if self.output_shape is [1] \
-            #     else [None] + self.output_shape
-            # self.outputs_op = tf.placeholder(outputs_dtype, output_shape)
+        self.predict_postprocess = predict_postprocess
 
+    @graph_context
     def _initialize_session(self, option, saver, working_dir,
                             checkpoint_file_prefix):
         if option is None:
@@ -103,28 +110,53 @@ class Learner(object):
         pass
 
     @abc.abstractmethod
+    def _predict_op(self):
+        pass
+
+    @graph_context
     def predict(self, input_data, checkpoint=None, working_dir=os.getcwd(),
                 checkpoint_file_prefix='checkpoint',
                 restore_sequentially=False):
-        pass
+        if not isinstance(input_data, np.ndarray):
+            iterator = self.predict_iterator(input_data, checkpoint)
+            predictions = next(iterator)
+            for predictions_batch in iterator:
+                predictions = np.concatenate([predictions,
+                                              predictions_batch], axis=0)
+            return predictions
+        saver = tf.train.Saver(restore_sequentially=restore_sequentially)
+        self._initialize_session(checkpoint, saver, working_dir,
+                                 checkpoint_file_prefix)
+        return self.session.run(
+            self.predict_postprocess(self._predict_op()),
+            feed_dict={self.inputs_op: input_data})
 
-    @abc.abstractmethod
+    @graph_context
     def predict_iterator(self, input_data, checkpoint=None,
                          working_dir=os.getcwd(),
                          checkpoint_file_prefix='checkpoint',
                          restore_sequentially=False):
-        pass
+        saver = tf.train.Saver(restore_sequentially=restore_sequentially)
+        self._initialize_session(checkpoint, saver, working_dir,
+                                 checkpoint_file_prefix)
+        predict_op = self.predict_postprocess(self._predict_op())
+        for data_batch in input_data:
+            yield self.session.run(predict_op,
+                                   feed_dict={self.inputs_op: data_batch})
 
 
 class TensorFlowLearner(Learner):
     """Used for training a single TensorFlow model."""
 
-    def __init__(self, symbol, graph=tf.Graph(), session=tf.Session(),
+    def __init__(self, symbol, graph=tf.Graph(), session=None,
                  inputs_dtype=tf.float64, outputs_dtype=tf.float64,
-                 loss_summary=False, gradient_norm_summary=False):
+                 output_shape=None, loss_summary=False,
+                 gradient_norm_summary=False, predict_postprocess=lambda x: x):
         # TODO: We can train multiple symbols in parallel later on.
         super(TensorFlowLearner, self).__init__(symbol, graph, session,
-                                                inputs_dtype, outputs_dtype)
+                                                inputs_dtype, outputs_dtype,
+                                                output_shape,
+                                                predict_postprocess)
         self.loss_summary = loss_summary
         self.gradient_norm_summary = gradient_norm_summary
         with self.graph.as_default():
@@ -151,7 +183,9 @@ class TensorFlowLearner(Learner):
     def _data_to_feed_dict(self, data_batch):
         return {self.inputs_op: data_batch[0], self.outputs_op: data_batch[1]}
 
-    def train(self, loss, train_data, learning_rate=1e-2, batch_size=-1,
+    @graph_context
+    def train(self, loss, train_data,
+              optimizer=tf.train.GradientDescentOptimizer(1e-2), batch_size=-1,
               number_of_iterations=100000, initialization_option=-1,
               callbacks=None, working_dir=os.getcwd(),
               checkpoint_file_prefix='checkpoint', restore_sequentially=False,
@@ -160,67 +194,37 @@ class TensorFlowLearner(Learner):
             train_data = NPArrayIterator(train_data, len(train_data),
                                          shuffle=False, cycle=False,
                                          keep_last_batch=True)
-        with self.graph.as_default():
-            loss_op = loss.tf_op(self.predictions_op, self.outputs_op)
-            # TODO: Provide optimizer as input argument.
-            optimizer = tf.train.GradientDescentOptimizer(learning_rate)
-            train_op = self._train_op(loss_op, optimizer)
-            summary_op = tf.merge_all_summaries()
-            train_data_iter = train_data.reset_copy(
-                batch_size=batch_size,
-                shuffle=True, cycle=True, cycle_shuffle=True
-            ) if batch_size > -1 else train_data.reset_copy(
-                shuffle=True, cycle=True, cycle_shuffle=True
-            )
-            saver = tf.train.Saver(restore_sequentially=restore_sequentially)
-            self.session = tf.Session()
-            self.session.run(tf.initialize_all_variables())
-            # self._initialize_session(initialization_option, saver, working_dir,
-            #                          checkpoint_file_prefix)
+        loss_op = loss.tf_op(self.predictions_op, self.outputs_op)
+        train_op = self._train_op(loss_op, optimizer)
+        summary_op = tf.merge_all_summaries()
+        train_data_iter = train_data.reset_copy(
+            batch_size=batch_size,
+            shuffle=True, cycle=True, cycle_shuffle=True
+        ) if batch_size > -1 else train_data.reset_copy(
+            shuffle=True, cycle=True, cycle_shuffle=True
+        )
+        saver = tf.train.Saver(restore_sequentially=restore_sequentially)
+        self._initialize_session(initialization_option, saver, working_dir,
+                                 checkpoint_file_prefix)
+        for callback in callbacks:
+            callback.initialize(self.graph, self.inputs_op,
+                                self.outputs_op, self.predictions_op,
+                                loss_op, summary_op)
+        for step in range(number_of_iterations):
+            train_data_batch = train_data_iter.next()
+            feed_dict = self._data_to_feed_dict(train_data_batch)
+            _, loss = self.session.run([train_op, loss_op],
+                                       feed_dict=feed_dict)
+            # TODO: Add convergence checks.
             for callback in callbacks:
-                callback.initialize(self.graph, self.inputs_op,
-                                    self.outputs_op, self.predictions_op,
-                                    loss_op, summary_op)
-            for step in range(number_of_iterations):
-                train_data_batch = train_data_iter.next()
-                feed_dict = self._data_to_feed_dict(train_data_batch)
-                _, loss = self.session.run([train_op, loss_op],
-                                           feed_dict=feed_dict)
-                for callback in callbacks:
-                    callback.call(self.session, feed_dict, loss, step)
-            # TD: Add option to skip saving a checkpoint here.
-            # Learner._save_checkpoint(session, saver, self.working_dir,
-            #                          self.checkpoint_file_prefix,
-            #                          number_of_iterations)
+                callback.call(self.session, feed_dict, loss, step)
+        if save_trained:
+            Learner._save_checkpoint(self.session, saver, working_dir,
+                                     checkpoint_file_prefix,
+                                     number_of_iterations)
 
-    def predict(self, input_data, checkpoint=None, working_dir=os.getcwd(),
-                checkpoint_file_prefix='checkpoint',
-                restore_sequentially=False):
-        if isinstance(input_data, np.ndarray):
-            with self.graph.as_default():
-                saver = tf.train.Saver(restore_sequentially=restore_sequentially)
-                self._initialize_session(checkpoint, saver, working_dir,
-                                         checkpoint_file_prefix)
-                return self.session.run([self.predictions_op],
-                                        feed_dict={self.inputs_op: input_data})
-        else:
-            predictions = np.empty(0)
-            for predictions_batch in self.predict_iterator(input_data,
-                                                           checkpoint):
-                predictions = np.hstack([predictions, predictions_batch])
-            return predictions
-
-    def predict_iterator(self, input_data, checkpoint=None,
-                         working_dir=os.getcwd(),
-                         checkpoint_file_prefix='checkpoint',
-                         restore_sequentially=False):
-        with self.graph.as_default():
-            saver = tf.train.Saver(restore_sequentially=restore_sequentially)
-            self._initialize_session(checkpoint, saver, working_dir,
-                                     checkpoint_file_prefix)
-            for data_batch in input_data:
-                yield self.session.run([self.predictions_op],
-                                       feed_dict={self.inputs_op: data_batch})
+    def _predict_op(self):
+        return self.predictions_op
 
 
 # class TensorFlowMultiModelValidationSetLearner(Learner):

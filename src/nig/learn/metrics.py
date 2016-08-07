@@ -57,7 +57,7 @@ class CrossEntropyIntegerEncodingMetric(Metric):
     def tf_op(self, prediction, truth, name='cross_entropy'):
         with tf.name_scope('metric'):
             metric = tf.nn.sparse_softmax_cross_entropy_with_logits(
-                prediction, tf.to_int64(truth))
+                prediction, tf.to_int64(tf.squeeze(truth)))
             metric = tf.reduce_mean(metric, name=name)
         return metric
 
@@ -83,6 +83,6 @@ class AccuracyIntegerEncodingMetric(Metric):
 
     def tf_op(self, prediction, truth, name='accuracy'):
         with tf.name_scope('metric'):
-            metric = tf.nn.in_top_k(prediction, truth, 1)
-            metric = tf.reduce_mean(tf.cast(metric, tf.int32), name=name)
+            metric = tf.nn.in_top_k(prediction, tf.squeeze(truth), 1)
+            metric = tf.reduce_mean(tf.cast(metric, tf.float32), name=name)
         return metric

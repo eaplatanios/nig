@@ -4,7 +4,7 @@ import sys
 import tensorflow as tf
 import os
 
-from nig.learn.evaluation import tf_aggregate_over_iterator
+from nig.learn.metrics import tf_aggregate_over_iterator
 from nig.utilities import logger
 
 __author__ = 'Emmanouil Antonios Platanios'
@@ -24,7 +24,7 @@ class Callback(object):
         pass
 
     def call(self, session, feed_dict=None, loss=None, global_step=None):
-        if global_step % self.frequency == 0:
+        if (global_step + 1) % self.frequency == 0 or global_step == 0:
             self._execute(session, feed_dict, loss, global_step)
 
     @abc.abstractmethod
@@ -51,7 +51,7 @@ class LoggerCallback(Callback):
     def _execute(self, session, feed_dict, loss, global_step):
         if global_step % self.header_frequency == 0:
             logger.info(self.header)
-        logger.info(self.log_format.format(self.name, global_step, loss))
+        logger.info(self.log_format.format(self.name, global_step+1, loss))
 
 
 class SummaryWriterCallback(Callback):
@@ -142,4 +142,4 @@ class EvaluationCallback(Callback):
                 self.number_of_batches, self.aggregating_function))
         if global_step % self.header_frequency == 0:
             logger.info(self.header)
-        logger.info(self.log_format.format(self.name, global_step, *metrics))
+        logger.info(self.log_format.format(self.name, global_step+1, *metrics))
