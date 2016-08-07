@@ -55,7 +55,7 @@ class MultiLayerPerceptron(Symbol):
         input_size = self.input_shape[0]
         for layer_index in range(len(self.hidden_unit_sizes)):
             output_size = self.hidden_unit_sizes[layer_index]
-            with tf.name_scope('hidden' + str(layer_index)):
+            with tf.variable_scope('hidden' + str(layer_index)):
                 weights = tf.Variable(tf.random_normal(
                     [input_size, output_size],
                     stddev=1.0 / np.math.sqrt(float(input_size))),
@@ -65,7 +65,7 @@ class MultiLayerPerceptron(Symbol):
                 hidden = self.activation(tf.matmul(hidden, weights) + biases)
             input_size = output_size
         output_size = self.output_shape[0]
-        with tf.name_scope('output_softmax_linear'):
+        with tf.variable_scope('output_softmax_linear'):
             weights = tf.Variable(tf.random_normal(
                 [input_size, output_size],
                 stddev=1.0 / np.math.sqrt(float(input_size))),
