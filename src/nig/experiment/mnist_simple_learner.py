@@ -52,8 +52,7 @@ output_shape = 10 if use_one_hot_encoding else 1
 
 learner = SimpleLearner(symbol, inputs_dtype=tf.float32,
                         outputs_dtype=outputs_dtype,
-                        output_shape=output_shape, loss_summary=True,
-                        gradient_norm_summary=False,
+                        output_shape=output_shape,
                         predict_postprocess=lambda l: tf.argmax(l, 1))
 
 loss = CrossEntropyOneHotEncodingMetric() if use_one_hot_encoding \
@@ -65,24 +64,26 @@ callbacks = []
 callbacks.append(LoggerCallback(frequency=logging_frequency))
 callbacks.append(SummaryWriterCallback(frequency=summary_frequency,
                                        working_dir=working_dir))
+callbacks.append(VariableStatisticsSummaryWriterCallback(frequency=200,
+                                                         variables='trainable'))
 callbacks.append(CheckpointWriterCallback(frequency=checkpoint_frequency,
                                           working_dir=working_dir,
                                           file_prefix=checkpoint_file_prefix))
 callbacks.append(EvaluationCallback(frequency=evaluation_frequency,
                                     iterator=get_iterator(train_data),
-                                    metrics=eval_metric, name='Train Accuracy'))
+                                    metrics=eval_metric, name='eval/train'))
 callbacks.append(EvaluationCallback(frequency=evaluation_frequency,
                                     iterator=get_iterator(val_data),
-                                    metrics=eval_metric, name='Val Accuracy'))
+                                    metrics=eval_metric, name='eval/val'))
 callbacks.append(EvaluationCallback(frequency=evaluation_frequency,
                                     iterator=get_iterator(test_data),
-                                    metrics=eval_metric, name='Test Accuracy'))
+                                    metrics=eval_metric, name='eval/test'))
 
 learner.train(loss, get_iterator(train_data), optimizer=optimizer,
               max_iter=max_iter, loss_chg_tol=loss_chg_tol,
               loss_chg_iter_below_tol=loss_chg_iter_below_tol,
-              init_option=True, callbacks=callbacks,
-              working_dir=working_dir,
+              init_option=True, callbacks=callbacks, loss_summary=True,
+              gradient_norm_summary=False, working_dir=working_dir,
               checkpoint_file_prefix=checkpoint_file_prefix,
               restore_sequentially=restore_sequentially,
               save_trained=save_trained)

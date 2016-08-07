@@ -147,22 +147,20 @@ class SimpleLearner(Learner):
 
     def __init__(self, symbol, graph=tf.Graph(), session=None,
                  inputs_dtype=tf.float64, outputs_dtype=tf.float64,
-                 output_shape=None, loss_summary=False,
-                 gradient_norm_summary=False, predict_postprocess=lambda x: x):
+                 output_shape=None, predict_postprocess=lambda x: x):
         super(SimpleLearner, self).__init__(symbol, graph, session,
                                             inputs_dtype, outputs_dtype,
                                             output_shape,
                                             predict_postprocess)
-        self.loss_summary = loss_summary
-        self.gradient_norm_summary = gradient_norm_summary
         with self.graph.as_default():
             self.predictions_op = self.symbols(self.inputs_op)
 
-    def _train_op(self, loss, optimizer):
+    def _train_op(self, loss, optimizer, loss_summary=False,
+                  gradient_norm_summary=False):
         global_step = tf.Variable(0, name='global_step', trainable=False)
-        if self.loss_summary:
+        if loss_summary:
             tf.scalar_summary(loss.op.name, loss)
-        if self.gradient_norm_summary:
+        if gradient_norm_summary:
             trainable_variables = tf.trainable_variables()
             gradients = tf.gradients(loss, trainable_variables)
             gradients_norm = tf.reduce_sum([tf.nn.l2_loss(gradient)
@@ -183,16 +181,18 @@ class SimpleLearner(Learner):
     def train(self, loss, train_data,
               optimizer=tf.train.GradientDescentOptimizer(1e-2),
               max_iter=100000, loss_chg_tol=1e-3, loss_chg_iter_below_tol=5,
-              init_option=-1, callbacks=None, working_dir=os.getcwd(),
-              checkpoint_file_prefix='checkpoint', restore_sequentially=False,
-              save_trained=False):
+              init_option=-1, callbacks=None, loss_summary=False,
+              gradient_norm_summary=False, working_dir=os.getcwd(),
+              checkpoint_file_prefix='checkpoint',
+              restore_sequentially=False, save_trained=False):
         if isinstance(train_data, np.ndarray):
             train_data = NPArrayIterator(train_data, len(train_data),
                                          shuffle=False, cycle=False,
-                                         keep_last_batch=True)
+                                         keep_last=True)
         loss_op = loss.tf_op(self.predictions_op, self.outputs_op)
-        train_op = self._train_op(loss_op, optimizer)
-        summary_op = tf.merge_all_summaries()
+        train_op = self._train_op(loss_op, optimizer, loss_summary,
+                                  gradient_norm_summary)
+        summary_writer = tf.train.SummaryWriter(working_dir, self.graph)
         train_data_iter = train_data.reset_copy(cycle=True)
         saver = tf.train.Saver(restore_sequentially=restore_sequentially)
         self._init_session(init_option, saver, working_dir,
@@ -200,7 +200,7 @@ class SimpleLearner(Learner):
         for callback in callbacks:
             callback.initialize(self.graph, self.inputs_op,
                                 self.outputs_op, self.predictions_op,
-                                loss_op, summary_op)
+                                loss_op, summary_writer)
         prev_loss = sys.float_info.max
         iter_below_tol = 0
         for step in range(max_iter):
