@@ -88,12 +88,12 @@ class OneHotEncoder(Encoder):
             raise ValueError(error_message)
         number_of_instances = array.shape[0]
         encoded_array = np.zeros([number_of_instances, self.encoding_size])
+        index_offset = np.arange(number_of_instances) * self.encoding_size
         if self.encoding_map is None:
-            encoded_array[np.arange(number_of_instances), np.squeeze(array)] = 1
+            encoded_array.flat[index_offset + array.ravel()] = 1
         else:
-            encoded_array[np.arange(number_of_instances),
-                          [self.encoding_map[label]
-                           for label in np.squeeze(array)]] = 1
+            map_values = np.vectorize(lambda k: self.encoding_map[k])
+            encoded_array.flat[index_offset + map_values(array.ravel())] = 1
         return encoded_array
 
     def decode(self, array):
@@ -102,10 +102,10 @@ class OneHotEncoder(Encoder):
                             'rows indexing over the instances.'
             logger.error(error_message)
             raise ValueError(error_message)
-        decoded_array = np.nonzero(array)[1]
+        decoded_array = array.nonzero()[1]
         if self.encoding_map is None:
             return decoded_array
         if self.decoding_map is None:
-            self.decoding_map = {code: label
-                                 for label, code in self.encoding_map.items()}
-        return np.vectorize(lambda code: self.decoding_map[code])(decoded_array)
+            self.decoding_map = {v: k for k, v in self.encoding_map.items()}
+        map_values = np.vectorize(lambda v: self.decoding_map[v])
+        return map_values(decoded_array)
