@@ -10,7 +10,7 @@ from nig.learn.symbols import MultiLayerPerceptron
 __author__ = 'eaplatanios'
 
 use_one_hot_encoding = False
-architecture = [128, 32]
+architecture = [64, 32, 16]
 activation = tf.nn.relu
 optimizer = tf.train.GradientDescentOptimizer(1e-2)
 batch_size = 100
@@ -21,7 +21,7 @@ logging_frequency = 100
 summary_frequency = 100
 checkpoint_frequency = 1000
 evaluation_frequency = 1000
-working_dir = os.getcwd()
+working_dir = os.path.join(os.getcwd(), 'run', str(architecture))
 checkpoint_file_prefix = 'checkpoint'
 restore_sequentially = False
 save_trained = False
