@@ -3,7 +3,7 @@ import abc
 import numpy as np
 import tensorflow as tf
 
-__author__ = 'Emmanouil Antonios Platanios'
+__author__ = 'eaplatanios'
 
 
 def tf_aggregate_over_iterator(session, metric_tf_op, iterator,

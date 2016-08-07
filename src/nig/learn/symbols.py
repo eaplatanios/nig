@@ -4,7 +4,7 @@ import tensorflow as tf
 
 from nig.functions import PipelineFunction
 
-__author__ = 'Emmanouil Antonios Platanios'
+__author__ = 'eaplatanios'
 
 
 class Symbol(PipelineFunction):

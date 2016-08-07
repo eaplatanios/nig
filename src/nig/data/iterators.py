@@ -7,7 +7,7 @@ import pandas as pd
 
 from nig.functions import pipe
 
-__author__ = 'Emmanouil Antonios Platanios'
+__author__ = 'eaplatanios'
 
 
 class Iterator(object):

@@ -4,6 +4,8 @@ import sys
 from contextlib import contextmanager
 from timeit import default_timer
 
+__author__ = 'eaplatanios'
+
 logging.basicConfig(level=logging.INFO,
                     handlers=[logging.StreamHandler(sys.stdout)],
                     format='%(asctime)-15s - %(levelname)-7s - %(name)-20s - '

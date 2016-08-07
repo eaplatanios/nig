@@ -7,7 +7,7 @@ import sys
 from nig.data.iterators import NPArrayIterator
 from nig.utilities import logger
 
-__author__ = 'Emmanouil Antonios Platanios'
+__author__ = 'eaplatanios'
 
 
 def graph_context(func):

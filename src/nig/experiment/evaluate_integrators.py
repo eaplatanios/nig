@@ -4,7 +4,7 @@ import numpy as np
 from nig.evaluation.integrators import *
 from nig.utilities import logger, elapsed_timer
 
-__author__ = 'Emmanouil Antonios Platanios'
+__author__ = 'eaplatanios'
 
 
 def generate_sample_data(number_of_instances, number_of_functions,

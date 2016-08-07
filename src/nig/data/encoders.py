@@ -7,7 +7,7 @@ import numpy as np
 from nig.functions import pipeline, PipelineFunction
 from nig.utilities import logger
 
-__author__ = 'Emmanouil Antonios Platanios'
+__author__ = 'eaplatanios'
 
 
 class Encoder(PipelineFunction):

@@ -6,7 +6,7 @@ import numpy as np
 
 from nig.functions import pipeline, PipelineFunction
 
-__author__ = 'Emmanouil Antonios Platanios'
+__author__ = 'eaplatanios'
 
 
 class Aggregator(PipelineFunction):
@@ -30,10 +30,9 @@ class NPArrayColumnsAggregator(Aggregator):
     def __init__(self, columns=None):
         super(NPArrayColumnsAggregator, self).__init__()
         if columns is None:
-            self.__aggregate = lambda d: np.column_stack(d)
+            self.__func = lambda d: np.column_stack(d)
         else:
-            self.__aggregate = lambda d: np.column_stack([d[col]
-                                                          for col in columns])
+            self.__func = lambda d: np.column_stack([d[col] for col in columns])
 
     def aggregate(self, data):
-        return self.__aggregate(data)
+        return self.__func(data)

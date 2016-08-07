@@ -9,6 +9,8 @@ import os
 from nig.data.loaders import utilities
 from nig.utilities import logger
 
+__author__ = 'eaplatanios'
+
 SOURCE_URL = 'http://yann.lecun.com/exdb/mnist/'
 VALIDATION_SIZE = 5000
 TRAIN_IMAGES = 'train-images-idx3-ubyte.gz'

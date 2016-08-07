@@ -7,7 +7,7 @@ from nig.evaluation.constraints import Constraint
 from nig.evaluation import integrator_pb2
 from nig.utilities import logger
 
-__author__ = 'Emmanouil Antonios Platanios'
+__author__ = 'eaplatanios'
 
 _builder_format = 'makina.learn.classification.reflection.{}$Builder'.format
 

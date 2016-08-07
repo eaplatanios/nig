@@ -1,4 +1,4 @@
-__author__ = 'Emmanouil Antonios Platanios'
+__author__ = 'eaplatanios'
 
 
 def identity(arg):
@@ -24,42 +24,38 @@ def pipe(*functions):
 def pipeline(unique=True, min_num_args=None):
     def pipeline_decorator(func):
         def func_wrapper(*args, **kwargs):
-            return PipelineFunction(func, args, kwargs, unique, min_num_args)
+            return PipelineFunction(func, min_num_args, args, kwargs, unique)
         return func_wrapper
     return pipeline_decorator
 
 
 class PipelineFunction:
     """
+    If min_num_args is not provided, it is taken to be max(0, x - 1) where
+        x is the number of non-defaulted arguments to the function. If the
+        function has *args, then min_num_args defaults to the number of
+        explicit arguments taken by the function.
+
     References:
         https://mtomassoli.wordpress.com/2012/03/29/pipelining-in-python/
     """
-    def __init__(self, func, args=(), kwargs=None, unique=True,
-                 min_num_args=None):
+    def __init__(self, func, min_num_args, args=(), kwargs=None,
+                 unique_keys=True):
         if kwargs is None:
             kwargs = dict()
         self.__func = func
+        self.__min_num_args = min_num_args
         self.__args = args
         self.__kwargs = kwargs
-        self.__unique = unique
-        # if num_no_exec_args is None:
-        #     try:
-        #         arg_spec = _inspect.getargspec(self.__func.func)
-        #     except TypeError:
-        #         raise TypeError('Unable to infer num_no_exec_args for function. Please provide explicitly')
-        #     if arg_spec.varargs is not None:
-        #         num_no_exec_args = len(arg_spec.args)
-        #     else:
-        #         num_defaults = len(arg_spec.defaults) if arg_spec.defaults is not None else 0
-        #         num_no_exec_args = max(0, len(arg_spec.args) - num_defaults - 1)
-        self.__min_num_args = min_num_args
+        self.__unique_keys = unique_keys
+        self.__doc__ = self.__func.__call__.__doc__
 
     def __call__(self, *args, **kwargs):
         if args or kwargs:
             new_args = self.__args + args
             new_kwargs = dict.copy(self.__kwargs)
             # If unique is True, we don't want repeated keyword arguments
-            if self.__unique and any(k in new_kwargs for k in kwargs):
+            if self.__unique_keys and any(k in new_kwargs for k in kwargs):
                 raise ValueError('Provided repeated named argument while '
                                  'unique is set to "True".')
             new_kwargs.update(kwargs)
@@ -70,7 +66,7 @@ class PipelineFunction:
                 return self.__func(*new_args, **new_kwargs)
             else:
                 return PipelineFunction(self.__func, new_args, new_kwargs,
-                                        self.__unique, self.__min_num_args)
+                                        self.__unique_keys, self.__min_num_args)
         else:  # If no more arguments are passed in, evaluation is forced
             return self.__func(*self.__args, **self.__kwargs)
 
@@ -86,8 +82,8 @@ class PipelineFunction:
                             'another PipelineFunction.')
 
         def composed_function(*args, **kwargs):
-            return other.__func(*(other.__args + (self.__func(*args, **kwargs),)),
-                                **other.__kwargs)
+            result = self.__func(*args, **kwargs)
+            return other.__func(*(other.__args + (result,)), **other.__kwargs)
 
         return PipelineFunction(composed_function, self.__args, self.__kwargs,
-                                self.__unique, self.__min_num_args)
+                                self.__unique_keys, self.__min_num_args)

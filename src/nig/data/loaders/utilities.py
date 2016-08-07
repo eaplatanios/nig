@@ -12,6 +12,8 @@ from six.moves import urllib
 
 from nig.utilities import logger
 
+__author__ = 'eaplatanios'
+
 
 def load_csv(filename, target_column=-1, has_header=True):
     with open(filename, 'r', encoding='utf-8') as csv_file:

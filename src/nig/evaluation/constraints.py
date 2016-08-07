@@ -1,6 +1,6 @@
 import abc
 
-__author__ = 'Emmanouil Antonios Platanios'
+__author__ = 'eaplatanios'
 
 
 class Constraint(object):

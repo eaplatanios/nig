@@ -7,7 +7,7 @@ import os
 from nig.learn.metrics import tf_aggregate_over_iterator
 from nig.utilities import logger
 
-__author__ = 'Emmanouil Antonios Platanios'
+__author__ = 'eaplatanios'
 
 __NOT_INITIALIZED_ERROR__ = 'The callback has not been initialized yet.'
 

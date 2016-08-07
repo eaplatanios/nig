@@ -7,6 +7,8 @@ import tarfile
 
 from nig.data.loaders import utilities
 
+__author__ = 'eaplatanios'
+
 SOURCE_URL = 'https://googledrive.com/host/0Bz8a_Dbh9Qhbfll6bVpmNUtUcFdjYmF2S' \
              'EpmZUZUcVNiMUw1TWN6RDV3a0JHT3kxLVhVR2M/dbpedia_csv.tar.gz'
 VALIDATION_SIZE = 5000

@@ -7,6 +7,8 @@ from nig.learn.metrics import *
 from nig.learn.learners import SimpleLearner
 from nig.learn.symbols import MultiLayerPerceptron
 
+__author__ = 'eaplatanios'
+
 use_one_hot_encoding = False
 architecture = [128, 32]
 activation = tf.nn.relu
