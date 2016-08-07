@@ -1,3 +1,7 @@
+import inspect
+
+import six
+
 __author__ = 'eaplatanios'
 
 
@@ -21,48 +25,77 @@ def pipe(*functions):
     return inner
 
 
-def pipeline(unique=True, min_num_args=None):
+def pipeline(min_num_args=None, unique_keys=True):
     def pipeline_decorator(func):
         def func_wrapper(*args, **kwargs):
-            return PipelineFunction(func, min_num_args, args, kwargs, unique)
+            f = PipelineFunction(func, min_num_args, args, kwargs, unique_keys)
+            if f.ready():
+                return f()
+            return f
         return func_wrapper
     return pipeline_decorator
 
 
+def _no_default_args(func):
+    if six.PY2:
+        spec = inspect.getargspec(func)
+        if spec.defaults is not None:
+            return spec.args[:-len(spec.defaults)]
+        return spec.args
+    return [p.name for p in inspect.signature(func).parameters.values()
+            if p.default is inspect.Parameter.empty]
+
+
 class PipelineFunction(object):
     """
-    If min_num_args is not provided, it is taken to be max(0, x - 1) where
-        x is the number of non-defaulted arguments to the function. If the
-        function has *args, then min_num_args defaults to the number of
-        explicit arguments taken by the function.
+    If min_num_args is not provided, it is set to the number of arguments of
+    the provided function with no default values.
 
     References:
         https://mtomassoli.wordpress.com/2012/03/29/pipelining-in-python/
     """
-    def __init__(self, func, min_num_args, args=(), kwargs=None,
+    def __init__(self, func, min_num_args=None, args=(), kwargs=None,
                  unique_keys=True):
         if kwargs is None:
             kwargs = dict()
         self.__func = func
+        self.__no_default_args = _no_default_args(func)[len(args):]
+        if kwargs is not None:
+            self.__no_default_args = [arg for arg in self.__no_default_args
+                                      if arg not in kwargs.keys()]
+        if min_num_args is None:
+            min_num_args = len(self.__no_default_args)
         self.__min_num_args = min_num_args
         self.__args = args
         self.__kwargs = kwargs
         self.__unique_keys = unique_keys
         self.__doc__ = self.__func.__call__.__doc__
 
+    def ready(self, args=None, kwargs=None):
+        if args is None:
+            args = self.__args
+        if kwargs is None:
+            kwargs = self.__kwargs
+        return self.__min_num_args <= len(args) + len(kwargs) \
+            and len(self.__no_default_args) == 0
+
     def __call__(self, *args, **kwargs):
         if args or kwargs:
+            if args is not None:
+                self.__no_default_args = self.__no_default_args[len(args):]
+            if kwargs is not None:
+                self.__no_default_args = [arg for arg in self.__no_default_args
+                                          if arg not in kwargs.keys()]
             new_args = self.__args + args
             new_kwargs = dict.copy(self.__kwargs)
-            # If unique is True, we don't want repeated keyword arguments
+            # If unique_keys is True, we don't want repeated keyword arguments
             if self.__unique_keys and any(k in new_kwargs for k in kwargs):
                 raise ValueError('Provided repeated named argument while '
                                  'unique is set to "True".')
             new_kwargs.update(kwargs)
 
             # Check whether it's time to evaluate the underlying function
-            if self.__min_num_args is not None \
-                    and self.__min_num_args <= len(new_args) + len(new_kwargs):
+            if self.ready(new_args, new_kwargs):
                 return self.__func(*new_args, **new_kwargs)
             else:
                 return PipelineFunction(self.__func, new_args, new_kwargs,
