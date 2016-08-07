@@ -4,15 +4,16 @@ from __future__ import division
 import abc
 import numpy as np
 
-from nig.functions import pipeline
+from nig.functions import pipeline, PipelineFunction
 
 __author__ = 'Emmanouil Antonios Platanios'
 
 
-class Extractor(object):
+class Extractor(PipelineFunction):
     __metaclass__ = abc.ABCMeta
 
     def __init__(self):
+        super(Extractor, self).__init__(self.extract, min_num_args=1)
         self.extractor = Extractor.__extractor_function(self)
 
     @abc.abstractmethod

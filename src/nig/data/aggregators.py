@@ -4,15 +4,16 @@ from __future__ import division
 import abc
 import numpy as np
 
-from nig.functions import pipeline
+from nig.functions import pipeline, PipelineFunction
 
 __author__ = 'Emmanouil Antonios Platanios'
 
 
-class Aggregator(object):
+class Aggregator(PipelineFunction):
     __metaclass__ = abc.ABCMeta
 
     def __init__(self):
+        super(Aggregator, self).__init__(self.aggregate, min_num_args=1)
         self.aggregator = Aggregator.__aggregator_function(self)
 
     @abc.abstractmethod

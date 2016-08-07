@@ -4,16 +4,17 @@ from __future__ import division
 import abc
 import numpy as np
 
-from nig.functions import pipeline
+from nig.functions import pipeline, PipelineFunction
 from nig.utilities import logger
 
 __author__ = 'Emmanouil Antonios Platanios'
 
 
-class Encoder(object):
+class Encoder(PipelineFunction):
     __metaclass__ = abc.ABCMeta
 
     def __init__(self):
+        super(Encoder, self).__init__(self.encode, min_num_args=1)
         self.encoder = Encoder.__encoder_function(self)
         self.decoder = Encoder.__decoder_function(self)
 
@@ -86,9 +87,9 @@ class OneHotEncoder(Encoder):
                             'vector (i.e., rows index over instances).'
             logger.error(error_message)
             raise ValueError(error_message)
-        number_of_instances = array.shape[0]
-        encoded_array = np.zeros([number_of_instances, self.encoding_size])
-        index_offset = np.arange(number_of_instances) * self.encoding_size
+        num_samples = array.shape[0]
+        encoded_array = np.zeros([num_samples, self.encoding_size])
+        index_offset = np.arange(num_samples) * self.encoding_size
         if self.encoding_map is None:
             encoded_array.flat[index_offset + array.ravel()] = 1
         else:
