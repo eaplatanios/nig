@@ -23,7 +23,7 @@ class Callback(object):
                    summary_op):
         pass
 
-    def call(self, session, feed_dict=None, loss=None, global_step=None):
+    def __call__(self, session, feed_dict=None, loss=None, global_step=None):
         if (global_step + 1) % self.frequency == 0 or global_step == 0:
             self._execute(session, feed_dict, loss, global_step)
 

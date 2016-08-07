@@ -17,7 +17,7 @@ from nig.learn.learners import SimpleLearner
 from nig.learn.symbols import MultiLayerPerceptron
 
 optimizer = tf.train.GradientDescentOptimizer(1e-2)
-batch_size = 100
+batch_size = 1000
 number_of_iterations = 2000
 use_one_hot_encoding = False
 working_dir = os.getcwd()

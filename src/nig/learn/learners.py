@@ -4,7 +4,7 @@ import tensorflow as tf
 import os
 
 from nig.data.iterators import NPArrayIterator
-from nig.utilities import logger
+from nig.utilities import logger, elapsed_timer
 
 __author__ = 'Emmanouil Antonios Platanios'
 
@@ -213,11 +213,10 @@ class SimpleLearner(Learner):
         for step in range(number_of_iterations):
             train_data_batch = train_data_iter.next()
             feed_dict = self._data_to_feed_dict(train_data_batch)
-            _, loss = self.session.run([train_op, loss_op],
-                                       feed_dict=feed_dict)
+            _, loss = self.session.run([train_op, loss_op], feed_dict=feed_dict)
             # TODO: Add convergence checks.
             for callback in callbacks:
-                callback.call(self.session, feed_dict, loss, step)
+                callback(self.session, feed_dict, loss, step)
         if save_trained:
             Learner._save_checkpoint(self.session, saver, working_dir,
                                      checkpoint_file_prefix,
