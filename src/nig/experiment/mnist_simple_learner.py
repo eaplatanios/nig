@@ -13,7 +13,7 @@ from nig.learn.callbacks import LoggerCallback, SummaryWriterCallback, \
 from nig.learn.metrics import CrossEntropyOneHotEncodingMetric, \
     AccuracyOneHotEncodingMetric, CrossEntropyIntegerEncodingMetric, \
     AccuracyIntegerEncodingMetric
-from nig.learn.learners import TensorFlowLearner
+from nig.learn.learners import SimpleLearner
 from nig.learn.symbols import MultiLayerPerceptron
 
 optimizer = tf.train.GradientDescentOptimizer(1e-2)
@@ -54,11 +54,11 @@ symbol = MultiLayerPerceptron(784, 10, [128, 32], activation=tf.nn.relu,
 outputs_dtype = tf.float32 if use_one_hot_encoding else tf.int32
 output_shape = 10 if use_one_hot_encoding else 1
 
-learner = TensorFlowLearner(symbol, inputs_dtype=tf.float32,
-                            outputs_dtype=outputs_dtype,
-                            output_shape=output_shape, loss_summary=True,
-                            gradient_norm_summary=False,
-                            predict_postprocess=lambda l: tf.argmax(l, 1))
+learner = SimpleLearner(symbol, inputs_dtype=tf.float32,
+                        outputs_dtype=outputs_dtype,
+                        output_shape=output_shape, loss_summary=True,
+                        gradient_norm_summary=False,
+                        predict_postprocess=lambda l: tf.argmax(l, 1))
 
 loss = CrossEntropyOneHotEncodingMetric() if use_one_hot_encoding \
     else CrossEntropyIntegerEncodingMetric()

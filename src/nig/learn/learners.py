@@ -145,7 +145,7 @@ class Learner(object):
                                    feed_dict={self.inputs_op: data_batch})
 
 
-class TensorFlowLearner(Learner):
+class SimpleLearner(Learner):
     """Used for training a single TensorFlow model."""
 
     def __init__(self, symbol, graph=tf.Graph(), session=None,
@@ -153,10 +153,10 @@ class TensorFlowLearner(Learner):
                  output_shape=None, loss_summary=False,
                  gradient_norm_summary=False, predict_postprocess=lambda x: x):
         # TODO: We can train multiple symbols in parallel later on.
-        super(TensorFlowLearner, self).__init__(symbol, graph, session,
-                                                inputs_dtype, outputs_dtype,
-                                                output_shape,
-                                                predict_postprocess)
+        super(SimpleLearner, self).__init__(symbol, graph, session,
+                                            inputs_dtype, outputs_dtype,
+                                            output_shape,
+                                            predict_postprocess)
         self.loss_summary = loss_summary
         self.gradient_norm_summary = gradient_norm_summary
         with self.graph.as_default():
