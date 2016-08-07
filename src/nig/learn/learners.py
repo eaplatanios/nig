@@ -182,9 +182,36 @@ class SimpleLearner(Learner):
               optimizer=tf.train.GradientDescentOptimizer(1e-2),
               max_iter=100000, loss_chg_tol=1e-3, loss_chg_iter_below_tol=5,
               init_option=-1, callbacks=None, loss_summary=False,
-              gradient_norm_summary=False, working_dir=os.getcwd(),
+              gradient_norm_summary=False,
+              run_metadata_collection_frequency=1000,
+              trace_level=tf.RunOptions.FULL_TRACE, working_dir=os.getcwd(),
               checkpoint_file_prefix='checkpoint',
               restore_sequentially=False, save_trained=False):
+        """
+
+        Args:
+            loss:
+            train_data:
+            optimizer:
+            max_iter:
+            loss_chg_tol:
+            loss_chg_iter_below_tol:
+            init_option:
+            callbacks:
+            loss_summary:
+            gradient_norm_summary:
+            run_metadata_collection_frequency:
+            trace_level (tf.RunOptions): Supported values include
+                `tf.RunOptions.{NO_TRACE, SOFTWARE_TRACE HARDWARE_TRACE,
+                FULL_TRACE}`.
+            working_dir:
+            checkpoint_file_prefix:
+            restore_sequentially:
+            save_trained:
+
+        Returns:
+
+        """
         if isinstance(train_data, np.ndarray):
             train_data = NPArrayIterator(train_data, len(train_data),
                                          shuffle=False, cycle=False,
@@ -206,7 +233,19 @@ class SimpleLearner(Learner):
         for step in range(max_iter):
             train_data_batch = train_data_iter.next()
             feed_dict = self._data_to_feed_dict(train_data_batch)
-            _, loss = self.session.run([train_op, loss_op], feed_dict)
+            if run_metadata_collection_frequency > 0 \
+                    and (step + 1) % run_metadata_collection_frequency == 0:
+                run_options = tf.RunOptions(trace_level=trace_level)
+                run_metadata = tf.RunMetadata()
+                _, loss = self.session.run([train_op, loss_op],
+                                           feed_dict,
+                                           options=run_options,
+                                           run_metadata=run_metadata)
+                summary_writer.add_run_metadata(run_metadata,
+                                                tag='step' + str(step),
+                                                global_step=step)
+            else:
+                _, loss = self.session.run([train_op, loss_op], feed_dict)
             for callback in callbacks:
                 callback(self.session, feed_dict, loss, step)
             if abs((prev_loss - loss) / prev_loss) < loss_chg_tol:
