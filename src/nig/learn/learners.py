@@ -41,9 +41,10 @@ class Learner(object):
         else:
             self.input_shape = self.symbols.input_shape
             self.output_shape = self.symbols.output_shape
-        if output_shape is not None:
-            self.output_shape = output_shape if isinstance(output_shape, list) \
-                else [output_shape]
+        if output_shape is not None and isinstance(output_shape, list):
+            self.output_shape = output_shape
+        elif output_shape is not None:
+            self.output_shape = [output_shape]
         with self.graph.as_default():
             self.inputs_op = tf.placeholder(inputs_dtype,
                                             [None] + self.input_shape)
@@ -52,8 +53,7 @@ class Learner(object):
         self.predict_postprocess = predict_postprocess
 
     @graph_context
-    def _initialize_session(self, option, saver, working_dir,
-                            checkpoint_file_prefix):
+    def _init_session(self, option, saver, working_dir, checkpoint_file_prefix):
         if option is None:
             option = False
         if isinstance(option, bool):
@@ -66,8 +66,7 @@ class Learner(object):
                 raise ValueError('When the initialization option is a boolean '
                                  'value set to False, then a session needs to '
                                  'be provided.')
-            else:
-                return
+            return
         if saver is None:
             raise ValueError('When the initialization option is an integer, '
                              'indicating that a saved checkpoint should be '
@@ -105,7 +104,7 @@ class Learner(object):
     @abc.abstractmethod
     def train(self, loss, train_data,
               optimizer=tf.train.GradientDescentOptimizer(1e-2),
-              initialization_option=-1, callbacks=None, working_dir=os.getcwd(),
+              init_option=-1, callbacks=None, working_dir=os.getcwd(),
               checkpoint_file_prefix='checkpoint', restore_sequentially=False,
               save_trained=False):
         pass
@@ -121,16 +120,14 @@ class Learner(object):
         if not isinstance(input_data, np.ndarray):
             iterator = self.predict_iterator(input_data, checkpoint)
             predictions = next(iterator)
-            for predictions_batch in iterator:
-                predictions = np.concatenate([predictions,
-                                              predictions_batch], axis=0)
+            for batch in iterator:
+                predictions = np.concatenate([predictions, batch], axis=0)
             return predictions
         saver = tf.train.Saver(restore_sequentially=restore_sequentially)
-        self._initialize_session(checkpoint, saver, working_dir,
-                                 checkpoint_file_prefix)
-        return self.session.run(
-            self.predict_postprocess(self._predict_op()),
-            feed_dict={self.inputs_op: input_data})
+        self._init_session(checkpoint, saver, working_dir,
+                           checkpoint_file_prefix)
+        predict_op = self.predict_postprocess(self._predict_op())
+        return self.session.run(predict_op, {self.inputs_op: input_data})
 
     @graph_context
     def predict_iterator(self, input_data, checkpoint=None,
@@ -138,12 +135,11 @@ class Learner(object):
                          checkpoint_file_prefix='checkpoint',
                          restore_sequentially=False):
         saver = tf.train.Saver(restore_sequentially=restore_sequentially)
-        self._initialize_session(checkpoint, saver, working_dir,
-                                 checkpoint_file_prefix)
+        self._init_session(checkpoint, saver, working_dir,
+                           checkpoint_file_prefix)
         predict_op = self.predict_postprocess(self._predict_op())
         for data_batch in input_data:
-            yield self.session.run(predict_op,
-                                   feed_dict={self.inputs_op: data_batch})
+            yield self.session.run(predict_op, {self.inputs_op: data_batch})
 
 
 class SimpleLearner(Learner):
@@ -187,7 +183,7 @@ class SimpleLearner(Learner):
     def train(self, loss, train_data,
               optimizer=tf.train.GradientDescentOptimizer(1e-2),
               max_iter=100000, loss_chg_tol=1e-3, loss_chg_iter_below_tol=5,
-              initialization_option=-1, callbacks=None, working_dir=os.getcwd(),
+              init_option=-1, callbacks=None, working_dir=os.getcwd(),
               checkpoint_file_prefix='checkpoint', restore_sequentially=False,
               save_trained=False):
         if isinstance(train_data, np.ndarray):
@@ -199,8 +195,8 @@ class SimpleLearner(Learner):
         summary_op = tf.merge_all_summaries()
         train_data_iter = train_data.reset_copy(cycle=True)
         saver = tf.train.Saver(restore_sequentially=restore_sequentially)
-        self._initialize_session(initialization_option, saver, working_dir,
-                                 checkpoint_file_prefix)
+        self._init_session(init_option, saver, working_dir,
+                           checkpoint_file_prefix)
         for callback in callbacks:
             callback.initialize(self.graph, self.inputs_op,
                                 self.outputs_op, self.predictions_op,
@@ -210,7 +206,7 @@ class SimpleLearner(Learner):
         for step in range(max_iter):
             train_data_batch = train_data_iter.next()
             feed_dict = self._data_to_feed_dict(train_data_batch)
-            _, loss = self.session.run([train_op, loss_op], feed_dict=feed_dict)
+            _, loss = self.session.run([train_op, loss_op], feed_dict)
             for callback in callbacks:
                 callback(self.session, feed_dict, loss, step)
             if abs((prev_loss - loss) / prev_loss) < loss_chg_tol:

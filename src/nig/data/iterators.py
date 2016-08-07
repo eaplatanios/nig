@@ -24,13 +24,11 @@ class Iterator(object):
         pass
 
     @abc.abstractmethod
-    def reset(self, batch_size=None, shuffle=None, cycle=None,
-              cycle_shuffle=None, keep_last_batch=None):
+    def reset(self, *args, **kwargs):
         pass
 
     @abc.abstractmethod
-    def reset_copy(self, batch_size=None, shuffle=None, cycle=None,
-                   cycle_shuffle=None, keep_last_batch=None):
+    def reset_copy(self, *args, **kwargs):
         pass
 
     @abc.abstractmethod
@@ -46,7 +44,7 @@ class BaseDataIterator(Iterator):
     __metaclass__ = abc.ABCMeta
 
     def __init__(self, data, batch_size, shuffle=False, cycle=False,
-                 cycle_shuffle=False, keep_last_batch=False, pipelines=None):
+                 cycle_shuffle=False, keep_last=False, pipelines=None):
         self.data = data
         self.batch_size = batch_size
         if shuffle:
@@ -54,7 +52,7 @@ class BaseDataIterator(Iterator):
         self.shuffle = shuffle
         self.cycle = cycle
         self.cycle_shuffle = cycle_shuffle
-        self.keep_last_batch = keep_last_batch
+        self.keep_last = keep_last
         self.pipelines = self._preprocess_pipelines(None, pipelines)
         self._total_length = len(self)
         self._begin_index = 0
@@ -91,7 +89,7 @@ class BaseDataIterator(Iterator):
                     self.get_data(0, self._begin_index - self._total_length)
                 )
                 self._begin_index %= self._total_length
-            elif self.keep_last_batch and begin_index != self._total_length:
+            elif self.keep_last and begin_index != self._total_length:
                 next_data = self.get_data(begin_index, None)
         if next_data is not None:
             next_data = [pipeline(next_data) for pipeline in self.pipelines]
@@ -111,7 +109,7 @@ class BaseDataIterator(Iterator):
         pass
 
     def reset(self, batch_size=None, shuffle=None, cycle=None,
-              cycle_shuffle=None, keep_last_batch=None, pipelines=None):
+              cycle_shuffle=None, keep_last=None, pipelines=None):
         if batch_size is not None:
             self.batch_size = batch_size
         if shuffle is not None:
@@ -120,8 +118,8 @@ class BaseDataIterator(Iterator):
             self.cycle = cycle
         if cycle_shuffle is not None:
             self.cycle_shuffle = cycle_shuffle
-        if keep_last_batch is not None:
-            self.keep_last_batch = keep_last_batch
+        if keep_last is not None:
+            self.keep_last = keep_last
         self.pipelines = self._preprocess_pipelines(self.pipelines, pipelines)
         if self.shuffle:
             self.shuffle_data()
@@ -129,17 +127,16 @@ class BaseDataIterator(Iterator):
         self._reached_end = False
 
     def reset_copy(self, batch_size=None, shuffle=None, cycle=None,
-                   cycle_shuffle=None, keep_last_batch=None, pipelines=None):
+                   cycle_shuffle=None, keep_last=None, pipelines=None):
         batch_size = batch_size if batch_size is not None else self.batch_size
         shuffle = shuffle if shuffle is not None else self.shuffle
         cycle = cycle if cycle is not None else self.cycle
         cycle_shuffle = cycle_shuffle if cycle_shuffle is not None \
             else self.cycle_shuffle
-        keep_last_batch = keep_last_batch if keep_last_batch is not None \
-            else self.keep_last_batch
+        keep_last = keep_last if keep_last is not None else self.keep_last
         pipelines = pipelines if pipelines is not None else self.pipelines
         return self.__class__(self.data, batch_size, shuffle, cycle,
-                              cycle_shuffle, keep_last_batch, pipelines)
+                              cycle_shuffle, keep_last, pipelines)
 
     def remaining_length(self):
         return len(self) - self._begin_index if not self.cycle else -1

@@ -1,7 +1,6 @@
 from nig.data.encoders import OneHotEncoder, DataTypeEncoder
 from nig.data.extractors import NPArrayColumnsExtractor
 from nig.data.iterators import NPArrayIterator
-from nig.data.loaders import dbpedia
 from nig.data.loaders import mnist
 from nig.learn.callbacks import *
 from nig.learn.metrics import *
@@ -39,7 +38,7 @@ def get_iterator(mnist_data, include_labels=True):
     if include_labels:
         pipelines.append(labels_pipeline)
     return NPArrayIterator(mnist_data, batch_size, shuffle=False, cycle=False,
-                           cycle_shuffle=False, keep_last_batch=True,
+                           cycle_shuffle=False, keep_last=True,
                            pipelines=pipelines)
 
 symbol = MultiLayerPerceptron(784, 10, architecture, activation=activation,
@@ -80,7 +79,7 @@ callbacks.append(EvaluationCallback(frequency=evaluation_frequency,
 learner.train(loss, get_iterator(train_data), optimizer=optimizer,
               max_iter=max_iter, loss_chg_tol=loss_chg_tol,
               loss_chg_iter_below_tol=loss_chg_iter_below_tol,
-              initialization_option=True, callbacks=callbacks,
+              init_option=True, callbacks=callbacks,
               working_dir=working_dir,
               checkpoint_file_prefix=checkpoint_file_prefix,
               restore_sequentially=restore_sequentially,
