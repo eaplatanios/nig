@@ -1,7 +1,7 @@
 import itertools
 import numpy as np
 
-from nig.evaluation.integrator import *
+from nig.evaluation.integrators import *
 from nig.utilities import logger, elapsed_timer
 
 __author__ = 'Emmanouil Antonios Platanios'
