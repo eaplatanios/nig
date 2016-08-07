@@ -29,7 +29,7 @@ def pipeline(unique=True, min_num_args=None):
     return pipeline_decorator
 
 
-class PipelineFunction:
+class PipelineFunction(object):
     """
     If min_num_args is not provided, it is taken to be max(0, x - 1) where
         x is the number of non-defaulted arguments to the function. If the
