@@ -58,7 +58,6 @@ class BaseDataIterator(Iterator):
         self.pipelines = self._preprocess_pipelines(None, pipelines)
         self._total_length = len(self)
         self._begin_index = 0
-        self._end_index = -1
         self._reached_end = False
 
     @staticmethod
@@ -77,25 +76,23 @@ class BaseDataIterator(Iterator):
     def next(self):
         next_data = None
         if self.cycle or not self._reached_end:
-            self._end_index = self._begin_index + self.batch_size
-            if self._end_index > self._total_length - 1:
-                self._reached_end = True
             begin_index = self._begin_index
             self._begin_index += self.batch_size
+            if self._begin_index > self._total_length:
+                self._reached_end = True
             if not self._reached_end:
-                next_data = self.get_data(begin_index, self._end_index)
+                next_data = self.get_data(begin_index, self._begin_index)
             elif self.cycle:
-                self._begin_index %= self._total_length
                 if self.cycle_shuffle:
                     self.shuffle_data()
                 self._reached_end = False
-                self._end_index -= self._total_length
                 next_data = self.concatenate_data(
                     self.get_data(begin_index, -1),
-                    self.get_data(0, self._end_index)
+                    self.get_data(0, self._begin_index - self._total_length)
                 )
-            elif self.keep_last_batch:
-                next_data = self.get_data(begin_index, -1)
+                self._begin_index %= self._total_length
+            elif self.keep_last_batch and begin_index != self._total_length:
+                next_data = self.get_data(begin_index, None)
         if next_data is not None:
             next_data = [pipeline(next_data) for pipeline in self.pipelines]
             return tuple(next_data) if len(next_data) > 1 else next_data[0]
@@ -129,7 +126,6 @@ class BaseDataIterator(Iterator):
         if self.shuffle:
             self.shuffle_data()
         self._begin_index = 0
-        self._end_index = -1
         self._reached_end = False
 
     def reset_copy(self, batch_size=None, shuffle=None, cycle=None,
@@ -146,7 +142,7 @@ class BaseDataIterator(Iterator):
                               cycle_shuffle, keep_last_batch, pipelines)
 
     def remaining_length(self):
-        return len(self) - self._end_index if not self.cycle else -1
+        return len(self) - self._begin_index if not self.cycle else -1
 
 
 class NPArrayIterator(BaseDataIterator):
