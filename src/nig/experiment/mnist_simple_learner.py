@@ -1,6 +1,7 @@
 from nig.data.encoders import OneHotEncoder, DataTypeEncoder
 from nig.data.extractors import NPArrayColumnsExtractor
 from nig.data.iterators import NPArrayIterator
+from nig.data.loaders import dbpedia
 from nig.data.loaders import mnist
 from nig.learn.callbacks import *
 from nig.learn.metrics import *

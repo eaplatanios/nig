@@ -14,7 +14,7 @@ from nig.utilities import logger
 
 
 def load_csv(filename, target_column=-1, has_header=True):
-    with open(filename, 'r') as csv_file:
+    with open(filename, 'r', encoding='utf-8') as csv_file:
         data_file = csv.reader(csv_file)
         if has_header:
             header = next(data_file)
@@ -27,7 +27,8 @@ def load_csv(filename, target_column=-1, has_header=True):
         else:
             data = []
             for ir in data_file:
-                data.append(np.concatenate([ir, ir.pop(target_column)], axis=1))
+                label = np.asarray(ir.pop(target_column))[np.newaxis]
+                data.append(np.concatenate([np.asarray(ir), label], axis=0))
             data = np.array(data)
     return data
 
@@ -42,5 +43,6 @@ def maybe_download(filename, working_dir, source_url):
             urllib.request.urlretrieve(source_url, tmp_filename)
             shutil.copyfile(tmp_filename, filepath)
             size = os.path.getsize(filepath)
-            logger.info('Successfully downloaded', filename, size, 'bytes.')
+            logger.info('Successfully downloaded ' + filename +
+                        ' (' + str(size) + ' bytes).')
     return filepath
