@@ -2,15 +2,16 @@ import abc
 import numpy as np
 import tensorflow as tf
 
-from nig.functions import pipe
+from nig.functions import PipelineFunction
 
 __author__ = 'Emmanouil Antonios Platanios'
 
 
-class Symbol(object):
+class Symbol(PipelineFunction):
     __metaclass__ = abc.ABCMeta
 
     def __init__(self, input_shape, output_shape):
+        super(Symbol, self).__init__(self.op, min_num_args=1)
         assert isinstance(input_shape, list)
         assert isinstance(output_shape, list)
         self.input_shape = input_shape
@@ -22,19 +23,6 @@ class Symbol(object):
     @abc.abstractmethod
     def op(self, inputs):
         pass
-
-    def add(self, symbol):
-        return StackedSymbol(self, symbol)
-
-
-class StackedSymbol(Symbol):
-    def __init__(self, *symbols):
-        super(StackedSymbol, self).__init__(symbols[0].input_shape,
-                                            symbols[-1].output_shape)
-        self.symbols = symbols
-
-    def op(self, inputs):
-        return pipe([symbol.op for symbol in self.symbols])(inputs)
 
 
 class Input(Symbol):
