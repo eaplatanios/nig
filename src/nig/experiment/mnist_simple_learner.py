@@ -5,6 +5,7 @@ from nig.data.loaders import mnist
 from nig.learn.callbacks import *
 from nig.learn.metrics import *
 from nig.learn.learners import SimpleLearner
+from nig.learn.optimizers import gradient_descent
 from nig.learn.symbols import MultiLayerPerceptron
 
 __author__ = 'eaplatanios'
@@ -12,7 +13,7 @@ __author__ = 'eaplatanios'
 use_one_hot_encoding = False
 architecture = [64, 32, 16]
 activation = tf.nn.relu
-optimizer = tf.train.GradientDescentOptimizer(1e-2)
+optimizer = gradient_descent(1e-1, decay_rate=0.99, learning_rate_summary=True)
 batch_size = 100
 max_iter = 100000
 loss_chg_tol = 1e-6

@@ -157,7 +157,7 @@ class SimpleLearner(Learner):
 
     def _train_op(self, loss, optimizer, loss_summary=False,
                   gradient_norm_summary=False):
-        global_step = tf.Variable(0, name='global_step', trainable=False)
+        global_step = tf.contrib.framework.get_or_create_global_step()
         if loss_summary:
             tf.scalar_summary(loss.op.name, loss)
         if gradient_norm_summary:
@@ -173,9 +173,6 @@ class SimpleLearner(Learner):
         else:
             train_op = optimizer.minimize(loss, global_step=global_step)
         return train_op
-
-    def _data_to_feed_dict(self, data_batch):
-        return {self.inputs_op: data_batch[0], self.outputs_op: data_batch[1]}
 
     @graph_context
     def train(self, loss, train_data,
@@ -216,6 +213,8 @@ class SimpleLearner(Learner):
             train_data = NPArrayIterator(train_data, len(train_data),
                                          shuffle=False, cycle=False,
                                          keep_last=True)
+        if callable(optimizer):
+            optimizer = optimizer()
         loss_op = loss.tf_op(self.predictions_op, self.outputs_op)
         train_op = self._train_op(loss_op, optimizer, loss_summary,
                                   gradient_norm_summary)
@@ -231,8 +230,9 @@ class SimpleLearner(Learner):
         prev_loss = sys.float_info.max
         iter_below_tol = 0
         for step in range(max_iter):
-            train_data_batch = train_data_iter.next()
-            feed_dict = self._data_to_feed_dict(train_data_batch)
+            data_batch = train_data_iter.next()
+            feed_dict = {self.inputs_op: data_batch[0],
+                         self.outputs_op: data_batch[1]}
             if run_metadata_collection_frequency > 0 \
                     and (step + 1) % run_metadata_collection_frequency == 0:
                 run_options = tf.RunOptions(trace_level=trace_level)
