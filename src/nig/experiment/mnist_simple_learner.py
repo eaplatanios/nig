@@ -21,7 +21,9 @@ architecture = [128, 32]
 activation = tf.nn.relu
 optimizer = tf.train.GradientDescentOptimizer(1e-2)
 batch_size = 100
-number_of_iterations = 5000
+max_iter = 100000
+loss_chg_tol = 1e-6
+loss_chg_iter_below_tol = 5
 logging_frequency = 100
 summary_frequency = 100
 checkpoint_frequency = 1000
@@ -92,8 +94,9 @@ callbacks.append(EvaluationCallback(
     metrics=eval_metric, name='Test Accuracy'))
 
 learner.train(loss, get_iterator(get_tf_mnist_data(data.train)),
-              optimizer=optimizer,
-              batch_size=batch_size, number_of_iterations=number_of_iterations,
+              optimizer=optimizer, max_iter=max_iter,
+              loss_chg_tol=loss_chg_tol,
+              loss_chg_iter_below_tol=loss_chg_iter_below_tol,
               initialization_option=True, callbacks=callbacks,
               working_dir=working_dir,
               checkpoint_file_prefix=checkpoint_file_prefix,

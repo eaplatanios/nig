@@ -2,9 +2,10 @@ import abc
 import numpy as np
 import tensorflow as tf
 import os
+import sys
 
 from nig.data.iterators import NPArrayIterator
-from nig.utilities import logger, elapsed_timer
+from nig.utilities import logger
 
 __author__ = 'Emmanouil Antonios Platanios'
 
@@ -102,9 +103,9 @@ class Learner(object):
             saver.restore(session, checkpoint_file)
 
     @abc.abstractmethod
-    def train(self, loss, train_data, learning_rate=1e-2, batch_size=-1,
-              number_of_iterations=100000, initialization_option=-1,
-              callbacks=None, working_dir=os.getcwd(),
+    def train(self, loss, train_data,
+              optimizer=tf.train.GradientDescentOptimizer(1e-2),
+              initialization_option=-1, callbacks=None, working_dir=os.getcwd(),
               checkpoint_file_prefix='checkpoint', restore_sequentially=False,
               save_trained=False):
         pass
@@ -152,7 +153,6 @@ class SimpleLearner(Learner):
                  inputs_dtype=tf.float64, outputs_dtype=tf.float64,
                  output_shape=None, loss_summary=False,
                  gradient_norm_summary=False, predict_postprocess=lambda x: x):
-        # TODO: We can train multiple symbols in parallel later on.
         super(SimpleLearner, self).__init__(symbol, graph, session,
                                             inputs_dtype, outputs_dtype,
                                             output_shape,
@@ -185,9 +185,9 @@ class SimpleLearner(Learner):
 
     @graph_context
     def train(self, loss, train_data,
-              optimizer=tf.train.GradientDescentOptimizer(1e-2), batch_size=-1,
-              number_of_iterations=100000, initialization_option=-1,
-              callbacks=None, working_dir=os.getcwd(),
+              optimizer=tf.train.GradientDescentOptimizer(1e-2),
+              max_iter=100000, loss_chg_tol=1e-3, loss_chg_iter_below_tol=5,
+              initialization_option=-1, callbacks=None, working_dir=os.getcwd(),
               checkpoint_file_prefix='checkpoint', restore_sequentially=False,
               save_trained=False):
         if isinstance(train_data, np.ndarray):
@@ -197,12 +197,7 @@ class SimpleLearner(Learner):
         loss_op = loss.tf_op(self.predictions_op, self.outputs_op)
         train_op = self._train_op(loss_op, optimizer)
         summary_op = tf.merge_all_summaries()
-        train_data_iter = train_data.reset_copy(
-            batch_size=batch_size,
-            shuffle=True, cycle=True, cycle_shuffle=True
-        ) if batch_size > -1 else train_data.reset_copy(
-            shuffle=True, cycle=True, cycle_shuffle=True
-        )
+        train_data_iter = train_data.reset_copy(cycle=True)
         saver = tf.train.Saver(restore_sequentially=restore_sequentially)
         self._initialize_session(initialization_option, saver, working_dir,
                                  checkpoint_file_prefix)
@@ -210,17 +205,26 @@ class SimpleLearner(Learner):
             callback.initialize(self.graph, self.inputs_op,
                                 self.outputs_op, self.predictions_op,
                                 loss_op, summary_op)
-        for step in range(number_of_iterations):
+        prev_loss = sys.float_info.max
+        iter_below_tol = 0
+        for step in range(max_iter):
             train_data_batch = train_data_iter.next()
             feed_dict = self._data_to_feed_dict(train_data_batch)
             _, loss = self.session.run([train_op, loss_op], feed_dict=feed_dict)
-            # TODO: Add convergence checks.
             for callback in callbacks:
                 callback(self.session, feed_dict, loss, step)
+            if abs((prev_loss - loss) / prev_loss) < loss_chg_tol:
+                iter_below_tol += 1
+            else:
+                iter_below_tol = 0
+            if iter_below_tol >= loss_chg_iter_below_tol:
+                logger.info('Loss value converged.')
+                break
+            prev_loss = loss
         if save_trained:
             Learner._save_checkpoint(self.session, saver, working_dir,
                                      checkpoint_file_prefix,
-                                     number_of_iterations)
+                                     max_iter)
 
     def _predict_op(self):
         return self.predictions_op
