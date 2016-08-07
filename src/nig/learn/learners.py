@@ -160,7 +160,7 @@ class SimpleLearner(Learner):
         self.loss_summary = loss_summary
         self.gradient_norm_summary = gradient_norm_summary
         with self.graph.as_default():
-            self.predictions_op = self.symbols.op(self.inputs_op)
+            self.predictions_op = self.symbols(self.inputs_op)
 
     def _train_op(self, loss, optimizer):
         global_step = tf.Variable(0, name='global_step', trainable=False)

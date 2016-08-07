@@ -16,6 +16,9 @@ class Symbol(object):
         self.input_shape = input_shape
         self.output_shape = output_shape
 
+    def __call__(self, inputs):
+        return self.op(inputs)
+
     @abc.abstractmethod
     def op(self, inputs):
         pass
