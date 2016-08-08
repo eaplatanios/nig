@@ -54,8 +54,12 @@ class PipelineFunction(object):
     References:
         https://mtomassoli.wordpress.com/2012/03/29/pipelining-in-python/
     """
-    def __init__(self, func, min_num_args=None, args=(), kwargs=None,
+    def __init__(self, func, min_num_args=None, args=None, kwargs=None,
                  unique_keys=True):
+        if args is None:
+            args = tuple()
+        elif not isinstance(args, tuple):
+            args = (args,)
         if kwargs is None:
             kwargs = dict()
         self.__func = func
@@ -63,6 +67,8 @@ class PipelineFunction(object):
         if kwargs is not None:
             self.__no_default_args = [arg for arg in self.__no_default_args
                                       if arg not in kwargs.keys()]
+        if inspect.ismethod(func):
+            self.__no_default_args.remove('self')
         if min_num_args is None:
             min_num_args = len(self.__no_default_args)
         self.__min_num_args = min_num_args

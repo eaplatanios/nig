@@ -13,7 +13,7 @@ class Extractor(PipelineFunction):
     __metaclass__ = abc.ABCMeta
 
     def __init__(self):
-        super(Extractor, self).__init__(self.extract, min_num_args=1)
+        super(Extractor, self).__init__(self.extract)
         self.extractor = Extractor.__extractor_function(self)
 
     @abc.abstractmethod
@@ -38,10 +38,10 @@ class NPArrayColumnsExtractor(Extractor):
 class PDDataFrameColumnsExtractor(Extractor):
     def __init__(self, columns):
         super(PDDataFrameColumnsExtractor, self).__init__()
+        if not isinstance(columns, list):
+            columns = [columns]
         self.columns = columns
-        if not isinstance(self.columns, list):
-            self.__extract = lambda d: np.asarray(d[self.columns].values)
-        elif isinstance(self.columns, list) and len(self.columns) == 1:
+        if isinstance(self.columns, list) and len(self.columns) == 1:
             self.__extract = \
                 lambda d: np.vstack([np.asarray(value).flatten()
                                      for value in d[self.columns[0]].values])
@@ -55,20 +55,20 @@ class PDDataFrameColumnsExtractor(Extractor):
         return self.__extract(data)
 
 
-class PDDataFrameTimeAggregatingExtractor(Extractor):
-    def __init__(self, df, column, periods=None, frequency=None):
-        super(PDDataFrameTimeAggregatingExtractor, self).__init__()
+class PDDataFrameAggregatingExtractor(Extractor):
+    def __init__(self, df, columns, periods=None, frequency=None):
+        super(PDDataFrameAggregatingExtractor, self).__init__()
         if periods is None:
             periods = []
         self.df = df
-        self.column = column
+        self.columns = columns
         self.periods = periods if isinstance(periods, list) else [periods]
         self.frequency = frequency
 
     def extract(self, data):
-        df = data[self.column]
+        df = data[self.columns]
         for period in self.periods:
-            df[self.column + str(period)] = \
-                self.df[self.column].shift(period, self.frequency) \
-                    .reindex(data.index)
+            df[[column + str(period) for column in self.columns]] = \
+                self.df[self.columns].shift(period, self.frequency) \
+                    .reindex(df.index)
         return df.values

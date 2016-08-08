@@ -14,7 +14,7 @@ class Encoder(PipelineFunction):
     __metaclass__ = abc.ABCMeta
 
     def __init__(self):
-        super(Encoder, self).__init__(self.encode, min_num_args=1)
+        super(Encoder, self).__init__(self.encode)
         self.encoder = Encoder.__encoder_function(self)
         self.decoder = Encoder.__decoder_function(self)
 

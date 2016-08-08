@@ -13,7 +13,7 @@ class Aggregator(PipelineFunction):
     __metaclass__ = abc.ABCMeta
 
     def __init__(self):
-        super(Aggregator, self).__init__(self.aggregate, min_num_args=1)
+        super(Aggregator, self).__init__(self.aggregate)
         self.aggregator = Aggregator.__aggregator_function(self)
 
     @abc.abstractmethod

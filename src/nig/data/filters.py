@@ -12,7 +12,7 @@ class Filter(PipelineFunction):
     __metaclass__ = abc.ABCMeta
 
     def __init__(self):
-        super(Filter, self).__init__(self.filter, min_num_args=1)
+        super(Filter, self).__init__(self.filter)
         self.extractor = Filter.__filter_function(self)
 
     @abc.abstractmethod
