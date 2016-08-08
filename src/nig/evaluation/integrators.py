@@ -3,6 +3,7 @@ import errno
 import os
 import subprocess
 
+import nig
 from nig.evaluation.constraints import Constraint
 from nig.evaluation import integrator_pb2
 from nig.utilities import logger
@@ -37,8 +38,12 @@ class Integrator(object):
 
     def run(self, predicted, observed=None, constraints=None,
             integrate_data=False, seed=None, use_cli=False, working_dir='.',
-            makina_jar='./nig/evaluation/makina.jar',
-            use_csv=False, clean_up=True, jvm_options=None):
+            makina_jar=None, use_csv=False, clean_up=True, jvm_options=None):
+        if makina_jar is None:
+            evaluation_dir = os.path.dirname(__file__)
+            makina_jar = os.path.join(evaluation_dir, 'makina.jar')
+        if not os.path.isfile(makina_jar):
+            raise OSError('makina.jar not found!')
         if use_cli:
             return self._run_command_line(predicted, observed,
                                           constraints, integrate_data, seed,
