@@ -1,8 +1,7 @@
-import aggregators
-import encoders
-import extractors
+import converters
 import filters
 import iterators
+import processors
 
 
-__all__ = ['aggregators', 'encoders', 'extractors', 'filters', 'iterators']
+__all__ = ['converters', 'filters', 'iterators', 'processors']

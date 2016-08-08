@@ -1,7 +1,6 @@
-from nig.data.encoders import OneHotEncoder, DataTypeEncoder
-from nig.data.extractors import NPArrayColumnsExtractor
 from nig.data.iterators import NPArrayIterator
 from nig.data.loaders import mnist
+from nig.data.processors import *
 from nig.learning.callbacks import *
 from nig.learning.metrics import *
 from nig.learning.learners import SimpleLearner
@@ -32,11 +31,11 @@ save_trained = False
 
 train_data, val_data, test_data = mnist.load('data', float_images=True)
 
-inputs_pipeline = NPArrayColumnsExtractor(list(range(784)))
-labels_pipeline = NPArrayColumnsExtractor(784)
+inputs_pipeline = NPColumnsExtractor(list(range(784)))
+labels_pipeline = NPColumnsExtractor(784)
 if use_one_hot_encoding:
-    labels_pipeline = labels_pipeline | DataTypeEncoder(np.int8) | \
-                      OneHotEncoder(10)
+    labels_pipeline = labels_pipeline | NPTFDataTypeEncoder(np.int8) | \
+                      NPOneHotEncoder(10)
 
 
 def get_iterator(mnist_data, include_labels=True):
