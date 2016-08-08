@@ -56,7 +56,7 @@ class Processor(with_metaclass(abc.ABCMeta, PipelineFunction)):
         super(Processor, self).__init__(processor_type.process_function(self))
 
     @abc.abstractmethod
-    def process_np(self, data):
+    def process_np(self, array):
         pass
 
     @abc.abstractmethod
@@ -64,7 +64,7 @@ class Processor(with_metaclass(abc.ABCMeta, PipelineFunction)):
         pass
 
     @abc.abstractmethod
-    def process_tf(self, data):
+    def process_tf(self, tensor):
         # TODO: Should figure out what this returns to make it pipelinable.
         pass
 
@@ -76,13 +76,13 @@ class ColumnsExtractor(Processor):
         super(ColumnsExtractor, self).__init__(processor_type)
         self.columns = columns if isinstance(columns, list) else [columns]
 
-    def process_np(self, data):
-        return data[:, self.columns]
+    def process_np(self, array):
+        return array[:, self.columns]
 
     def process_pd(self, data):
         return data[self.columns]
 
-    def process_tf(self, data):
+    def process_tf(self, tensor):
         raise NotImplementedError()
 
 
@@ -91,14 +91,14 @@ class DataTypeEncoder(Processor):
         super(Processor, self).__init__(processor_type)
         self.dtype = dtype
 
-    def process_np(self, data):
-        return data.astype(self.dtype)
+    def process_np(self, array):
+        return array.astype(self.dtype)
 
     def process_pd(self, data):
         raise NotImplementedError()
 
-    def process_tf(self, data):
-        return tf.cast(data, dtype=self.dtype)
+    def process_tf(self, tensor):
+        return tf.cast(tensor, dtype=self.dtype)
 
 
 class ReshapeEncoder(Processor):
@@ -106,14 +106,14 @@ class ReshapeEncoder(Processor):
         super(ReshapeEncoder, self).__init__(processor_type)
         self.shape = shape
 
-    def process_np(self, data):
-        return data.reshape(self.shape)
+    def process_np(self, array):
+        return array.reshape(self.shape)
 
     def process_pd(self, data):
         raise NotImplementedError()
 
-    def process_tf(self, data):
-        return tf.reshape(data, shape=self.shape)
+    def process_tf(self, tensor):
+        return tf.reshape(tensor, shape=self.shape)
 
 
 class OneHotEncoder(Processor):
@@ -123,23 +123,23 @@ class OneHotEncoder(Processor):
         self.encoding_size = encoding_size
         self.encoding_map = encoding_map
 
-    def process_np(self, data):
-        num_samples = data.shape[0]
+    def process_np(self, array):
+        num_samples = array.shape[0]
         encoded_array = np.zeros([num_samples, self.encoding_size])
         index_offset = np.arange(num_samples) * self.encoding_size
         if self.encoding_map is None:
-            encoded_array.flat[index_offset + data.ravel()] = 1
+            encoded_array.flat[index_offset + array.ravel()] = 1
             return encoded_array
         map_values = np.vectorize(lambda k: self.encoding_map[k])
-        encoded_array.flat[index_offset + map_values(data.ravel())] = 1
+        encoded_array.flat[index_offset + map_values(array.ravel())] = 1
         return encoded_array
 
     def process_pd(self, data):
         raise NotImplementedError()
 
-    def process_tf(self, data):
+    def process_tf(self, tensor):
         if self.encoding_map is None:
-            return tf.one_hot(data, self.encoding_size)
+            return tf.one_hot(tensor, self.encoding_size)
         raise NotImplementedError()
 
 
@@ -153,8 +153,8 @@ class OneHotDecoder(Processor):
         else:
             self.decoding_map = {v: k for k, v in encoding_map.items()}
 
-    def process_np(self, data):
-        decoded_array = data.nonzero()[1]
+    def process_np(self, array):
+        decoded_array = array.nonzero()[1]
         if self.decoding_map is None:
             return decoded_array
         map_values = np.vectorize(lambda v: self.decoding_map[v])
@@ -163,5 +163,5 @@ class OneHotDecoder(Processor):
     def process_pd(self, data):
         raise NotImplementedError()
 
-    def process_tf(self, data):
+    def process_tf(self, tensor):
         raise NotImplementedError()
