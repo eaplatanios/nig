@@ -35,8 +35,8 @@ class Callback(object):
 class LoggerCallback(Callback):
     def __init__(self, frequency=100, name='logger_callback',
                  log_format='{:>20} - | {:>10d} | {:>10.4e} |',
-                 header='{:>20} - | {:>10} | {:>10} |'.format('Logger Callback',
-                                                              'Step', 'Loss'),
+                 header='{:>20} - | {:>10} | {:>10} |'
+                        .format('Logger Callback', 'Step', 'Loss'),
                  header_frequency=sys.maxsize):
         super(LoggerCallback, self).__init__(frequency)
         self.name = name

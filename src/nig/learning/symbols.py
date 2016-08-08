@@ -37,8 +37,8 @@ class Input(Symbol):
 
 
 class MultiLayerPerceptron(Symbol):
-    def __init__(self, input_size, output_size, hidden_layer_sizes,
-                 activation=tf.nn.sigmoid, softmax_output=True, use_log=True):
+    def __init__(self, input_size, output_size, hidden_layer_sizes, activation,
+                 softmax_output=True, use_log=True):
         super(MultiLayerPerceptron, self).__init__([input_size], [output_size])
         self.hidden_unit_sizes = hidden_layer_sizes
         self.activation = activation

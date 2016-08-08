@@ -21,11 +21,11 @@ def graph_context(func):
 class Learner(object):
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, symbols, graph=tf.Graph(), session=None,
+    def __init__(self, symbols, graph=None, session=None,
                  inputs_dtype=tf.float64, outputs_dtype=tf.float64,
-                 output_shape=None, predict_postprocess=lambda x: x):
+                 output_shape=None, predict_postprocess=None):
         self.symbols = symbols
-        self.graph = graph
+        self.graph = tf.Graph() if graph is None else graph
         self.session = session
         if isinstance(symbols, list):
             self.input_shape = self.symbols[0].input_shape
@@ -51,7 +51,8 @@ class Learner(object):
                                             [None] + self.input_shape)
             self.outputs_op = tf.placeholder(outputs_dtype,
                                              [None] + self.output_shape)
-        self.predict_postprocess = predict_postprocess
+        self.predict_postprocess = lambda x: x if predict_postprocess is None \
+                                   else predict_postprocess
 
     @graph_context
     def _init_session(self, option, saver, working_dir, checkpoint_file_prefix):
@@ -150,8 +151,7 @@ class SimpleLearner(Learner):
                  output_shape=None, predict_postprocess=lambda x: x):
         super(SimpleLearner, self).__init__(symbol, graph, session,
                                             inputs_dtype, outputs_dtype,
-                                            output_shape,
-                                            predict_postprocess)
+                                            output_shape, predict_postprocess)
         with self.graph.as_default():
             self.predictions_op = self.symbols(self.inputs_op)
 
