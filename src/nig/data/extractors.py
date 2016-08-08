@@ -30,10 +30,9 @@ class NPArrayColumnsExtractor(Extractor):
     def __init__(self, columns):
         super(NPArrayColumnsExtractor, self).__init__()
         self.columns = columns if isinstance(columns, list) else [columns]
-        self.__extract = lambda d: d[:, self.columns]
 
     def extract(self, data):
-        return self.__extract(data)
+        return data[:, self.columns]
 
 
 class PDDataFrameColumnsExtractor(Extractor):

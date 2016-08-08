@@ -2,12 +2,12 @@ from nig.data.encoders import OneHotEncoder, DataTypeEncoder
 from nig.data.extractors import NPArrayColumnsExtractor
 from nig.data.iterators import NPArrayIterator
 from nig.data.loaders import mnist
-from nig.learn.callbacks import *
-from nig.learn.metrics import *
-from nig.learn.learners import SimpleLearner
-from nig.learn.optimizers import gradient_descent
-from nig.learn.processors import norm_summary, norm_clipping
-from nig.learn.symbols import MultiLayerPerceptron
+from nig.learning.callbacks import *
+from nig.learning.metrics import *
+from nig.learning.learners import SimpleLearner
+from nig.learning.optimizers import gradient_descent
+from nig.learning.processors import norm_summary, norm_clipping
+from nig.learning.symbols import MultiLayerPerceptron
 
 __author__ = 'eaplatanios'
 

@@ -5,7 +5,7 @@ import os
 import sys
 
 from nig.data.iterators import NPArrayIterator
-from nig.learn.optimizers import gradient_descent
+from nig.learning.optimizers import gradient_descent
 from nig.utilities import logger
 
 __author__ = 'eaplatanios'

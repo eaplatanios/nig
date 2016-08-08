@@ -4,7 +4,7 @@ import sys
 import tensorflow as tf
 import os
 
-from nig.learn.metrics import tf_aggregate_over_iterator
+from nig.learning.metrics import tf_aggregate_over_iterator
 from nig.utilities import logger
 
 __author__ = 'eaplatanios'
