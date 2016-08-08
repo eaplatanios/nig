@@ -92,15 +92,14 @@ class Learner(object):
             checkpoint_file = os.path.join(working_dir, file_prefix) + str(step)
             if os.path.isfile(checkpoint_file):
                 saver.restore(session, checkpoint_file)
-            else:
-                logger.warn('The requested checkpoint file does not exist. '
-                            'All the variables are initialized to their '
-                            'default values.')
-                session.run(tf.initialize_all_variables())
-        else:
-            checkpoint_file = tf.train.latest_checkpoint(
-                working_dir, latest_filename=file_prefix)
+        checkpoint_file = tf.train.latest_checkpoint(
+            working_dir, latest_filename=file_prefix)
+        if checkpoint_file is not None:
             saver.restore(session, checkpoint_file)
+        logger.warn('The requested checkpoint file does not exist. '
+                    'All the variables are initialized to their '
+                    'default values.')
+        session.run(tf.initialize_all_variables())
 
     @abc.abstractmethod
     def train(self, loss, train_data,
