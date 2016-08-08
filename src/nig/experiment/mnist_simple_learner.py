@@ -31,11 +31,11 @@ save_trained = False
 
 train_data, val_data, test_data = mnist.load('data', float_images=True)
 
-inputs_pipeline = NPColumnsExtractor(list(range(784)))
-labels_pipeline = NPColumnsExtractor(784)
+inputs_pipeline = ColumnsExtractor(list(range(784)))
+labels_pipeline = ColumnsExtractor(784)
 if use_one_hot_encoding:
-    labels_pipeline = labels_pipeline | NPTFDataTypeEncoder(np.int8) | \
-                      NPOneHotEncoder(10)
+    labels_pipeline = labels_pipeline | DataTypeEncoder(np.int8) | \
+                      OneHotEncoder(10)
 
 
 def get_iterator(mnist_data, include_labels=True):
