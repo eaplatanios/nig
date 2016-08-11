@@ -40,7 +40,7 @@ class MultiLayerPerceptron(Symbol):
     def __init__(self, input_size, output_size, hidden_layer_sizes, activation,
                  softmax_output=True, use_log=True):
         super(MultiLayerPerceptron, self).__init__([input_size], [output_size])
-        self.hidden_unit_sizes = hidden_layer_sizes
+        self.hidden_layer_sizes = hidden_layer_sizes
         self.activation = activation
         self.softmax_output = softmax_output
         self.use_log = use_log
@@ -48,13 +48,13 @@ class MultiLayerPerceptron(Symbol):
     def __str__(self):
         return 'MultiLayerPerceptron[{}:{}:{}:{}]' \
             .format(self.input_shape[0], self.output_shape[0],
-                    self.hidden_unit_sizes, self.softmax_output)
+                    self.hidden_layer_sizes, self.softmax_output)
 
     def op(self, inputs):
         hidden = inputs
         input_size = self.input_shape[0]
-        for layer_index in range(len(self.hidden_unit_sizes)):
-            output_size = self.hidden_unit_sizes[layer_index]
+        for layer_index in range(len(self.hidden_layer_sizes)):
+            output_size = self.hidden_layer_sizes[layer_index]
             with tf.variable_scope('hidden' + str(layer_index)):
                 weights = tf.Variable(tf.random_normal(
                     [input_size, output_size],

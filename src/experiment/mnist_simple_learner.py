@@ -34,7 +34,8 @@ train_data, val_data, test_data = mnist.load('data', float_images=True)
 inputs_pipeline = ColumnsExtractor(list(range(784)))
 labels_pipeline = ColumnsExtractor(784)
 if use_one_hot_encoding:
-    labels_pipeline = labels_pipeline | DataTypeEncoder(np.int8) | \
+    labels_pipeline = labels_pipeline | \
+                      DataTypeEncoder(np.int8) | \
                       OneHotEncoder(10)
 
 
@@ -53,7 +54,8 @@ symbol = MultiLayerPerceptron(784, 10, architecture, activation=activation,
 outputs_dtype = tf.float32 if use_one_hot_encoding else tf.int32
 output_shape = 10 if use_one_hot_encoding else 1
 
-learner = SimpleLearner(symbol, inputs_dtype=tf.float32,
+learner = SimpleLearner(symbol,
+                        inputs_dtype=tf.float32,
                         outputs_dtype=outputs_dtype,
                         output_shape=output_shape,
                         predict_postprocess=lambda l: tf.argmax(l, 1))
@@ -63,24 +65,25 @@ loss = CrossEntropyOneHotEncodingMetric() if use_one_hot_encoding \
 eval_metric = AccuracyOneHotEncodingMetric() if use_one_hot_encoding \
     else AccuracyIntegerEncodingMetric()
 
-callbacks = []
-callbacks.append(LoggerCallback(frequency=logging_frequency))
-callbacks.append(SummaryWriterCallback(frequency=summary_frequency,
-                                       working_dir=working_dir))
-callbacks.append(VariableStatisticsSummaryWriterCallback(frequency=200,
-                                                         variables='trainable'))
-callbacks.append(CheckpointWriterCallback(frequency=checkpoint_frequency,
-                                          working_dir=working_dir,
-                                          file_prefix=checkpoint_file_prefix))
-callbacks.append(EvaluationCallback(frequency=evaluation_frequency,
-                                    iterator=get_iterator(train_data),
-                                    metrics=eval_metric, name='eval/train'))
-callbacks.append(EvaluationCallback(frequency=evaluation_frequency,
-                                    iterator=get_iterator(val_data),
-                                    metrics=eval_metric, name='eval/val'))
-callbacks.append(EvaluationCallback(frequency=evaluation_frequency,
-                                    iterator=get_iterator(test_data),
-                                    metrics=eval_metric, name='eval/test'))
+callbacks = [
+    LoggerCallback(frequency=logging_frequency),
+    SummaryWriterCallback(frequency=summary_frequency,
+                          working_dir=working_dir),
+    VariableStatisticsSummaryWriterCallback(frequency=200,
+                                            variables='trainable'),
+    CheckpointWriterCallback(frequency=checkpoint_frequency,
+                             working_dir=working_dir,
+                             file_prefix=checkpoint_file_prefix),
+    EvaluationCallback(frequency=evaluation_frequency,
+                       iterator=get_iterator(train_data),
+                       metrics=eval_metric, name='eval/train'),
+    EvaluationCallback(frequency=evaluation_frequency,
+                       iterator=get_iterator(val_data),
+                       metrics=eval_metric, name='eval/val'),
+    EvaluationCallback(frequency=evaluation_frequency,
+                       iterator=get_iterator(test_data),
+                       metrics=eval_metric, name='eval/test'),
+]
 
 learner.train(loss, get_iterator(train_data), optimizer=optimizer,
               max_iter=max_iter, loss_chg_tol=loss_chg_tol,

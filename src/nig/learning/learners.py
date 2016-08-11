@@ -1,8 +1,8 @@
+import os
+import sys
 import abc
 import numpy as np
 import tensorflow as tf
-import os
-import sys
 
 from nig.data.iterators import NPArrayIterator
 from nig.learning.optimizers import gradient_descent
@@ -146,7 +146,7 @@ class Learner(object):
 class SimpleLearner(Learner):
     """Used for training a single TensorFlow model."""
 
-    def __init__(self, symbol, graph=tf.Graph(), session=None,
+    def __init__(self, symbol, graph=None, session=None,
                  inputs_dtype=tf.float64, outputs_dtype=tf.float64,
                  output_shape=None, predict_postprocess=lambda x: x):
         super(SimpleLearner, self).__init__(symbol, graph, session,
@@ -172,10 +172,9 @@ class SimpleLearner(Learner):
         return train_op
 
     @graph_context
-    def train(self, loss, train_data,
-              optimizer=None,
+    def train(self, loss, train_data, optimizer,
               max_iter=100000, loss_chg_tol=1e-3, loss_chg_iter_below_tol=5,
-              init_option=-1, callbacks=None, loss_summary=False,
+              init_option=-1, callbacks=[], loss_summary=False,
               gradients_processor=None,
               run_metadata_collection_frequency=1000,
               trace_level=tf.RunOptions.FULL_TRACE, working_dir=os.getcwd(),
@@ -206,8 +205,6 @@ class SimpleLearner(Learner):
         Returns:
 
         """
-        if optimizer is None:
-            gradient_descent(1e-1, decay_rate=0.99, learning_rate_summary=True)
         if isinstance(train_data, np.ndarray):
             train_data = NPArrayIterator(train_data, len(train_data),
                                          shuffle=False, cycle=False,
