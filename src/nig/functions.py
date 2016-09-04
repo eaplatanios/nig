@@ -1,6 +1,6 @@
 import inspect
-
 import six
+from functools import wraps
 
 __author__ = 'eaplatanios'
 
@@ -23,6 +23,19 @@ def pipe(*functions):
             arg = f(arg)
         return arg
     return inner
+
+
+def memoize(func):
+    @wraps(func)
+    def memoized(*args, **kwargs):
+        key = (args, tuple(sorted(kwargs.items())))
+        result = memoized._cache.get(key, None)
+        if result is None:
+            result = func(*args, **kwargs)
+            memoized._cache[key] = result
+        return result
+    memoized._cache = {}
+    return memoized
 
 
 def pipeline(min_num_args=None, unique_keys=True):
