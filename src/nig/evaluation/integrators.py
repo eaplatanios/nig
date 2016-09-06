@@ -3,7 +3,6 @@ import errno
 import os
 import subprocess
 
-import nig
 from nig.evaluation.constraints import Constraint
 from nig.evaluation import integrator_pb2
 from nig.utilities import logger

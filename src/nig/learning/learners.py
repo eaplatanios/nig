@@ -1,11 +1,10 @@
-import os
-import sys
 import abc
 import numpy as np
+import os
+import sys
 import tensorflow as tf
 
 from nig.data.iterators import NPArrayIterator
-from nig.learning.optimizers import gradient_descent
 from nig.utilities import logger
 
 __author__ = 'eaplatanios'
@@ -103,9 +102,8 @@ class Learner(object):
         session.run(tf.initialize_all_variables())
 
     @abc.abstractmethod
-    def train(self, loss, train_data,
-              optimizer=None,
-              init_option=-1, callbacks=None, working_dir=os.getcwd(),
+    def train(self, loss, train_data, optimizer, init_option=-1,
+              callbacks=None, working_dir=os.getcwd(),
               checkpoint_file_prefix='checkpoint', restore_sequentially=False,
               save_trained=False):
         pass
@@ -172,10 +170,9 @@ class SimpleLearner(Learner):
         return train_op
 
     @graph_context
-    def train(self, loss, train_data, optimizer,
-              max_iter=100000, loss_chg_tol=1e-3, loss_chg_iter_below_tol=5,
-              init_option=-1, callbacks=[], loss_summary=False,
-              gradients_processor=None,
+    def train(self, loss, train_data, optimizer, max_iter=100000,
+              loss_chg_tol=1e-3, loss_chg_iter_below_tol=5, init_option=-1,
+              callbacks=None, loss_summary=False, gradients_processor=None,
               run_metadata_collection_frequency=1000,
               trace_level=tf.RunOptions.FULL_TRACE, working_dir=os.getcwd(),
               checkpoint_file_prefix='checkpoint',
@@ -211,6 +208,8 @@ class SimpleLearner(Learner):
                                          keep_last=True)
         if callable(optimizer):
             optimizer = optimizer()
+        if callbacks is None:
+            callbacks = []
         loss_op = loss.tf_op(self.predictions_op, self.outputs_op)
         train_op = self._train_op(loss_op, optimizer, loss_summary,
                                   gradients_processor)
