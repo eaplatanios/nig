@@ -56,7 +56,14 @@ class BaseDataIterator(Iterator):
         self.keep_last = keep_last
         self.pipelines = self._preprocess_pipelines(None, pipelines)
         self.rng = np.random.RandomState(seed)
-        self._total_length = len(self)
+        if isinstance(self.data, tuple):
+            self._total_length = len(self.data[0])
+            for d in self.data:
+                if len(d) != self._total_length:
+                    raise ValueError('All tuple elements must have the same '
+                                     'length.')
+        else:
+            self._total_length = len(self.data)
         self._begin_index = 0
         self._reached_end = False
 
@@ -143,31 +150,37 @@ class BaseDataIterator(Iterator):
     def remaining_length(self):
         return len(self) - self._begin_index if not self.cycle else -1
 
+    def __len__(self):
+        return self._total_length
+
 
 class NPArrayIterator(BaseDataIterator):
     def shuffle_data(self):
-        self.rng.shuffle(self.data)
+        indices = self.rng.permutation(np.arange(self._total_length))
+        self.data = (data[indices] for data in self.data) \
+            if isinstance(self.data, tuple) \
+            else self.data[indices]
 
     def get_data(self, from_index, to_index):
-        return self.data[from_index:to_index]
+        return (data[from_index:to_index] for data in self.data) \
+            if isinstance(self.data, tuple) \
+            else self.data[from_index:to_index]
 
     def concatenate_data(self, data_batch_1, data_batch_2):
         return np.vstack([data_batch_1, data_batch_2])
-
-    def __len__(self):
-        return len(self.data)
 
 
 class PDDataFrameIterator(BaseDataIterator):
     def shuffle_data(self):
         indices = self.rng.permutation(np.arange(self._total_length))
-        self.data = self.data.iloc[indices]
+        self.data = (data.iloc[indices] for data in self.data) \
+            if isinstance(self.data, tuple) \
+            else self.data.iloc[indices]
 
     def get_data(self, from_index, to_index):
-        return self.data.iloc[from_index:to_index]
+        return (data.iloc[from_index:to_index] for data in self.data) \
+            if isinstance(self.data, tuple) \
+            else self.data.iloc[from_index:to_index]
 
     def concatenate_data(self, data_batch_1, data_batch_2):
         return pd.concat([data_batch_1, data_batch_2])
-
-    def __len__(self):
-        return len(self.data)

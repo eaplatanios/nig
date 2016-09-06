@@ -1,5 +1,6 @@
 from nig.functions import pipeline
 
+
 def test_pipeline():
     @pipeline(min_num_args=3)
     def foo(a, b, c=1, d=2):

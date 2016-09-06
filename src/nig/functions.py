@@ -49,9 +49,12 @@ def pipeline(min_num_args=None, unique_keys=True):
 def _no_default_args(func):
     if six.PY2:
         spec = inspect.getargspec(func)
+        args = spec.args
+        if inspect.ismethod(func):
+            args.remove('self')
         if spec.defaults is not None:
-            return spec.args[:-len(spec.defaults)]
-        return spec.args
+            return args[:-len(spec.defaults)]
+        return args
     return [p.name for p in inspect.signature(func).parameters.values()
             if p.default is inspect.Parameter.empty]
 
@@ -77,8 +80,6 @@ class PipelineFunction(object):
         if kwargs is not None:
             self.__no_default_args = [arg for arg in self.__no_default_args
                                       if arg not in kwargs]
-        if inspect.ismethod(func):
-            self.__no_default_args.remove('self')
         if min_num_args is None:
             min_num_args = len(self.__no_default_args)
         self.__min_num_args = min_num_args

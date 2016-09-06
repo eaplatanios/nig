@@ -204,7 +204,11 @@ class SimpleLearner(Learner):
         """
         if isinstance(train_data, np.ndarray):
             train_data = NPArrayIterator(train_data, len(train_data),
-                                         shuffle=False, cycle=False,
+                                         shuffle=False, cycle=True,
+                                         keep_last=True)
+        if isinstance(train_data, tuple):
+            train_data = NPArrayIterator(train_data, len(train_data[0]),
+                                         shuffle=False, cycle=True,
                                          keep_last=True)
         if callable(optimizer):
             optimizer = optimizer()
