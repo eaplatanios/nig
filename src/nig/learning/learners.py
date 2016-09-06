@@ -17,6 +17,22 @@ def graph_context(func):
     return func_wrapper
 
 
+def _train_op(loss, optimizer, loss_summary=False, gradients_processor=None):
+    global_step = tf.contrib.framework.get_or_create_global_step()
+    if loss_summary:
+        tf.scalar_summary(loss.op.name, loss)
+    if gradients_processor is not None:
+        trainable_variables = tf.trainable_variables()
+        gradients = tf.gradients(loss, trainable_variables)
+        gradients = gradients_processor(gradients)
+        train_op = optimizer.apply_gradients(zip(gradients,
+                                                 trainable_variables),
+                                             global_step=global_step)
+    else:
+        train_op = optimizer.minimize(loss, global_step=global_step)
+    return train_op
+
+
 class Learner(object):
     __metaclass__ = abc.ABCMeta
 
@@ -102,7 +118,7 @@ class Learner(object):
         session.run(tf.initialize_all_variables())
 
     @abc.abstractmethod
-    def train(self, loss, train_data, optimizer, init_option=-1,
+    def train(self, loss, train_data, optimizers, init_option=-1,
               callbacks=None, working_dir=os.getcwd(),
               checkpoint_file_prefix='checkpoint', restore_sequentially=False,
               save_trained=False):
@@ -153,22 +169,6 @@ class SimpleLearner(Learner):
         with self.graph.as_default():
             self.predictions_op = self.symbols(self.inputs_op)
 
-    def _train_op(self, loss, optimizer, loss_summary=False,
-                  gradients_processor=None):
-        global_step = tf.contrib.framework.get_or_create_global_step()
-        if loss_summary:
-            tf.scalar_summary(loss.op.name, loss)
-        if gradients_processor is not None:
-            trainable_variables = tf.trainable_variables()
-            gradients = tf.gradients(loss, trainable_variables)
-            gradients = gradients_processor(gradients)
-            train_op = optimizer.apply_gradients(zip(gradients,
-                                                     trainable_variables),
-                                                 global_step=global_step)
-        else:
-            train_op = optimizer.minimize(loss, global_step=global_step)
-        return train_op
-
     @graph_context
     def train(self, loss, train_data, optimizer, max_iter=100000,
               loss_chg_tol=1e-3, loss_chg_iter_below_tol=5, init_option=-1,
@@ -215,8 +215,8 @@ class SimpleLearner(Learner):
         if callbacks is None:
             callbacks = []
         loss_op = loss.tf_op(self.predictions_op, self.outputs_op)
-        train_op = self._train_op(loss_op, optimizer, loss_summary,
-                                  gradients_processor)
+        train_op = _train_op(loss_op, optimizer, loss_summary,
+                             gradients_processor)
         summary_writer = tf.train.SummaryWriter(working_dir, self.graph)
         train_data_iter = train_data.reset_copy(cycle=True)
         saver = tf.train.Saver(restore_sequentially=restore_sequentially)
@@ -236,8 +236,7 @@ class SimpleLearner(Learner):
                     and (step + 1) % run_metadata_collection_frequency == 0:
                 run_options = tf.RunOptions(trace_level=trace_level)
                 run_metadata = tf.RunMetadata()
-                _, loss = self.session.run([train_op, loss_op],
-                                           feed_dict,
+                _, loss = self.session.run([train_op, loss_op], feed_dict,
                                            options=run_options,
                                            run_metadata=run_metadata)
                 summary_writer.add_run_metadata(run_metadata,
@@ -257,28 +256,36 @@ class SimpleLearner(Learner):
             prev_loss = loss
         if save_trained:
             Learner._save_checkpoint(self.session, saver, working_dir,
-                                     checkpoint_file_prefix,
-                                     max_iter)
+                                     checkpoint_file_prefix, max_iter)
 
     def _predict_op(self):
         return self.predictions_op
 
 
-# class TensorFlowMultiModelValidationSetLearner(Learner):
+# class MultiModelValidationSetLearner(Learner):
 #     """Used for training multiple TensorFlow models that have the same input
 #     and
 #     predict the same quantities, using a validation data set to pick the best
 #     model."""
+#
+#     def __init__(self, symbols, graph=None, session=None,
+#                  inputs_dtype=tf.float64, outputs_dtype=tf.float64,
+#                  output_shape=None, predict_postprocess=lambda x: x):
+#         super(MultiModelValidationSetLearner, self).__init__(
+#             symbols, graph, session, inputs_dtype, outputs_dtype,
+#             output_shape, predict_postprocess)
+#         self.best_symbol = 0
+#         with self.graph.as_default():
+#             self.predictions_ops = [symbol(self.inputs_op)
+#                                     for symbol in self.symbols]
+#
 #     def train(self, models, train_data, eval_data=None, test_data=None):
 #         pass
 #
-#     def predict(self, input_data, checkpoint=-1, session=None):
-#         pass
-#
-#     def predict_iterator(self, input_data):
-#         pass
-#
-#
+#     def _predict_op(self):
+#         return self.predictions_ops[self.best_symbol]
+
+
 # class TensorFlowMultiModelCrossValidationLearner(Learner):
 #     """Used for training multiple TensorFlow models that have the same input
 #     and

@@ -157,30 +157,36 @@ class BaseDataIterator(Iterator):
 class NPArrayIterator(BaseDataIterator):
     def shuffle_data(self):
         indices = self.rng.permutation(np.arange(self._total_length))
-        self.data = (data[indices] for data in self.data) \
+        self.data = tuple(data[indices] for data in self.data) \
             if isinstance(self.data, tuple) \
             else self.data[indices]
 
     def get_data(self, from_index, to_index):
-        return (data[from_index:to_index] for data in self.data) \
+        return tuple(data[from_index:to_index] for data in self.data) \
             if isinstance(self.data, tuple) \
             else self.data[from_index:to_index]
 
     def concatenate_data(self, data_batch_1, data_batch_2):
-        return np.vstack([data_batch_1, data_batch_2])
+        return tuple(np.vstack([db_1, db_2])
+                     for (db_1, db_2) in zip(data_batch_1, data_batch_2)) \
+            if isinstance(self.data, tuple) \
+            else np.vstack([data_batch_1, data_batch_2])
 
 
 class PDDataFrameIterator(BaseDataIterator):
     def shuffle_data(self):
         indices = self.rng.permutation(np.arange(self._total_length))
-        self.data = (data.iloc[indices] for data in self.data) \
+        self.data = tuple(data.iloc[indices] for data in self.data) \
             if isinstance(self.data, tuple) \
             else self.data.iloc[indices]
 
     def get_data(self, from_index, to_index):
-        return (data.iloc[from_index:to_index] for data in self.data) \
+        return tuple(data.iloc[from_index:to_index] for data in self.data) \
             if isinstance(self.data, tuple) \
             else self.data.iloc[from_index:to_index]
 
     def concatenate_data(self, data_batch_1, data_batch_2):
-        return pd.concat([data_batch_1, data_batch_2])
+        return tuple(pd.concat([db_1, db_2])
+                     for (db_1, db_2) in zip(data_batch_1, data_batch_2)) \
+            if isinstance(self.data, tuple) \
+            else pd.concat([data_batch_1, data_batch_2])
