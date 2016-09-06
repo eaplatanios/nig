@@ -1,0 +1,4 @@
+numpy>=1.5
+pandas
+six
+tensorflow>=0.9

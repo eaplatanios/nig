@@ -43,8 +43,9 @@ class Iterator(object):
 class BaseDataIterator(Iterator):
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, data, batch_size, shuffle=False, cycle=False,
-                 cycle_shuffle=False, keep_last=False, pipelines=None):
+    def __init__(self, data, batch_size=128, shuffle=False, cycle=False,
+                 cycle_shuffle=False, keep_last=False, pipelines=None,
+                 seed=None):
         self.data = data
         self.batch_size = batch_size
         if shuffle:
@@ -54,6 +55,7 @@ class BaseDataIterator(Iterator):
         self.cycle_shuffle = cycle_shuffle
         self.keep_last = keep_last
         self.pipelines = self._preprocess_pipelines(None, pipelines)
+        self.rng = np.random.RandomState(seed)
         self._total_length = len(self)
         self._begin_index = 0
         self._reached_end = False
@@ -144,7 +146,7 @@ class BaseDataIterator(Iterator):
 
 class NPArrayIterator(BaseDataIterator):
     def shuffle_data(self):
-        np.random.shuffle(self.data)
+        self.rng.shuffle(self.data)
 
     def get_data(self, from_index, to_index):
         return self.data[from_index:to_index]
@@ -158,7 +160,7 @@ class NPArrayIterator(BaseDataIterator):
 
 class PDDataFrameIterator(BaseDataIterator):
     def shuffle_data(self):
-        indices = np.random.permutation(np.arange(self._total_length))
+        indices = self.rng.permutation(np.arange(self._total_length))
         self.data = self.data.iloc[indices]
 
     def get_data(self, from_index, to_index):
