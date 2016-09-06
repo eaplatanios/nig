@@ -1,4 +1,7 @@
+cython
+enum34
 numpy>=1.5
 pandas
 six
 tensorflow>=0.9
+-e git+https://github.com/kivy/pyjnius.git#egg=jnius-1.1-dev
