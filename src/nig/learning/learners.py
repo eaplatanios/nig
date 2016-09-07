@@ -3,7 +3,7 @@ import numpy as np
 import os
 import sys
 import tensorflow as tf
-from threading import Thread
+from multiprocessing.dummy import Pool as ThreadPool
 
 from nig.data.iterators import NPArrayIterator
 from nig.utilities import logger
@@ -338,33 +338,21 @@ class MultiModelValidationSetLearner(Learner):
         if not isinstance(optimizers, list):
             optimizers = [optimizers] * len(self.symbols)
         if parallel:
-            class SymbolTrainThread(Thread):
-                def __init__(self, learner, optimizer, working_dir):
-                    super(SymbolTrainThread, self).__init__()
-                    self.learner = learner
-                    self.optimizer = optimizer
-                    self.working_dir = working_dir
-                    self.val_loss = sys.float_info.max
-
-                def run(self):
-                    self.learner.train(
-                        loss[0], train_data, self.optimizer, max_iter,
-                        loss_chg_tol, loss_chg_iter_below_tol, init_option,
-                        callbacks, loss_summary, gradients_processor,
-                        run_metadata_collection_frequency, trace_level,
-                        self.working_dir, checkpoint_file_prefix,
-                        restore_sequentially, save_trained)
-                    self.val_loss = self.learner.loss(loss[1], val_data)
-
-            train_threads = [SymbolTrainThread(
-                self.simple_learners[i], optimizers[i],
-                os.path.join(working_dir, 'symbol_' + str(i)))
-                             for i in range(len(self.symbols))]
-            for thread in train_threads:
-                thread.start()
-            for thread in train_threads:
-                thread.join()
-            val_loss = list(map(lambda t: t.val_loss, train_threads))
+            def _train_symbol(state):
+                state[0].train(
+                    loss[0], train_data, state[1], max_iter, loss_chg_tol,
+                    loss_chg_iter_below_tol, init_option, callbacks,
+                    loss_summary, gradients_processor,
+                    run_metadata_collection_frequency, trace_level,
+                    state[2], checkpoint_file_prefix, restore_sequentially,
+                    save_trained)
+                return state[0].loss(loss[1], val_data)
+            with ThreadPool() as pool:
+                val_loss = pool.map(
+                    _train_symbol,
+                    [(self.simple_learners[i], optimizers[i],
+                      os.path.join(working_dir, 'symbol_' + str(i)))
+                     for i in range(len(self.symbols))])
         else:
             val_loss = [sys.float_info.max] * len(self.symbols)
             for i in range(len(self.symbols)):
