@@ -3,6 +3,7 @@ import numpy as np
 import os
 import sys
 import tensorflow as tf
+from threading import Thread
 
 from nig.data.iterators import NPArrayIterator
 from nig.utilities import logger
@@ -15,6 +16,32 @@ def graph_context(func):
         with self.graph.as_default():
             return func(self, *args, **kwargs)
     return func_wrapper
+
+
+def _process_data(data, cycle=False):
+    if isinstance(data, np.ndarray):
+        return NPArrayIterator(data, len(data), shuffle=False, cycle=cycle,
+                               keep_last=True)
+    if isinstance(data, tuple):
+        return NPArrayIterator(data, len(data[0]), shuffle=False, cycle=cycle,
+                               keep_last=True)
+    if not isinstance(data, NPArrayIterator):
+        raise ValueError('Unsupported data format encountered.')
+    return data.reset_copy(cycle=cycle)
+
+
+def _process_optimizer(optimizer):
+    if callable(optimizer):
+        optimizer = optimizer()
+    if not isinstance(optimizer, tf.train.Optimizer):
+        raise ValueError('Unsupported optimizer encountered.')
+    return optimizer
+
+
+def _process_callbacks(callbacks):
+    if callbacks is None:
+        return []
+    return [callback.copy() for callback in callbacks]
 
 
 def _train_op(loss, optimizer, loss_summary=False, gradients_processor=None):
@@ -66,8 +93,9 @@ class Learner(object):
                                             [None] + self.input_shape)
             self.outputs_op = tf.placeholder(outputs_dtype,
                                              [None] + self.output_shape)
-        self.predict_postprocess = lambda x: x if predict_postprocess is None \
-                                   else predict_postprocess
+        self.predict_postprocess = (lambda x: x) \
+            if predict_postprocess is None \
+            else predict_postprocess
 
     @graph_context
     def _init_session(self, option, saver, working_dir, checkpoint_file_prefix):
@@ -112,10 +140,11 @@ class Learner(object):
             working_dir, latest_filename=file_prefix)
         if checkpoint_file is not None:
             saver.restore(session, checkpoint_file)
-        logger.warn('The requested checkpoint file does not exist. '
-                    'All the variables are initialized to their '
-                    'default values.')
-        session.run(tf.initialize_all_variables())
+        else:
+            logger.warn('The requested checkpoint file does not exist. '
+                        'All the variables are initialized to their '
+                        'default values.')
+            session.run(tf.initialize_all_variables())
 
     @abc.abstractmethod
     def train(self, loss, train_data, optimizers, init_option=-1,
@@ -123,6 +152,17 @@ class Learner(object):
               checkpoint_file_prefix='checkpoint', restore_sequentially=False,
               save_trained=False):
         pass
+
+    @graph_context
+    def loss(self, loss, data):
+        data = _process_data(data, cycle=False)
+        loss_op = loss.tf_op(self._predict_op(), self.outputs_op)
+        loss = 0.0
+        for data_batch in data:
+            feed_dict = {self.inputs_op: data_batch[0],
+                         self.outputs_op: data_batch[1]}
+            loss += self.session.run(loss_op, feed_dict)
+        return loss / len(data)
 
     @abc.abstractmethod
     def _predict_op(self):
@@ -133,15 +173,19 @@ class Learner(object):
                 checkpoint_file_prefix='checkpoint',
                 restore_sequentially=False):
         if not isinstance(input_data, np.ndarray):
-            iterator = self.predict_iterator(input_data, checkpoint)
+            iterator = self.predict_iterator(
+                input_data=input_data, checkpoint=checkpoint,
+                working_dir=working_dir,
+                checkpoint_file_prefix=checkpoint_file_prefix,
+                restore_sequentially=restore_sequentially)
             predictions = next(iterator)
             for batch in iterator:
                 predictions = np.concatenate([predictions, batch], axis=0)
             return predictions
+        predict_op = self.predict_postprocess(self._predict_op())
         saver = tf.train.Saver(restore_sequentially=restore_sequentially)
         self._init_session(checkpoint, saver, working_dir,
                            checkpoint_file_prefix)
-        predict_op = self.predict_postprocess(self._predict_op())
         return self.session.run(predict_op, {self.inputs_op: input_data})
 
     @graph_context
@@ -149,10 +193,11 @@ class Learner(object):
                          working_dir=os.getcwd(),
                          checkpoint_file_prefix='checkpoint',
                          restore_sequentially=False):
+        input_data = _process_data(input_data, cycle=False)
+        predict_op = self.predict_postprocess(self._predict_op())
         saver = tf.train.Saver(restore_sequentially=restore_sequentially)
         self._init_session(checkpoint, saver, working_dir,
                            checkpoint_file_prefix)
-        predict_op = self.predict_postprocess(self._predict_op())
         for data_batch in input_data:
             yield self.session.run(predict_op, {self.inputs_op: data_batch})
 
@@ -202,23 +247,13 @@ class SimpleLearner(Learner):
         Returns:
 
         """
-        if isinstance(train_data, np.ndarray):
-            train_data = NPArrayIterator(train_data, len(train_data),
-                                         shuffle=False, cycle=True,
-                                         keep_last=True)
-        if isinstance(train_data, tuple):
-            train_data = NPArrayIterator(train_data, len(train_data[0]),
-                                         shuffle=False, cycle=True,
-                                         keep_last=True)
-        if callable(optimizer):
-            optimizer = optimizer()
-        if callbacks is None:
-            callbacks = []
+        train_data = _process_data(train_data, cycle=True)
+        optimizer = _process_optimizer(optimizer)
+        callbacks = _process_callbacks(callbacks)
         loss_op = loss.tf_op(self.predictions_op, self.outputs_op)
         train_op = _train_op(loss_op, optimizer, loss_summary,
                              gradients_processor)
         summary_writer = tf.train.SummaryWriter(working_dir, self.graph)
-        train_data_iter = train_data.reset_copy(cycle=True)
         saver = tf.train.Saver(restore_sequentially=restore_sequentially)
         self._init_session(init_option, saver, working_dir,
                            checkpoint_file_prefix)
@@ -229,7 +264,7 @@ class SimpleLearner(Learner):
         prev_loss = sys.float_info.max
         iter_below_tol = 0
         for step in range(max_iter):
-            data_batch = train_data_iter.next()
+            data_batch = train_data.next()
             feed_dict = {self.inputs_op: data_batch[0],
                          self.outputs_op: data_batch[1]}
             if run_metadata_collection_frequency > 0 \
@@ -262,28 +297,95 @@ class SimpleLearner(Learner):
         return self.predictions_op
 
 
-# class MultiModelValidationSetLearner(Learner):
-#     """Used for training multiple TensorFlow models that have the same input
-#     and
-#     predict the same quantities, using a validation data set to pick the best
-#     model."""
-#
-#     def __init__(self, symbols, graph=None, session=None,
-#                  inputs_dtype=tf.float64, outputs_dtype=tf.float64,
-#                  output_shape=None, predict_postprocess=lambda x: x):
-#         super(MultiModelValidationSetLearner, self).__init__(
-#             symbols, graph, session, inputs_dtype, outputs_dtype,
-#             output_shape, predict_postprocess)
-#         self.best_symbol = 0
-#         with self.graph.as_default():
-#             self.predictions_ops = [symbol(self.inputs_op)
-#                                     for symbol in self.symbols]
-#
-#     def train(self, models, train_data, eval_data=None, test_data=None):
-#         pass
-#
-#     def _predict_op(self):
-#         return self.predictions_ops[self.best_symbol]
+class MultiModelValidationSetLearner(Learner):
+    """Used for training multiple symbols that have the same input and
+    predict the same quantities, using a validation data set to pick the best
+    model."""
+    def __init__(self, symbols, graph=None, session=None,
+                 inputs_dtype=tf.float64, outputs_dtype=tf.float64,
+                 output_shape=None, predict_postprocess=None):
+        super(MultiModelValidationSetLearner, self).__init__(
+            symbols, graph, session, inputs_dtype, outputs_dtype,
+            output_shape, predict_postprocess)
+        self.best_symbol = 0
+        self.simple_learners = [SimpleLearner(
+            symbol, graph, session, inputs_dtype, outputs_dtype, output_shape,
+            predict_postprocess) for symbol in symbols]
+
+    def train(self, loss, train_data, optimizers, max_iter=100000,
+              loss_chg_tol=1e-3, loss_chg_iter_below_tol=5, init_option=-1,
+              callbacks=None, loss_summary=False, gradients_processor=None,
+              run_metadata_collection_frequency=1000,
+              trace_level=tf.RunOptions.FULL_TRACE, working_dir=os.getcwd(),
+              checkpoint_file_prefix='checkpoint',
+              restore_sequentially=False, save_trained=False, parallel=True):
+        if not isinstance(loss, tuple):
+            loss = (loss, loss)
+        if not isinstance(train_data, tuple):
+            train_data = (train_data, train_data)
+        if len(loss) > 2:
+            raise ValueError('There can only be a training loss and '
+                             'validation loss. If only a training loss is '
+                             'provided, then that loss is also used for '
+                             'validation.')
+        if len(train_data) > 2:
+            raise ValueError('There can only be a training data set and a '
+                             'validation data set. If only a training data '
+                             'set is provided, then that data set is also '
+                             'used for validation.')
+        val_data = _process_data(train_data[1], cycle=False)
+        train_data = _process_data(train_data[0], cycle=True)
+        if not isinstance(optimizers, list):
+            optimizers = [optimizers] * len(self.symbols)
+        if parallel:
+            class SymbolTrainThread(Thread):
+                def __init__(self, learner, optimizer, working_dir):
+                    super(SymbolTrainThread, self).__init__()
+                    self.learner = learner
+                    self.optimizer = optimizer
+                    self.working_dir = working_dir
+                    self.val_loss = sys.float_info.max
+
+                def run(self):
+                    self.learner.train(
+                        loss[0], train_data, self.optimizer, max_iter,
+                        loss_chg_tol, loss_chg_iter_below_tol, init_option,
+                        callbacks, loss_summary, gradients_processor,
+                        run_metadata_collection_frequency, trace_level,
+                        self.working_dir, checkpoint_file_prefix,
+                        restore_sequentially, save_trained)
+                    self.val_loss = self.learner.loss(loss[1], val_data)
+
+            train_threads = [SymbolTrainThread(
+                self.simple_learners[i], optimizers[i],
+                os.path.join(working_dir, 'symbol_' + str(i)))
+                             for i in range(len(self.symbols))]
+            for thread in train_threads:
+                thread.start()
+            for thread in train_threads:
+                thread.join()
+            val_loss = list(map(lambda t: t.val_loss, train_threads))
+        else:
+            val_loss = [sys.float_info.max] * len(self.symbols)
+            for i in range(len(self.symbols)):
+                self.simple_learners[i].train(
+                    loss[0], train_data, optimizers[i], max_iter, loss_chg_tol,
+                    loss_chg_iter_below_tol, init_option, callbacks,
+                    loss_summary, gradients_processor,
+                    run_metadata_collection_frequency, trace_level,
+                    os.path.join(working_dir, 'symbol_' + str(i)),
+                    checkpoint_file_prefix, restore_sequentially, save_trained)
+                val_loss[i] = self.simple_learners[i].loss(loss[1], val_data)
+        self.best_symbol = np.argmin(val_loss)
+        if save_trained:
+            Learner._save_checkpoint(
+                self.simple_learners[self.best_symbol].session,
+                tf.train.Saver(restore_sequentially=restore_sequentially),
+                working_dir, checkpoint_file_prefix, max_iter)
+
+    @graph_context
+    def _predict_op(self):
+        return self.symbols[self.best_symbol](self.inputs_op)
 
 
 # class TensorFlowMultiModelCrossValidationLearner(Learner):

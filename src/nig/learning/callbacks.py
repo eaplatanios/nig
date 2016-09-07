@@ -19,16 +19,20 @@ class Callback(object):
         self.frequency = frequency
 
     @abc.abstractmethod
+    def copy(self):
+        pass
+
+    @abc.abstractmethod
     def initialize(self, graph, inputs_op, outputs_op, predictions_op, loss_op,
                    summary_writer):
         pass
 
     def __call__(self, session, feed_dict=None, loss=None, global_step=None):
         if (global_step + 1) % self.frequency == 0 or global_step == 0:
-            self._execute(session, feed_dict, loss, global_step)
+            self.execute(session, feed_dict, loss, global_step)
 
     @abc.abstractmethod
-    def _execute(self, session, feed_dict, loss, global_step):
+    def execute(self, session, feed_dict, loss, global_step):
         pass
 
 
@@ -36,7 +40,7 @@ class LoggerCallback(Callback):
     def __init__(self, frequency=100, name='logger_callback',
                  log_format='{:>20} - | {:>10d} | {:>10.4e} |',
                  header='{:>20} - | {:>10} | {:>10} |'
-                        .format('Logger Callback', 'Step', 'Loss'),
+                        .format('logger_callback', 'Step', 'Loss'),
                  header_frequency=sys.maxsize):
         super(LoggerCallback, self).__init__(frequency)
         self.name = name
@@ -44,11 +48,15 @@ class LoggerCallback(Callback):
         self.header = header
         self.header_frequency = header_frequency
 
+    def copy(self):
+        return LoggerCallback(self.frequency, self.name, self.log_format,
+                              self.header, self.header_frequency)
+
     def initialize(self, graph, inputs_op, outputs_op, predictions_op, loss_op,
                    summary_writer):
         pass
 
-    def _execute(self, session, feed_dict, loss, global_step):
+    def execute(self, session, feed_dict, loss, global_step):
         if global_step % self.header_frequency == 0:
             logger.info(self.header)
         logger.info(self.log_format.format(self.name, global_step+1, loss))
@@ -61,12 +69,15 @@ class SummaryWriterCallback(Callback):
         self.summary_op = None
         self.summary_writer = None
 
+    def copy(self):
+        return SummaryWriterCallback(self.frequency, self.working_dir)
+
     def initialize(self, graph, inputs_op, outputs_op, predictions_op, loss_op,
                    summary_writer):
         self.summary_op = tf.merge_all_summaries()
         self.summary_writer = summary_writer
 
-    def _execute(self, session, feed_dict, loss, global_step):
+    def execute(self, session, feed_dict, loss, global_step):
         if self.summary_op is None:
             raise ValueError(__NOT_INITIALIZED_ERROR__)
         summary = session.run(self.summary_op, feed_dict=feed_dict)
@@ -76,10 +87,10 @@ class SummaryWriterCallback(Callback):
 
 class VariableStatisticsSummaryWriterCallback(Callback):
     def __init__(self, frequency=100, variables='trainable', statistics=None,
-                 histogram=True, name='trainable',
-                 working_dir=os.getcwd()):
+                 histogram=True, name='trainable', working_dir=os.getcwd()):
         super(VariableStatisticsSummaryWriterCallback, self).__init__(frequency)
         self.variables = variables
+        self.tf_variables = None
         if statistics is None:
             statistics = {'mean': tf.reduce_mean,
                           'std_dev': self._std_dev,
@@ -92,6 +103,11 @@ class VariableStatisticsSummaryWriterCallback(Callback):
         self.summary_op = None
         self.summary_writer = None
 
+    def copy(self):
+        return VariableStatisticsSummaryWriterCallback(
+            self.frequency, self.variables, self.statistics, self.histogram,
+            self.name, self.working_dir)
+
     @staticmethod
     def _std_dev(variable):
         return tf.sqrt(tf.reduce_sum(tf.square(variable -
@@ -100,7 +116,7 @@ class VariableStatisticsSummaryWriterCallback(Callback):
     def _variable_statistics_summaries(self):
         summaries = []
         with tf.name_scope('summaries'):
-            for variable in self.variables:
+            for variable in self.tf_variables:
                 for name, statistic in self.statistics.items():
                     summaries.append(tf.scalar_summary('variables/' + name +
                                                        '/' + variable.name,
@@ -114,21 +130,21 @@ class VariableStatisticsSummaryWriterCallback(Callback):
     def initialize(self, graph, inputs_op, outputs_op, predictions_op, loss_op,
                    summary_writer):
         if self.variables is 'trainable':
-            self.variables = tf.trainable_variables()
+            self.tf_variables = tf.trainable_variables()
         elif self.variables is 'all':
-            self.variables = tf.all_variables()
+            self.tf_variables = tf.all_variables()
         elif isinstance(self.variables, str):
-            self.variables = [v for v in tf.all_variables()
-                              if v.name == self.variables][0]
+            self.tf_variables = [v for v in tf.all_variables()
+                                 if v.name == self.variables][0]
         elif isinstance(self.variables, tf.Variable):
-            self.variables = [self.variables]
+            self.tf_variables = [self.variables]
         elif isinstance(self.variables, list):
-            self.variables = [v for v in tf.all_variables()
-                              if v.name in self.variables]
+            self.tf_variables = [v for v in tf.all_variables()
+                                 if v.name in self.variables]
         self.summary_op = self._variable_statistics_summaries()
         self.summary_writer = summary_writer
 
-    def _execute(self, session, feed_dict, loss, global_step):
+    def execute(self, session, feed_dict, loss, global_step):
         if self.summary_op is None:
             raise ValueError(__NOT_INITIALIZED_ERROR__)
         summary = session.run(self.summary_op, feed_dict=feed_dict)
@@ -148,13 +164,19 @@ class CheckpointWriterCallback(Callback):
         self.file_prefix = file_prefix
         self.saver = None
 
+    def copy(self):
+        return CheckpointWriterCallback(
+            self.frequency, self.variable_list, self.max_to_keep,
+            self.keep_checkpoint_every_n_hours, self.working_dir,
+            self.file_prefix)
+
     def initialize(self, graph, inputs_op, outputs_op, predictions_op, loss_op,
                    summary_writer):
         self.saver = tf.train.Saver(
             var_list=self.variable_list, max_to_keep=self.max_to_keep,
             keep_checkpoint_every_n_hours=self.keep_checkpoint_every_n_hours)
 
-    def _execute(self, session, feed_dict=None, loss=None, global_step=None):
+    def execute(self, session, feed_dict=None, loss=None, global_step=None):
         if self.saver is None:
             raise ValueError(__NOT_INITIALIZED_ERROR__)
         self.saver.save(session, os.path.join(self.working_dir,
@@ -188,6 +210,12 @@ class EvaluationCallback(Callback):
         self.outputs_op = None
         self.eval_ops = None
 
+    def copy(self):
+        return EvaluationCallback(
+            self.frequency, self.iterator, self.metrics, self.number_of_batches,
+            self.aggregating_function, self.name, self.log_format, self.header,
+            self.header_frequency, self.summary, self.working_dir)
+
     def initialize(self, graph, inputs_op, outputs_op, predictions_op, loss_op,
                    summary_writer):
         self.inputs_op = inputs_op
@@ -197,7 +225,7 @@ class EvaluationCallback(Callback):
         if self.summary:
             self.summary_writer = summary_writer
 
-    def _execute(self, session, feed_dict=None, loss=None, global_step=None):
+    def execute(self, session, feed_dict=None, loss=None, global_step=None):
         self.iterator.reset()
         metrics = []
         for index, eval_op in enumerate(self.eval_ops):
