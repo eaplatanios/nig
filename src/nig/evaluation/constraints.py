@@ -1,11 +1,10 @@
 import abc
+from six import with_metaclass
 
 __author__ = 'eaplatanios'
 
 
-class Constraint(object):
-    __metaclass__ = abc.ABCMeta
-
+class Constraint(with_metaclass(abc.ABCMeta, object)):
     @staticmethod
     def from_str(string):
         if string[0] != '!':

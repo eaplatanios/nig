@@ -4,45 +4,15 @@ from __future__ import division
 import abc
 import numpy as np
 import pandas as pd
+from six import with_metaclass
 
-from nig.functions import pipe
+from nig.utilities.functions import pipe
+from nig.utilities.iterators import Iterator
 
 __author__ = 'eaplatanios'
 
 
-class Iterator(object):
-    __metaclass__ = abc.ABCMeta
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        return self.next()
-
-    @abc.abstractmethod
-    def next(self):
-        pass
-
-    @abc.abstractmethod
-    def reset(self, *args, **kwargs):
-        pass
-
-    @abc.abstractmethod
-    def reset_copy(self, *args, **kwargs):
-        pass
-
-    @abc.abstractmethod
-    def __len__(self):
-        pass
-
-    @abc.abstractmethod
-    def remaining_length(self):
-        pass
-
-
-class BaseDataIterator(Iterator):
-    __metaclass__ = abc.ABCMeta
-
+class DataIterator(with_metaclass(abc.ABCMeta, Iterator)):
     def __init__(self, data, batch_size=128, shuffle=False, cycle=False,
                  cycle_shuffle=False, keep_last=False, pipelines=None,
                  seed=None):
@@ -154,7 +124,7 @@ class BaseDataIterator(Iterator):
         return self._total_length
 
 
-class NPArrayIterator(BaseDataIterator):
+class NPArrayIterator(DataIterator):
     def shuffle_data(self):
         indices = self.rng.permutation(np.arange(self._total_length))
         self.data = tuple(data[indices] for data in self.data) \
@@ -173,7 +143,7 @@ class NPArrayIterator(BaseDataIterator):
             else np.vstack([data_batch_1, data_batch_2])
 
 
-class PDDataFrameIterator(BaseDataIterator):
+class PDDataFrameIterator(DataIterator):
     def shuffle_data(self):
         indices = self.rng.permutation(np.arange(self._total_length))
         self.data = tuple(data.iloc[indices] for data in self.data) \

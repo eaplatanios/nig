@@ -3,11 +3,9 @@ from __future__ import division
 
 import abc
 import numpy as np
-import tensorflow as tf
-
 from six import with_metaclass
 
-from nig.functions import PipelineFunction
+from nig.utilities.functions import PipelineFunction
 
 __author__ = 'eaplatanios'
 

@@ -14,11 +14,8 @@ setup(
     long_description=read('README.md'),
     url='https://github.com/eaplatanios/nig',
     license='MIT',
-    install_requires=['cython', 'enum34', 'numpy>=1.5', 'six',
+    install_requires=['cython', 'enum34', 'numpy>=1.5', 'pandas', 'six',
                       'tensorflow>=0.9', 'jnius==1.1-dev'],
-    extras_require={  # Any extra packages that can be used but not required
-        'data': ['pandas'],
-    },
     package_data={
         'nig': ['evaluation/*.jar'],
     }

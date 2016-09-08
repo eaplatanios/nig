@@ -2,7 +2,7 @@ import itertools
 import numpy as np
 
 from nig.evaluation.integrators import *
-from nig.utilities import logger, elapsed_timer
+from nig.utilities.logging import logger, elapsed_timer
 
 __author__ = 'eaplatanios'
 

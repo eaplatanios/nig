@@ -7,7 +7,7 @@ import numpy as np
 import os
 
 from nig.data.loaders import utilities
-from nig.utilities import logger
+from nig.utilities.logging import logger
 
 __author__ = 'eaplatanios'
 

@@ -1,31 +1,28 @@
 import abc
-
 import numpy as np
 import tensorflow as tf
+from six import with_metaclass
 
 __author__ = 'eaplatanios'
 
 
-def tf_aggregate_over_iterator(session, metric_tf_op, iterator,
-                               data_to_feed_dict,
-                               number_of_batches=-1,
-                               aggregating_function=np.mean):
+def tf_aggregate_over_iterator(
+        session, metric_tf_op, iterator, data_to_feed_dict,
+        number_of_batches=-1, aggregating_function=np.mean):
     metrics = []
     if number_of_batches > -1:
         for batch_number in range(number_of_batches):
             data_batch = iterator.next()
-            metrics.append(session.run(metric_tf_op,
-                                       feed_dict=data_to_feed_dict(data_batch)))
+            metrics.append(session.run(
+                metric_tf_op, feed_dict=data_to_feed_dict(data_batch)))
     else:
         for data_batch in iterator:
-            metrics.append(session.run(metric_tf_op,
-                                       feed_dict=data_to_feed_dict(data_batch)))
+            metrics.append(session.run(
+                metric_tf_op, feed_dict=data_to_feed_dict(data_batch)))
     return aggregating_function(metrics)
 
 
-class Metric(object):
-    __metaclass__ = abc.ABCMeta
-
+class Metric(with_metaclass(abc.ABCMeta, object)):
     @abc.abstractmethod
     def __str__(self):
         pass

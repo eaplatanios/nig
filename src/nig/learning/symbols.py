@@ -1,15 +1,14 @@
 import abc
 import numpy as np
 import tensorflow as tf
+from six import with_metaclass
 
-from nig.functions import PipelineFunction
+from nig.utilities.functions import PipelineFunction
 
 __author__ = 'eaplatanios'
 
 
-class Symbol(PipelineFunction):
-    __metaclass__ = abc.ABCMeta
-
+class Symbol(with_metaclass(abc.ABCMeta, PipelineFunction)):
     def __init__(self, input_shape, output_shape):
         super(Symbol, self).__init__(self.op, min_num_args=1)
         assert isinstance(input_shape, list)

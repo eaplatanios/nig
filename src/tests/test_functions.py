@@ -1,4 +1,4 @@
-from nig.functions import pipeline
+from nig.utilities.functions import pipeline
 
 
 def test_pipeline():

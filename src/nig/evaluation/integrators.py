@@ -2,10 +2,11 @@ import abc
 import errno
 import os
 import subprocess
+from six import with_metaclass
 
 from nig.evaluation.constraints import Constraint
 from nig.evaluation import integrator_pb2
-from nig.utilities import logger
+from nig.utilities.logging import logger
 
 __author__ = 'eaplatanios'
 
@@ -20,9 +21,7 @@ def silently_remove(filename):
             raise
 
 
-class Integrator(object):
-    __metaclass__ = abc.ABCMeta
-
+class Integrator(with_metaclass(abc.ABCMeta, object)):
     @abc.abstractmethod
     def name(self):
         pass
