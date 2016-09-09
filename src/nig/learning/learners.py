@@ -3,6 +3,7 @@ import numpy as np
 import os
 import sys
 import tensorflow as tf
+from contextlib import closing
 from multiprocessing.dummy import Pool as ThreadPool
 from six import with_metaclass
 
@@ -380,12 +381,13 @@ class ValidationSetLearner(Learner):
                     save_trained=save_trained)
                 return state[0]._loss(
                     loss_op=state[0].val_loss_op, data=val_data)
-            with ThreadPool() as pool:
+            with closing(ThreadPool()) as pool:
                 val_losses = pool.map(
                     _train_symbol,
                     [(learners[sym_index],
                       os.path.join(working_dir, 'symbol_' + str(sym_index)))
                      for sym_index in range(len(self.symbols))])
+                pool.terminate()
         else:
             val_losses = [sys.float_info.max] * len(self.symbols)
             for sym_index in range(len(self.symbols)):
@@ -498,7 +500,7 @@ class CrossValidationLearner(Learner):
             for sym_index in range(len(self.symbols)):
                 for fold in range(len(cross_val)):
                     learners.append(self._get_symbol_learner(sym_index))
-            with ThreadPool() as pool:
+            with closing(ThreadPool()) as pool:
                 configs = []
                 learner_index = 0
                 for sym_index in range(len(self.symbols)):
@@ -510,6 +512,7 @@ class CrossValidationLearner(Learner):
                             indices[0], indices[1]))
                         learner_index += 1
                 val_losses = pool.map(_train_symbol, configs, chunksize=1)
+                pool.terminate()
                 val_losses = [np.mean(l) for l
                               in np.array_split(val_losses, len(self.symbols))]
         else:
