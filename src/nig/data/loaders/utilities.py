@@ -10,7 +10,7 @@ import tempfile
 
 from six.moves import urllib
 
-from nig.utilities.logging import logger
+from nig.utilities.generic import logger
 
 __author__ = 'eaplatanios'
 

@@ -6,7 +6,7 @@ import os
 from six import with_metaclass
 
 from nig.learning.metrics import tf_aggregate_over_iterator
-from nig.utilities.logging import logger
+from nig.utilities.generic import logger
 
 __author__ = 'eaplatanios'
 

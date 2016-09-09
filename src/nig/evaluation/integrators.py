@@ -6,7 +6,7 @@ from six import with_metaclass
 
 from nig.evaluation.constraints import Constraint
 from nig.evaluation import integrator_pb2
-from nig.utilities.logging import logger
+from nig.utilities.generic import logger
 
 __author__ = 'eaplatanios'
 

@@ -9,7 +9,7 @@ from six import with_metaclass
 
 from nig.data.iterators import NPArrayIterator
 from nig.math.statistics.cross_validation import KFold
-from nig.utilities.logging import logger
+from nig.utilities.generic import logger
 
 __author__ = 'eaplatanios'
 
