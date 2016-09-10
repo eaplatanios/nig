@@ -2,6 +2,8 @@ import inspect
 import six
 from functools import wraps
 
+from nig.utilities.generic import elapsed_timer, logger
+
 __author__ = 'eaplatanios'
 
 
@@ -36,6 +38,16 @@ def memoize(func):
         return result
     memoized._cache = {}
     return memoized
+
+
+def time(func):
+    @wraps(func)
+    def timed(*args, **kwargs):
+        with elapsed_timer() as elapsed:
+            result = func(*args, **kwargs)
+        logger.info(func.__name__ + ' took %.6f seconds.' % elapsed())
+        return result
+    return timed
 
 
 def pipeline(min_num_args=None, unique_keys=True):
