@@ -14,7 +14,7 @@ from nig.utilities.generic import logger
 __author__ = 'eaplatanios'
 
 
-def graph_context(func):
+def _graph_context(func):
     def func_wrapper(self, *args, **kwargs):
         with self.graph.as_default():
             return func(self, *args, **kwargs)
@@ -65,11 +65,11 @@ def _train_op(loss, optimizer, loss_summary=False, grads_processor=None):
 
 
 class Learner(with_metaclass(abc.ABCMeta, object)):
-    def __init__(self, symbols, graph=None, session=None,
-                 inputs_dtype=tf.float64, outputs_dtype=tf.float64,
-                 output_shape=None, predict_postprocess=None):
+    def __init__(self, symbols, session=None, inputs_dtype=tf.float64,
+                 outputs_dtype=tf.float64, output_shape=None,
+                 predict_postprocess=None):
         self.symbols = symbols
-        self.graph = tf.Graph() if graph is None else graph
+        self.graph = tf.Graph()
         self.session = session
         self.inputs_dtype = inputs_dtype
         self.outputs_dtype = outputs_dtype
@@ -93,15 +93,15 @@ class Learner(with_metaclass(abc.ABCMeta, object)):
         elif output_shape is not None:
             self.output_shape = [output_shape]
         with self.graph.as_default():
-            self.inputs_op = tf.placeholder(inputs_dtype,
-                                            [None] + self.input_shape)
-            self.outputs_op = tf.placeholder(outputs_dtype,
-                                             [None] + self.output_shape)
+            self.inputs_op = tf.placeholder(
+                inputs_dtype, [None] + self.input_shape)
+            self.outputs_op = tf.placeholder(
+                outputs_dtype, [None] + self.output_shape)
         self.predict_postprocess = (lambda x: x) \
             if predict_postprocess is None \
             else predict_postprocess
 
-    @graph_context
+    @_graph_context
     def _init_session(self, option, saver, working_dir, ckpt_file_prefix):
         if option is None:
             option = False
@@ -146,23 +146,21 @@ class Learner(with_metaclass(abc.ABCMeta, object)):
         if ckpt_file is not None:
             saver.restore(sess=session, save_path=ckpt_file)
         else:
-            logger.warn('The requested checkpoint file does not exist. '
-                        'All the variables are initialized to their '
-                        'default values.')
+            logger.warn('The requested checkpoint file does not exist. All the '
+                        'variables are initialized to their default values.')
             session.run(tf.initialize_all_variables())
 
     @abc.abstractmethod
-    def train(self, train_data, batch_size=None, init_option=-1,
-              callbacks=None, working_dir=os.getcwd(),
-              ckpt_file_prefix='ckpt', restore_sequentially=False,
-              save_trained=False):
+    def train(self, train_data, batch_size=None, init_option=-1, callbacks=None,
+              working_dir=os.getcwd(), ckpt_file_prefix='ckpt',
+              restore_sequentially=False, save_trained=False):
         pass
 
     @abc.abstractmethod
     def _predict_op(self):
         pass
 
-    @graph_context
+    @_graph_context
     def predict(self, input_data, ckpt=None, working_dir=os.getcwd(),
                 ckpt_file_prefix='ckpt', restore_sequentially=False):
         if not isinstance(input_data, np.ndarray):
@@ -177,18 +175,20 @@ class Learner(with_metaclass(abc.ABCMeta, object)):
             return predictions
         predict_op = self.predict_postprocess(self._predict_op())
         saver = tf.train.Saver(restore_sequentially=restore_sequentially)
-        self._init_session(option=ckpt, saver=saver, working_dir=working_dir,
-                           ckpt_file_prefix=ckpt_file_prefix)
+        self._init_session(
+            option=ckpt, saver=saver, working_dir=working_dir,
+            ckpt_file_prefix=ckpt_file_prefix)
         return self.session.run(predict_op, {self.inputs_op: input_data})
 
-    @graph_context
+    @_graph_context
     def predict_iterator(self, input_data, ckpt=None, working_dir=os.getcwd(),
                          ckpt_file_prefix='ckpt', restore_sequentially=False):
         input_data = _process_data(input_data, cycle=False)
         predict_op = self.predict_postprocess(self._predict_op())
         saver = tf.train.Saver(restore_sequentially=restore_sequentially)
-        self._init_session(option=ckpt, saver=saver, working_dir=working_dir,
-                           ckpt_file_prefix=ckpt_file_prefix)
+        self._init_session(
+            option=ckpt, saver=saver, working_dir=working_dir,
+            ckpt_file_prefix=ckpt_file_prefix)
         for data_batch in input_data:
             yield self.session.run(predict_op, {self.inputs_op: data_batch})
 
@@ -197,13 +197,13 @@ class SimpleLearner(Learner):
     """Used for training a single TensorFlow model."""
 
     def __init__(self, symbol, loss=None, optimizer=None, loss_summary=False,
-                 grads_processor=None, graph=None, session=None,
-                 inputs_dtype=tf.float64, outputs_dtype=tf.float64,
-                 output_shape=None, predict_postprocess=None):
+                 grads_processor=None, session=None, inputs_dtype=tf.float64,
+                 outputs_dtype=tf.float64, output_shape=None,
+                 predict_postprocess=None):
         super(SimpleLearner, self).__init__(
-            symbols=symbol, graph=graph, session=session,
-            inputs_dtype=inputs_dtype, outputs_dtype=outputs_dtype,
-            output_shape=output_shape, predict_postprocess=predict_postprocess)
+            symbols=symbol, session=session, inputs_dtype=inputs_dtype,
+            outputs_dtype=outputs_dtype, output_shape=output_shape,
+            predict_postprocess=predict_postprocess)
         self.trainable = loss is not None and optimizer is not None
         with self.graph.as_default():
             self.predictions_op = self.symbols(self.inputs_op)
@@ -213,7 +213,7 @@ class SimpleLearner(Learner):
                 self.train_op = _train_op(self.loss_op, optimizer, loss_summary,
                                           grads_processor)
 
-    @graph_context
+    @_graph_context
     def train(self, train_data, batch_size=None, max_iter=100000,
               loss_chg_tol=1e-3, loss_chg_iter_below_tol=5, init_option=-1,
               callbacks=None, run_metadata_freq=1000,
@@ -223,17 +223,13 @@ class SimpleLearner(Learner):
         """
 
         Args:
-            loss:
             train_data (Iterator or tuple(np.ndarray)):
-            optimizer:
             batch_size:
             max_iter:
             loss_chg_tol:
             loss_chg_iter_below_tol:
             init_option:
             callbacks:
-            loss_summary:
-            grads_processor:
             run_metadata_freq:
             trace_level (tf.RunOptions): Supported values include
                 `tf.RunOptions.{NO_TRACE, SOFTWARE_TRACE HARDWARE_TRACE,
@@ -295,7 +291,7 @@ class SimpleLearner(Learner):
                 session=self.session, saver=saver, working_dir=working_dir,
                 file_prefix=ckpt_file_prefix, step=max_iter)
 
-    def _loss(self, loss_op, data):
+    def loss(self, loss_op, data):
         """
 
         Args:
@@ -321,13 +317,12 @@ class ValidationSetLearner(Learner):
     """Used for training multiple symbols that have the same input and predict
     the same quantities, using a validation data set to pick the best model."""
     def __init__(self, symbols, loss, optimizers, val_loss=None,
-                 loss_summary=False, grads_processor=None, graph=None,
-                 session=None, inputs_dtype=tf.float64,
-                 outputs_dtype=tf.float64, output_shape=None,
-                 predict_postprocess=None):
+                 loss_summary=False, grads_processor=None, session=None,
+                 inputs_dtype=tf.float64, outputs_dtype=tf.float64,
+                 output_shape=None, predict_postprocess=None):
         super(ValidationSetLearner, self).__init__(
             symbols=symbols if isinstance(symbols, list) else [symbols],
-            graph=graph, session=session, inputs_dtype=inputs_dtype,
+            session=session, inputs_dtype=inputs_dtype,
             outputs_dtype=outputs_dtype, output_shape=output_shape,
             predict_postprocess=predict_postprocess)
         if not isinstance(optimizers, list):
@@ -351,40 +346,41 @@ class ValidationSetLearner(Learner):
             output_shape=self.output_shape,
             predict_postprocess=self.predict_postprocess)
         with learner.graph.as_default():
-            learner.val_loss_op = self.val_loss.tf_op(
+            val_loss_op = self.val_loss.tf_op(
                 learner.predictions_op, learner.outputs_op)
-        return learner
+        return learner, val_loss_op
 
-    def train(self, train_data, val_data=None,
-              batch_size=None, max_iter=100000, loss_chg_tol=1e-3,
-              loss_chg_iter_below_tol=5, init_option=-1, callbacks=None,
-              run_metadata_freq=1000, trace_level=tf.RunOptions.FULL_TRACE,
-              working_dir=os.getcwd(), ckpt_file_prefix='ckpt',
-              restore_sequentially=False, save_trained=False, parallel=True):
+    def train(self, train_data, val_data=None, batch_size=None,
+              max_iter=100000, loss_chg_tol=1e-3, loss_chg_iter_below_tol=5,
+              init_option=-1, callbacks=None, run_metadata_freq=1000,
+              trace_level=tf.RunOptions.FULL_TRACE, working_dir=os.getcwd(),
+              ckpt_file_prefix='ckpt', restore_sequentially=False,
+              save_trained=False, parallel=True):
         if val_data is None:
             val_data = train_data
         train_data = _process_data(train_data, batch_size, cycle=True)
         val_data = _process_data(val_data, batch_size, cycle=False)
-        learners = [self._get_symbol_learner(sym_index)
-                    for sym_index in range(len(self.symbols))]
+        learners, val_loss_ops = tuple(zip(
+            *[self._get_symbol_learner(sym_index)
+              for sym_index in range(len(self.symbols))]))
         if parallel:
-            def _train_symbol(state):
-                state[0].train(
+            def _train_symbol(config):
+                config[0].train(
                     train_data=train_data, max_iter=max_iter,
                     loss_chg_tol=loss_chg_tol,
                     loss_chg_iter_below_tol=loss_chg_iter_below_tol,
                     init_option=init_option, callbacks=callbacks,
                     run_metadata_freq=run_metadata_freq,
-                    trace_level=trace_level, working_dir=state[1],
+                    trace_level=trace_level, working_dir=config[2],
                     ckpt_file_prefix=ckpt_file_prefix,
                     restore_sequentially=restore_sequentially,
                     save_trained=save_trained)
-                return state[0]._loss(
-                    loss_op=state[0].val_loss_op, data=val_data)
+                return config[0].loss(
+                    loss_op=config[1], data=val_data)
             with closing(ThreadPool()) as pool:
                 val_losses = pool.map(
                     _train_symbol,
-                    [(learners[sym_index],
+                    [(learners[sym_index], val_loss_ops[sym_index],
                       os.path.join(working_dir, 'symbol_' + str(sym_index)))
                      for sym_index in range(len(self.symbols))])
                 pool.terminate()
@@ -398,13 +394,13 @@ class ValidationSetLearner(Learner):
                     init_option=init_option, callbacks=callbacks,
                     run_metadata_freq=run_metadata_freq,
                     trace_level=trace_level,
-                    working_dir=os.path.join(working_dir,
-                                             'symbol_' + str(sym_index)),
+                    working_dir=os.path.join(
+                        working_dir, 'symbol_' + str(sym_index)),
                     ckpt_file_prefix=ckpt_file_prefix,
                     restore_sequentially=restore_sequentially,
                     save_trained=save_trained)
-                val_losses[sym_index] = learners[sym_index]._loss(
-                    loss_op=learners[sym_index].val_loss_op, data=val_data)
+                val_losses[sym_index] = learners[sym_index].loss(
+                    loss_op=val_loss_ops[sym_index], data=val_data)
         self.best_symbol = np.argmin(val_losses)
         if save_trained:
             best_learner = learners[self.best_symbol]
@@ -416,7 +412,7 @@ class ValidationSetLearner(Learner):
                 working_dir=working_dir, file_prefix=ckpt_file_prefix,
                 step=max_iter)
 
-    @graph_context
+    @_graph_context
     def _predict_op(self):
         return self.symbols[self.best_symbol](self.inputs_op)
 
@@ -425,13 +421,12 @@ class CrossValidationLearner(Learner):
     """Used for training multiple symbols that have the same input and predict
     the same quantities, using cross-validation to pick the best model."""
     def __init__(self, symbols, loss, optimizers, val_loss=None,
-                 loss_summary=False, grads_processor=None, graph=None,
-                 session=None, inputs_dtype=tf.float64,
-                 outputs_dtype=tf.float64, output_shape=None,
-                 predict_postprocess=None):
+                 loss_summary=False, grads_processor=None, session=None,
+                 inputs_dtype=tf.float64, outputs_dtype=tf.float64,
+                 output_shape=None, predict_postprocess=None):
         super(CrossValidationLearner, self).__init__(
             symbols=symbols if isinstance(symbols, list) else [symbols],
-            graph=graph, session=session, inputs_dtype=inputs_dtype,
+            session=session, inputs_dtype=inputs_dtype,
             outputs_dtype=outputs_dtype, output_shape=output_shape,
             predict_postprocess=predict_postprocess)
         if not isinstance(optimizers, list):
@@ -455,9 +450,9 @@ class CrossValidationLearner(Learner):
             output_shape=self.output_shape,
             predict_postprocess=self.predict_postprocess)
         with learner.graph.as_default():
-            learner.val_loss_op = self.val_loss.tf_op(
+            val_loss_op = self.val_loss.tf_op(
                 learner.predictions_op, learner.outputs_op)
-        return learner
+        return learner, val_loss_op
 
     def train(self, train_data, cross_val=None, batch_size=None,
               max_iter=100000, loss_chg_tol=1e-3, loss_chg_iter_below_tol=5,
@@ -474,32 +469,32 @@ class CrossValidationLearner(Learner):
                              'two numpy arrays with matching first dimensions. '
                              'The first array should contain the inputs and '
                              'the second, the corresponding labels.')
-        # TODO: Make the cross_validation parameter compulsory.
         if cross_val is None:
             cross_val = KFold(len(train_data[0]), k=10)
         if parallel:
             def _train_symbol(config):
                 config[0].train(
-                    train_data=(train_data[0][config[2], :],
-                                train_data[1][config[2], :]),
+                    train_data=(train_data[0][config[3], :],
+                                train_data[1][config[3], :]),
                     batch_size=batch_size, max_iter=max_iter,
                     loss_chg_tol=loss_chg_tol,
                     loss_chg_iter_below_tol=loss_chg_iter_below_tol,
                     init_option=init_option, callbacks=callbacks,
                     run_metadata_freq=run_metadata_freq,
                     trace_level=trace_level,
-                    working_dir=config[1],
+                    working_dir=config[2],
                     ckpt_file_prefix=ckpt_file_prefix,
                     restore_sequentially=restore_sequentially,
                     save_trained=save_trained)
-                return config[0]._loss(
-                    loss_op=config[0].val_loss_op,
-                    data=(train_data[0][config[3], :],
-                          train_data[1][config[3], :]))
+                return config[0].loss(
+                    loss_op=config[1],
+                    data=(train_data[0][config[4], :],
+                          train_data[1][config[4], :]))
             learners = []
             for sym_index in range(len(self.symbols)):
                 for fold in range(len(cross_val)):
                     learners.append(self._get_symbol_learner(sym_index))
+            learners, val_loss_ops = tuple(zip(*learners))
             with closing(ThreadPool()) as pool:
                 configs = []
                 learner_index = 0
@@ -507,6 +502,7 @@ class CrossValidationLearner(Learner):
                     for fold, indices in enumerate(cross_val.reset_copy()):
                         configs.append((
                             learners[learner_index],
+                            val_loss_ops[learner_index],
                             os.path.join(working_dir, 'symbol_%d_fold_%d'
                                          % (sym_index, fold)),
                             indices[0], indices[1]))
@@ -523,7 +519,7 @@ class CrossValidationLearner(Learner):
                 num_folds = 0
                 for train_indices, val_indices in cross_val:
                     num_folds += 1
-                    learner = self._get_symbol_learner(sym_index)
+                    learner, val_loss_op = self._get_symbol_learner(sym_index)
                     learner.train(
                         train_data=(train_data[0][train_indices, :],
                                     train_data[1][train_indices, :]),
@@ -533,20 +529,20 @@ class CrossValidationLearner(Learner):
                         init_option=init_option, callbacks=callbacks,
                         run_metadata_freq=run_metadata_freq,
                         trace_level=trace_level,
-                        working_dir=os.path.join(working_dir,
-                                                 'symbol_%d_fold_%d'
-                                                 % (sym_index, num_folds - 1)),
+                        working_dir=os.path.join(
+                            working_dir,
+                            'symbol_%d_fold_%d' % (sym_index, num_folds - 1)),
                         ckpt_file_prefix=ckpt_file_prefix,
                         restore_sequentially=restore_sequentially,
                         save_trained=save_trained)
-                    val_losses[sym_index] += learner._loss(
-                        loss_op=learner.val_loss_op,
+                    val_losses[sym_index] += learner.loss(
+                        loss_op=val_loss_op,
                         data=(train_data[0][val_indices, :],
                               train_data[1][val_indices, :]))
                 val_losses[sym_index] /= num_folds
         self.best_symbol = np.argmin(val_losses)
         if save_trained:
-            learner = self._get_symbol_learner(self.best_symbol)
+            learner, _ = self._get_symbol_learner(self.best_symbol)
             learner.train(
                 train_data=train_data, batch_size=batch_size, max_iter=max_iter,
                 loss_chg_tol=loss_chg_tol,
@@ -557,21 +553,43 @@ class CrossValidationLearner(Learner):
                 restore_sequentially=restore_sequentially,
                 save_trained=save_trained)
 
-    @graph_context
+    @_graph_context
     def _predict_op(self):
         return self.symbols[self.best_symbol](self.inputs_op)
 
 
-# class TensorFlowMultiModelNIGLearner(Learner):
-#     """Used for training multiple TensorFlow models that have the same input
-#     and
-#     predict the same quantities, using the NIG agreement-driven approach to
-#     train them jointly and allow them to make predictions jointly."""
-#     def train(self, models, train_data, eval_data=None, test_data=None):
-#         pass
+# class SimpleNIGLearner(Learner):
+#     # TODO: Add support for multiple combination functions.
+#     def __init__(self, symbols, loss=None, disagreement=None, optimizer=None,
+#                  loss_summary=False, grads_processor=None, session=None,
+#                  inputs_dtype=tf.float64, outputs_dtype=tf.float64,
+#                  output_shape=None, predict_postprocess=None):
+#         super(SimpleNIGLearner, self).__init__(
+#             symbols=symbols if isinstance(symbols, list) else [symbols],
+#             session=session, inputs_dtype=inputs_dtype,
+#             outputs_dtype=outputs_dtype, output_shape=output_shape,
+#             predict_postprocess=predict_postprocess)
+#         self.trainable = loss is not None and disagreement is not None \
+#             and optimizer is not None
+#         with self.graph.as_default():
+#             self.consensus_predictions_op = tf.placeholder(
+#                 outputs_dtype, [None] + self.output_shape)
 #
-#     def predict(self, input_data, checkpoint=-1, session=None):
-#         pass
 #
-#     def predict_iterator(self, input_data):
-#         pass
+# class NIGLearner(Learner):
+#     def __init__(self, symbols, loss, disagreement, optimizers,
+#                  loss_summary=False, grads_processor=None, session=None,
+#                  inputs_dtype=tf.float64, outputs_dtype=tf.float64,
+#                  output_shape=None, predict_postprocess=None):
+#         super(NIGLearner, self).__init__(
+#             symbols=symbols if isinstance(symbols, list) else [symbols],
+#             session=session, inputs_dtype=inputs_dtype,
+#             outputs_dtype=outputs_dtype, output_shape=output_shape,
+#             predict_postprocess=predict_postprocess)
+#         if not isinstance(optimizers, list):
+#             optimizers = [optimizers] * len(self.symbols)
+#         self.loss = loss
+#         self.optimizers = optimizers
+#         self.loss_summary = loss_summary
+#         self.grads_processor = grads_processor
+
