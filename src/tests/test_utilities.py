@@ -1,6 +1,6 @@
 import time
 
-from nig.utilities import elapsed_timer
+from nig.utilities.generic import elapsed_timer
 
 def test_elapsed_timer():
     sleep_time = 0.01 # sec

@@ -27,20 +27,19 @@ def test_simple_learner():
     # Construct an MLP
     mlp = MLP(input_sz, output_sz, architecture, tf.nn.relu)
 
+    # Loss and optimizer
+    loss = CrossEntropyIntegerEncodingMetric()
+    optimizer = gradient_descent(1e-1, decay_rate=0.99)
+
     # Construct a SimpleLearner
-    learner = SimpleLearner(mlp,
+    learner = SimpleLearner(mlp, loss, optimizer,
                             inputs_dtype=tf.float32,
                             outputs_dtype=tf.int32,
                             output_shape=1,
                             predict_postprocess=lambda l: tf.argmax(l, 1))
 
-    # Loss and optimizer
-    loss = CrossEntropyIntegerEncodingMetric()
-    optimizer = gradient_descent(1e-1, decay_rate=0.99)
-
     # Train the learner for a few steps
     max_iter = 10
-    learner.train(loss, (X, Y), optimizer=optimizer,
-                  max_iter=max_iter, init_option=True)
+    learner.train((X, Y),  max_iter=max_iter, init_option=True)
 
     # TODO: add any necessary assertions here
