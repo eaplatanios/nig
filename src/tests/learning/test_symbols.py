@@ -1,9 +1,9 @@
 import numpy as np
 import tensorflow as tf
 
-from nig.learning.symbols import Input
-from nig.learning.symbols import MultiLayerPerceptron as MLP
-from nig.learning.symbols import ADIOS
+from nig.learning.models import Input
+from nig.learning.models import MultiLayerPerceptron as MLP
+from nig.learning.models import ADIOS
 
 
 def test_MultiLayerPerceptron():

@@ -404,145 +404,142 @@ class ValidationSetLearner(Learner):
         return self.best_learner.models.outputs
 
 
-# class CrossValidationLearner(Learner):
-#     """Used for training multiple symbols that have the same input and predict
-#     the same quantities, using cross-validation to pick the best model."""
-#     def __init__(self, models, loss, optimizers, val_loss=None,
-#                  loss_summary=False, grads_processor=None, session=None,
-#                  inputs_dtype=tf.float64, outputs_dtype=tf.float64,
-#                  output_shape=None, predict_postprocess=None):
-#         super(CrossValidationLearner, self).__init__(
-#             models=models if isinstance(models, list) else [models],
-#             session=session, inputs_dtype=inputs_dtype,
-#             outputs_dtype=outputs_dtype, output_shape=output_shape,
-#             predict_postprocess=predict_postprocess)
-#         if not isinstance(optimizers, list):
-#             optimizers = [optimizers] * len(self.models)
-#         if val_loss is None:
-#             val_loss = loss
-#         self.loss = loss
-#         self.val_loss = val_loss
-#         self.optimizers = optimizers
-#         self.loss_summary = loss_summary
-#         self.grads_processor = grads_processor
-#         self.best_symbol = 0
-#
-#     def _get_symbol_learner(self, symbol_index):
-#         learner = SimpleLearner(
-#             model=self.models[symbol_index], loss=self.loss,
-#             optimizer=self.optimizers[symbol_index],
-#             loss_summary=self.loss_summary,
-#             grads_processor=self.grads_processor,
-#             inputs_dtype=self.inputs_dtype, outputs_dtype=self.outputs_dtype,
-#             output_shape=self.output_shape,
-#             predict_postprocess=self.predict_postprocess)
-#         with learner.graph.as_default():
-#             val_loss_op = self.val_loss.tf_op(
-#                 learner.predictions_op, learner.outputs_op)
-#         return learner, val_loss_op
-#
-#     def train(self, train_data, cross_val=None, batch_size=None,
-#               max_iter=100000, loss_chg_tol=1e-3, loss_chg_iter_below_tol=5,
-#               init_option=-1, callbacks=None, run_metadata_freq=1000,
-#               trace_level=tf.RunOptions.FULL_TRACE, working_dir=os.getcwd(),
-#               ckpt_file_prefix='ckpt', restore_sequentially=False,
-#               save_trained=False, parallel=True):
-#         if not isinstance(train_data, tuple) or len(train_data) != 2 \
-#                 or not isinstance(train_data[0], np.ndarray) \
-#                 or not isinstance(train_data[1], np.ndarray) \
-#                 or len(train_data[0]) != len(train_data[1]):
-#             raise ValueError('The training data provided to the '
-#                              'cross-validation learner needs to be a tuple of '
-#                              'two numpy arrays with matching first dimensions. '
-#                              'The first array should contain the inputs and '
-#                              'the second, the corresponding labels.')
-#         if cross_val is None:
-#             cross_val = KFold(len(train_data[0]), k=10)
-#         if parallel:
-#             def _train_symbol(config):
-#                 config[0].train(
-#                     train_data=(train_data[0][config[3], :],
-#                                 train_data[1][config[3], :]),
-#                     batch_size=batch_size, max_iter=max_iter,
-#                     loss_chg_tol=loss_chg_tol,
-#                     loss_chg_iter_below_tol=loss_chg_iter_below_tol,
-#                     init_option=init_option, callbacks=callbacks,
-#                     run_metadata_freq=run_metadata_freq,
-#                     trace_level=trace_level,
-#                     working_dir=config[2],
-#                     ckpt_file_prefix=ckpt_file_prefix,
-#                     restore_sequentially=restore_sequentially,
-#                     save_trained=save_trained)
-#                 return config[0].loss(
-#                     loss_op=config[1],
-#                     data=(train_data[0][config[4], :],
-#                           train_data[1][config[4], :]))
-#             learners = []
-#             for sym_index in range(len(self.models)):
-#                 for fold in range(len(cross_val)):
-#                     learners.append(self._get_symbol_learner(sym_index))
-#             learners, val_loss_ops = tuple(zip(*learners))
-#             with closing(ThreadPool()) as pool:
-#                 configs = []
-#                 learner_index = 0
-#                 for sym_index in range(len(self.models)):
-#                     for fold, indices in enumerate(cross_val.reset_copy()):
-#                         configs.append((
-#                             learners[learner_index],
-#                             val_loss_ops[learner_index],
-#                             os.path.join(working_dir, 'symbol_%d_fold_%d'
-#                                          % (sym_index, fold)),
-#                             indices[0], indices[1]))
-#                         learner_index += 1
-#                 val_losses = pool.map(_train_symbol, configs, chunksize=1)
-#                 pool.terminate()
-#                 val_losses = [np.mean(l) for l
-#                               in np.array_split(val_losses, len(self.models))]
-#         else:
-#             val_losses = [sys.float_info.max] * len(self.models)
-#             for sym_index in range(len(self.models)):
-#                 cross_val.reset()
-#                 val_losses[sym_index] = 0.0
-#                 num_folds = 0
-#                 for train_indices, val_indices in cross_val:
-#                     num_folds += 1
-#                     learner, val_loss_op = self._get_symbol_learner(sym_index)
-#                     learner.train(
-#                         train_data=(train_data[0][train_indices, :],
-#                                     train_data[1][train_indices, :]),
-#                         batch_size=batch_size, max_iter=max_iter,
-#                         loss_chg_tol=loss_chg_tol,
-#                         loss_chg_iter_below_tol=loss_chg_iter_below_tol,
-#                         init_option=init_option, callbacks=callbacks,
-#                         run_metadata_freq=run_metadata_freq,
-#                         trace_level=trace_level,
-#                         working_dir=os.path.join(
-#                             working_dir,
-#                             'symbol_%d_fold_%d' % (sym_index, num_folds - 1)),
-#                         ckpt_file_prefix=ckpt_file_prefix,
-#                         restore_sequentially=restore_sequentially,
-#                         save_trained=save_trained)
-#                     val_losses[sym_index] += learner.loss(
-#                         loss_op=val_loss_op,
-#                         data=(train_data[0][val_indices, :],
-#                               train_data[1][val_indices, :]))
-#                 val_losses[sym_index] /= num_folds
-#         self.best_symbol = np.argmin(val_losses)
-#         if save_trained:
-#             learner, _ = self._get_symbol_learner(self.best_symbol)
-#             learner.train(
-#                 train_data=train_data, batch_size=batch_size, max_iter=max_iter,
-#                 loss_chg_tol=loss_chg_tol,
-#                 loss_chg_iter_below_tol=loss_chg_iter_below_tol,
-#                 init_option=init_option, callbacks=callbacks,
-#                 run_metadata_freq=run_metadata_freq, trace_level=trace_level,
-#                 working_dir=working_dir, ckpt_file_prefix=ckpt_file_prefix,
-#                 restore_sequentially=restore_sequentially,
-#                 save_trained=save_trained)
-#
-#     @_graph_context
-#     def _output_ops(self):
-#         return self.models[self.best_symbol](self.inputs_op)
+class CrossValidationLearner(Learner):
+    """Used for training multiple symbols that have the same input and predict
+    the same quantities, using cross-validation to pick the best model."""
+    def __init__(self, models, val_loss, session=None,
+                 predict_postprocess=None):
+        super(CrossValidationLearner, self).__init__(
+            models=models if isinstance(models, list) else [models],
+            session=session, predict_postprocess=predict_postprocess)
+        if val_loss is None:
+            val_loss = [model.loss for model in self.models]
+        elif not isinstance(val_loss, list):
+            val_loss = [val_loss] * len(self.models)
+        self._val_loss = val_loss
+        self.best_model = 0
+        self.best_learner = None
+
+    def _get_model_learner(self, model_index):
+        learner = SimpleLearner(
+            model=self.models[model_index],
+            predict_postprocess=self.predict_postprocess)
+        with learner.graph.as_default():
+            val_loss_op = self._val_loss[model_index].tf_op(
+                learner.models.outputs, learner.models.train_outputs)
+        return learner, val_loss_op
+
+    def train(self, train_data, cross_val=None, batch_size=None,
+              max_iter=100000, loss_chg_tol=1e-3, loss_chg_iter_below_tol=5,
+              init_option=-1, callbacks=None, run_metadata_freq=1000,
+              trace_level=tf.RunOptions.FULL_TRACE, working_dir=os.getcwd(),
+              ckpt_file_prefix='ckpt', restore_sequentially=False,
+              save_trained=False, parallel=True):
+        if not isinstance(train_data, tuple) or len(train_data) != 2 \
+                or not isinstance(train_data[0], np.ndarray) \
+                or not isinstance(train_data[1], np.ndarray) \
+                or len(train_data[0]) != len(train_data[1]):
+            raise ValueError('The training data provided to the '
+                             'cross-validation learner needs to be a tuple of '
+                             'two numpy arrays with matching first dimensions. '
+                             'The first array should contain the inputs and '
+                             'the second, the corresponding labels.')
+        if cross_val is None:
+            cross_val = KFold(len(train_data[0]), k=10)
+        if parallel:
+            def _train_model(config):
+                config[0].train(
+                    train_data=(train_data[0][config[3], :],
+                                train_data[1][config[3], :]),
+                    batch_size=batch_size, max_iter=max_iter,
+                    loss_chg_tol=loss_chg_tol,
+                    loss_chg_iter_below_tol=loss_chg_iter_below_tol,
+                    init_option=init_option, callbacks=callbacks,
+                    run_metadata_freq=run_metadata_freq,
+                    trace_level=trace_level, working_dir=config[2],
+                    ckpt_file_prefix=ckpt_file_prefix,
+                    restore_sequentially=restore_sequentially,
+                    save_trained=save_trained)
+                return config[0].loss(
+                    loss_op=config[1],
+                    data=(train_data[0][config[4], :],
+                          train_data[1][config[4], :]))
+            learners = []
+            for model_index in range(len(self.models)):
+                for fold in range(len(cross_val)):
+                    learners.append(self._get_model_learner(model_index))
+            learners, val_loss_ops = tuple(zip(*learners))
+            with closing(ThreadPool()) as pool:
+                configs = []
+                learner_index = 0
+                for model_index in range(len(self.models)):
+                    for fold, indices in enumerate(cross_val.reset_copy()):
+                        configs.append((
+                            learners[learner_index],
+                            val_loss_ops[learner_index],
+                            os.path.join(working_dir, 'model_%d_fold_%d'
+                                         % (model_index, fold)),
+                            indices[0], indices[1]))
+                        learner_index += 1
+                val_losses = pool.map(_train_model, configs, chunksize=1)
+                pool.terminate()
+                val_losses = [np.mean(l) for l
+                              in np.array_split(val_losses, len(self.models))]
+        else:
+            val_losses = [sys.float_info.max for _ in range(len(self.models))]
+            for model_index in range(len(self.models)):
+                cross_val.reset()
+                val_losses[model_index] = 0.0
+                num_folds = 0
+                for train_indices, val_indices in cross_val:
+                    num_folds += 1
+                    learner, val_loss_op = self._get_model_learner(model_index)
+                    learner.train(
+                        train_data=(train_data[0][train_indices, :],
+                                    train_data[1][train_indices, :]),
+                        batch_size=batch_size, max_iter=max_iter,
+                        loss_chg_tol=loss_chg_tol,
+                        loss_chg_iter_below_tol=loss_chg_iter_below_tol,
+                        init_option=init_option, callbacks=callbacks,
+                        run_metadata_freq=run_metadata_freq,
+                        trace_level=trace_level, working_dir=os.path.join(
+                            working_dir,
+                            'model_%d_fold_%d' % (model_index, num_folds - 1)),
+                        ckpt_file_prefix=ckpt_file_prefix,
+                        restore_sequentially=restore_sequentially,
+                        save_trained=save_trained)
+                    val_losses[model_index] += learner.loss(
+                        loss_op=val_loss_op,
+                        data=(train_data[0][val_indices, :],
+                              train_data[1][val_indices, :]))
+                val_losses[model_index] /= num_folds
+        self.best_model = np.argmin(val_losses)
+        self.best_learner, _ = self._get_model_learner(self.best_model)
+        self.graph = self.best_learner.graph
+        if save_trained:
+            self.best_learner.train(
+                train_data=train_data, batch_size=batch_size, max_iter=max_iter,
+                loss_chg_tol=loss_chg_tol,
+                loss_chg_iter_below_tol=loss_chg_iter_below_tol,
+                init_option=init_option, callbacks=callbacks,
+                run_metadata_freq=run_metadata_freq, trace_level=trace_level,
+                working_dir=working_dir, ckpt_file_prefix=ckpt_file_prefix,
+                restore_sequentially=restore_sequentially,
+                save_trained=save_trained)
+
+    def _combined_model(self):
+        if self.best_learner is None:
+            error_msg = 'The current learner has not been trained yet.'
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+        return self.best_learner.models
+
+    def _output_ops(self):
+        if self.best_learner is None:
+            error_msg = 'The current learner has not been trained yet.'
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+        return self.best_learner.models.outputs
 
 
 # class SimpleNIGLearner(Learner):
@@ -579,4 +576,3 @@ class ValidationSetLearner(Learner):
 #         self.optimizers = optimizers
 #         self.loss_summary = loss_summary
 #         self.grads_processor = grads_processor
-

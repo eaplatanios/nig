@@ -6,7 +6,7 @@ from nig.learning.metrics import *
 from nig.learning.learners import *
 from nig.learning.optimizers import gradient_descent
 from nig.learning.processors import norm_summary, norm_clipping
-from nig.learning.symbols import MultiLayerPerceptron
+from nig.learning.models import MultiLayerPerceptron
 
 __author__ = 'eaplatanios'
 
@@ -86,13 +86,13 @@ callbacks = [
 #     outputs_dtype=outputs_dtype, output_shape=output_shape,
 #     predict_postprocess=lambda l: tf.argmax(l, 1))
 
-learner = ValidationSetLearner(
+learner = CrossValidationLearner(
     models=models, val_loss=loss, predict_postprocess=lambda l: tf.argmax(l, 1))
 
 learner.train(
-    train_data=get_iterator(train_data), val_data=get_iterator(val_data),
-    # train_data=(inputs_pipeline(train_data), labels_pipeline(train_data)),
-    # cross_val=KFold(len(train_data), 5),
+    # train_data=get_iterator(train_data), val_data=get_iterator(val_data),
+    train_data=(inputs_pipeline(train_data), labels_pipeline(train_data)),
+    cross_val=KFold(len(train_data), 5),
     batch_size=batch_size,
     max_iter=max_iter, loss_chg_tol=loss_chg_tol,
     loss_chg_iter_below_tol=loss_chg_iter_below_tol, init_option=True,

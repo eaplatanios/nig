@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 
 from nig.learning.metrics import CrossEntropyIntegerEncodingMetric
-from nig.learning.symbols import MultiLayerPerceptron as MLP
+from nig.learning.models import MultiLayerPerceptron as MLP
 from nig.learning.optimizers import gradient_descent
 from nig.learning.learners import SimpleLearner
 from nig.data.processors import ColumnsExtractor

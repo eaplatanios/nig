@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from nig.learning.symbols import Model
+from nig.learning.models import Model
 
 a = tf.Variable(tf.zeros([200]), name='biases')
 b = tf.Variable(tf.zeros([200]), name='biases')
