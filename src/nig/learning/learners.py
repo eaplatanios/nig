@@ -302,7 +302,7 @@ class SimpleLearner(Learner):
 
 
 class ValidationSetLearner(Learner):
-    """Used for training multiple symbols that have the same input and predict
+    """Used for training multiple models that have the same input and predict
     the same quantities, using a validation data set to pick the best model."""
     def __init__(self, models, val_loss, session=None,
                  predict_postprocess=None):
@@ -314,17 +314,17 @@ class ValidationSetLearner(Learner):
         elif not isinstance(val_loss, list):
             val_loss = [val_loss] * len(self.models)
         self._val_loss = val_loss
-        self.best_symbol = 0
+        self.best_model = 0
         self.best_learner = None
 
-    def _get_symbol_learner(self, symbol_index):
+    def _get_model_learner(self, model_index):
         learner = SimpleLearner(
-            model=self.models[symbol_index],
+            model=self.models[model_index],
             predict_postprocess=self.predict_postprocess)
         with learner.graph.as_default():
-            learner.val_loss_op = self._val_loss[symbol_index].tf_op(
+            val_loss_op = self._val_loss[model_index].tf_op(
                 learner.models.outputs, learner.models.train_outputs)
-        return learner
+        return learner, val_loss_op
 
     def train(self, train_data, val_data=None, batch_size=None,
               max_iter=100000, loss_chg_tol=1e-3, loss_chg_iter_below_tol=5,
@@ -336,33 +336,34 @@ class ValidationSetLearner(Learner):
             val_data = train_data
         train_data = _process_data(train_data, batch_size, cycle=True)
         val_data = _process_data(val_data, batch_size, cycle=False)
-        learners = [self._get_symbol_learner(sym_index)
-                    for sym_index in range(len(self.models))]
+        learners, val_loss_ops = tuple(zip(
+            *[self._get_model_learner(model_index)
+              for model_index in range(len(self.models))]))
         if parallel:
-            def _train_symbol(config):
+            def _train_model(config):
                 config[0].train(
                     train_data=train_data, max_iter=max_iter,
                     loss_chg_tol=loss_chg_tol,
                     loss_chg_iter_below_tol=loss_chg_iter_below_tol,
                     init_option=init_option, callbacks=callbacks,
                     run_metadata_freq=run_metadata_freq,
-                    trace_level=trace_level, working_dir=config[1],
+                    trace_level=trace_level, working_dir=config[2],
                     ckpt_file_prefix=ckpt_file_prefix,
                     restore_sequentially=restore_sequentially,
                     save_trained=save_trained)
                 return config[0].loss(
-                    loss_op=config[0].val_loss_op, data=val_data)
+                    loss_op=config[1], data=val_data)
             with closing(ThreadPool()) as pool:
                 val_losses = pool.map(
-                    _train_symbol,
-                    [(learners[sym_index],
-                      os.path.join(working_dir, 'symbol_' + str(sym_index)))
-                     for sym_index in range(len(self.models))])
+                    _train_model,
+                    [(learners[model_index], val_loss_ops[model_index],
+                      os.path.join(working_dir, 'model_' + str(model_index)))
+                     for model_index in range(len(self.models))])
                 pool.terminate()
         else:
             val_losses = [sys.float_info.max for _ in range(len(self.models))]
-            for sym_index in range(len(self.models)):
-                learners[sym_index].train(
+            for model_index in range(len(self.models)):
+                learners[model_index].train(
                     train_data=train_data, max_iter=max_iter,
                     loss_chg_tol=loss_chg_tol,
                     loss_chg_iter_below_tol=loss_chg_iter_below_tol,
@@ -370,14 +371,14 @@ class ValidationSetLearner(Learner):
                     run_metadata_freq=run_metadata_freq,
                     trace_level=trace_level,
                     working_dir=os.path.join(
-                        working_dir, 'symbol_' + str(sym_index)),
+                        working_dir, 'model_' + str(model_index)),
                     ckpt_file_prefix=ckpt_file_prefix,
                     restore_sequentially=restore_sequentially,
                     save_trained=save_trained)
-                val_losses[sym_index] = learners[sym_index].loss(
-                    loss_op=learners[sym_index].val_loss_op, data=val_data)
-        self.best_symbol = np.argmin(val_losses)
-        self.best_learner = learners[self.best_symbol]
+                val_losses[model_index] = learners[model_index].loss(
+                    loss_op=val_loss_ops[model_index], data=val_data)
+        self.best_model = np.argmin(val_losses)
+        self.best_learner = learners[self.best_model]
         self.graph = self.best_learner.graph
         if save_trained:
             with self.best_learner.graph.as_default():

@@ -106,12 +106,12 @@ test_predictions = learner.predict(
     get_iterator(test_data, False), ckpt=-1, working_dir=working_dir,
     ckpt_file_prefix=checkpoint_file_prefix)
 test_truth = test_data[:, -1]
-print('Best symbol: %d' % learner.best_symbol)
+print('Best model: %d' % learner.best_model)
 print(np.mean(test_predictions == test_truth))
 
 # Test loading the best performing trained model using a simple learner
 simple_learner = SimpleLearner(
-    models[learner.best_symbol], predict_postprocess=lambda l: tf.argmax(l, 1))
+    models[learner.best_model], predict_postprocess=lambda l: tf.argmax(l, 1))
 simple_learner_test_predictions = simple_learner.predict(
     get_iterator(test_data, False), ckpt=-1, working_dir=working_dir,
     ckpt_file_prefix=checkpoint_file_prefix)
