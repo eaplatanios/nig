@@ -13,7 +13,7 @@ def norm_summary(tensors, name=None):
         name = '_'.join([t.op.name for t in tensors]) + '_norm'
     tensors_norm = tf.reduce_sum(
         [tf.nn.l2_loss(tensor) for tensor in tensors], name=name)
-    tf.scalar_summary(tensors_norm.op.name, tensors_norm)
+    tf.scalar_summary(tensors_norm._output_op.name, tensors_norm)
     return tensors
 
 

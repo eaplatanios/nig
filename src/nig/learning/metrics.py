@@ -80,6 +80,7 @@ class AccuracyIntegerEncodingMetric(Metric):
 
     def tf_op(self, prediction, truth, name='accuracy'):
         with tf.name_scope('metric'):
-            metric = tf.nn.in_top_k(prediction, tf.squeeze(truth), 1)
+            metric = tf.nn.in_top_k(
+                prediction, tf.to_int64(tf.squeeze(truth)), 1)
             metric = tf.reduce_mean(tf.cast(metric, tf.float32), name=name)
         return metric

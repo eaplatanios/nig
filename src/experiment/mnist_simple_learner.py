@@ -47,18 +47,20 @@ def get_iterator(mnist_data, include_labels=True):
                            cycle_shuffle=False, keep_last=True,
                            pipelines=pipelines)
 
-symbols = [MultiLayerPerceptron(784, 10, architecture, activation=activation,
-                                softmax_output=use_one_hot_encoding,
-                                use_log=use_one_hot_encoding)
-           for architecture in architectures]
-
-outputs_dtype = tf.float32 if use_one_hot_encoding else tf.int32
-output_shape = 10 if use_one_hot_encoding else 1
-
 loss = CrossEntropyOneHotEncodingMetric() if use_one_hot_encoding \
     else CrossEntropyIntegerEncodingMetric()
 eval_metric = AccuracyOneHotEncodingMetric() if use_one_hot_encoding \
     else AccuracyIntegerEncodingMetric()
+
+models = [MultiLayerPerceptron(784, 10, architecture, activation=activation,
+                               softmax_output=use_one_hot_encoding,
+                               use_log=use_one_hot_encoding, loss=loss,
+                               optimizer=optimizer, loss_summary=True,
+                               grads_processor=gradients_processor)
+          for architecture in architectures]
+
+outputs_dtype = tf.float32 if use_one_hot_encoding else tf.int32
+output_shape = 10 if use_one_hot_encoding else 1
 
 callbacks = [
     LoggerCallback(frequency=logging_frequency),
@@ -78,16 +80,20 @@ callbacks = [
         metrics=eval_metric, name='eval/test'),
 ]
 
-learner = CrossValidationLearner(
-    symbols=symbols, loss=loss, optimizers=optimizer, loss_summary=True,
-    grads_processor=gradients_processor, inputs_dtype=tf.float32,
-    outputs_dtype=outputs_dtype, output_shape=output_shape,
-    predict_postprocess=lambda l: tf.argmax(l, 1))
+# learner = CrossValidationLearner(
+#     models=symbols, loss=loss, optimizers=optimizer, loss_summary=True,
+#     grads_processor=gradients_processor, inputs_dtype=tf.float32,
+#     outputs_dtype=outputs_dtype, output_shape=output_shape,
+#     predict_postprocess=lambda l: tf.argmax(l, 1))
+
+learner = ValidationSetLearner(
+    models=models, val_loss=loss, predict_postprocess=lambda l: tf.argmax(l, 1))
 
 learner.train(
-    # train_data=get_iterator(train_data), val_data=get_iterator(val_data),
-    train_data=(inputs_pipeline(train_data), labels_pipeline(train_data)),
-    cross_val=KFold(len(train_data), 5), batch_size=batch_size,
+    train_data=get_iterator(train_data), val_data=get_iterator(val_data),
+    # train_data=(inputs_pipeline(train_data), labels_pipeline(train_data)),
+    # cross_val=KFold(len(train_data), 5),
+    batch_size=batch_size,
     max_iter=max_iter, loss_chg_tol=loss_chg_tol,
     loss_chg_iter_below_tol=loss_chg_iter_below_tol, init_option=True,
     callbacks=callbacks,
@@ -105,9 +111,7 @@ print(np.mean(test_predictions == test_truth))
 
 # Test loading the best performing trained model using a simple learner
 simple_learner = SimpleLearner(
-    symbols[learner.best_symbol], inputs_dtype=tf.float32,
-    outputs_dtype=outputs_dtype, output_shape=output_shape,
-    predict_postprocess=lambda l: tf.argmax(l, 1))
+    models[learner.best_symbol], predict_postprocess=lambda l: tf.argmax(l, 1))
 simple_learner_test_predictions = simple_learner.predict(
     get_iterator(test_data, False), ckpt=-1, working_dir=working_dir,
     ckpt_file_prefix=checkpoint_file_prefix)

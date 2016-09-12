@@ -22,9 +22,7 @@ class Callback(with_metaclass(abc.ABCMeta, object)):
         pass
 
     @abc.abstractmethod
-    def initialize(self, graph, inputs_op, outputs_op, predictions_op, loss_op,
-                   summary_writer, working_dir):
-        # TODO: Maybe pass the whole learner as an argument.
+    def initialize(self, graph, model, summary_writer, working_dir):
         pass
 
     def __call__(self, session, feed_dict=None, loss=None, global_step=None):
@@ -52,8 +50,7 @@ class LoggerCallback(Callback):
         return LoggerCallback(self.frequency, self.name, self.log_format,
                               self.header, self.header_frequency)
 
-    def initialize(self, graph, inputs_op, outputs_op, predictions_op, loss_op,
-                   summary_writer, working_dir):
+    def initialize(self, graph, model, summary_writer, working_dir):
         pass
 
     def execute(self, session, feed_dict, loss, global_step):
@@ -71,8 +68,7 @@ class SummaryWriterCallback(Callback):
     def copy(self):
         return SummaryWriterCallback(self.frequency)
 
-    def initialize(self, graph, inputs_op, outputs_op, predictions_op, loss_op,
-                   summary_writer, working_dir):
+    def initialize(self, graph, model, summary_writer, working_dir):
         if self.summary_op is None:
             self.summary_op = tf.merge_all_summaries()
             self.summary_writer = summary_writer
@@ -123,8 +119,7 @@ class VariableStatisticsSummaryWriterCallback(Callback):
                         tag=tag, values=variable, name=tag.replace(':', '_')))
             return tf.merge_summary(summaries, name='variables' + self.name)
 
-    def initialize(self, graph, inputs_op, outputs_op, predictions_op, loss_op,
-                   summary_writer, working_dir):
+    def initialize(self, graph, model, summary_writer, working_dir):
         if self.summary_op is None:
             if self.variables is 'trainable':
                 self.tf_variables = tf.trainable_variables()
@@ -167,8 +162,7 @@ class CheckpointWriterCallback(Callback):
             self.keep_ckpt_every_n_hours, self.working_dir,
             self.file_prefix)
 
-    def initialize(self, graph, inputs_op, outputs_op, predictions_op, loss_op,
-                   summary_writer, working_dir):
+    def initialize(self, graph, model, summary_writer, working_dir):
         if self.saver is None:
             self.saver = tf.train.Saver(
                 var_list=self.variable_list, max_to_keep=self.max_to_keep,
@@ -204,8 +198,7 @@ class EvaluationCallback(Callback):
         self.header_frequency = header_frequency
         self.summary = summary
         self.summary_writer = None
-        self.inputs_op = None
-        self.outputs_op = None
+        self.model = None
         self.eval_ops = None
 
     def copy(self):
@@ -214,12 +207,10 @@ class EvaluationCallback(Callback):
             self.aggregating_function, self.name, self.log_format, self.header,
             self.header_frequency, self.summary)
 
-    def initialize(self, graph, inputs_op, outputs_op, predictions_op, loss_op,
-                   summary_writer, working_dir):
+    def initialize(self, graph, model, summary_writer, working_dir):
         if self.eval_ops is None:
-            self.inputs_op = inputs_op
-            self.outputs_op = outputs_op
-            self.eval_ops = [metric.tf_op(predictions_op, outputs_op)
+            self.model = model
+            self.eval_ops = [metric.tf_op(model.outputs, model.train_outputs)
                              for metric in self.metrics]
             if self.summary:
                 self.summary_writer = summary_writer
@@ -232,8 +223,8 @@ class EvaluationCallback(Callback):
         for index, eval_op in enumerate(self.eval_ops):
             value = tf_aggregate_over_iterator(
                 session, eval_op, self.iterator,
-                lambda data_batch: {self.inputs_op: data_batch[0],
-                                    self.outputs_op: data_batch[1]},
+                lambda data_batch: self.model.get_feed_dict(data_batch[0],
+                                                            data_batch[1]),
                 self.number_of_batches, self.aggregating_function)
             metrics.append(value)
             if self.summary:
