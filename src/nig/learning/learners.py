@@ -21,18 +21,21 @@ def _graph_context(func):
     return func_wrapper
 
 
-def _process_data(data, batch_size=None, cycle=False):
+def _process_data(data, batch_size=None, cycle=False, pipelines=None):
     if isinstance(data, np.ndarray):
         batch_size = batch_size if batch_size is not None else len(data)
-        return NPArrayIterator(data, batch_size=batch_size, shuffle=False,
-                               cycle=cycle, keep_last=True)
+        return NPArrayIterator(
+            data, batch_size=batch_size, shuffle=False, cycle=cycle,
+            keep_last=True, pipelines=pipelines)
     if isinstance(data, tuple):
         batch_size = batch_size if batch_size is not None else len(data[0])
-        return NPArrayIterator(data, batch_size=batch_size, shuffle=False,
-                               cycle=cycle, keep_last=True)
+        return NPArrayIterator(
+            data, batch_size=batch_size, shuffle=False, cycle=cycle,
+            keep_last=True, pipelines=pipelines)
     if not isinstance(data, NPArrayIterator):
         raise ValueError('Unsupported data format encountered.')
-    return data.reset_copy(batch_size=batch_size, cycle=cycle)
+    return data.reset_copy(
+        batch_size=batch_size, cycle=cycle, pipelines=pipelines)
 
 
 def _process_callbacks(callbacks):
@@ -137,8 +140,8 @@ class Learner(with_metaclass(abc.ABCMeta, object)):
 
     @abc.abstractmethod
     def train(
-            self, train_data, batch_size=None, init_option=-1, callbacks=None,
-            working_dir=os.getcwd(), ckpt_file_prefix='ckpt',
+            self, data, pipelines=None, batch_size=None, init_option=-1,
+            callbacks=None, working_dir=os.getcwd(), ckpt_file_prefix='ckpt',
             restore_sequentially=False, save_trained=False):
         pass
 
@@ -203,7 +206,7 @@ class SimpleLearner(Learner):
         super(SimpleLearner, self).__init__(model, session, predict_postprocess)
 
     @_graph_context
-    def train(self, train_data, batch_size=None, max_iter=100000,
+    def train(self, data, pipelines=None, batch_size=None, max_iter=100000,
               loss_chg_tol=1e-3, loss_chg_iter_below_tol=5, init_option=-1,
               callbacks=None, run_metadata_freq=1000,
               trace_level=tf.RunOptions.FULL_TRACE, working_dir=os.getcwd(),
@@ -212,7 +215,8 @@ class SimpleLearner(Learner):
         """
 
         Args:
-            train_data (Iterator or tuple(np.ndarray)):
+            data (Iterator or tuple(np.ndarray)):
+            pipelines:
             batch_size:
             max_iter:
             loss_chg_tol:
@@ -234,7 +238,7 @@ class SimpleLearner(Learner):
         if not self.models.trainable:
             raise ValueError('A model is trainable only if both a  loss and an '
                              'optimizer are provided when constructing it.')
-        train_data = _process_data(train_data, batch_size, cycle=True)
+        data = _process_data(data, batch_size, cycle=True, pipelines=pipelines)
         callbacks = _process_callbacks(callbacks)
         summary_writer = tf.train.SummaryWriter(working_dir, self.graph)
         saver = tf.train.Saver(restore_sequentially=restore_sequentially)
@@ -247,7 +251,7 @@ class SimpleLearner(Learner):
         prev_loss = sys.float_info.max
         iter_below_tol = 0
         for step in range(max_iter):
-            data_batch = train_data.next()
+            data_batch = data.next()
             feed_dict = self.models.get_feed_dict(data_batch[0], data_batch[1])
             if run_metadata_freq > 0 \
                     and (step + 1) % run_metadata_freq == 0:
@@ -277,17 +281,8 @@ class SimpleLearner(Learner):
                 session=self.session, saver=saver, working_dir=working_dir,
                 file_prefix=ckpt_file_prefix, step=max_iter)
 
-    def loss(self, loss_op, data):
-        """
-
-        Args:
-            loss_op:
-            data (Iterator or tuple(np.ndarray)):
-
-        Returns:
-
-        """
-        data = _process_data(data, cycle=False)
+    def loss(self, loss_op, data, pipelines=None):
+        data = _process_data(data, cycle=False, pipelines=pipelines)
         loss = 0.0
         for data_batch in data:
             feed_dict = self.models.get_feed_dict(data_batch[0], data_batch[1])
@@ -326,15 +321,15 @@ class ValidationSetLearner(Learner):
                 learner.models.outputs, learner.models.train_outputs)
         return learner, val_loss_op
 
-    def train(self, train_data, val_data=None, batch_size=None,
+    def train(self, data, pipelines=None, val_data=None, batch_size=None,
               max_iter=100000, loss_chg_tol=1e-3, loss_chg_iter_below_tol=5,
               init_option=-1, callbacks=None, run_metadata_freq=1000,
               trace_level=tf.RunOptions.FULL_TRACE, working_dir=os.getcwd(),
               ckpt_file_prefix='ckpt', restore_sequentially=False,
               save_trained=False, parallel=True):
         if val_data is None:
-            val_data = train_data
-        train_data = _process_data(train_data, batch_size, cycle=True)
+            val_data = data
+        data = _process_data(data, batch_size, cycle=True, pipelines=pipelines)
         val_data = _process_data(val_data, batch_size, cycle=False)
         learners, val_loss_ops = tuple(zip(
             *[self._get_model_learner(model_index)
@@ -342,7 +337,7 @@ class ValidationSetLearner(Learner):
         if parallel:
             def _train_model(config):
                 config[0].train(
-                    train_data=train_data, max_iter=max_iter,
+                    data=data, max_iter=max_iter,
                     loss_chg_tol=loss_chg_tol,
                     loss_chg_iter_below_tol=loss_chg_iter_below_tol,
                     init_option=init_option, callbacks=callbacks,
@@ -352,7 +347,7 @@ class ValidationSetLearner(Learner):
                     restore_sequentially=restore_sequentially,
                     save_trained=save_trained)
                 return config[0].loss(
-                    loss_op=config[1], data=val_data)
+                    loss_op=config[1], data=val_data, pipelines=pipelines)
             with closing(ThreadPool()) as pool:
                 val_losses = pool.map(
                     _train_model,
@@ -364,7 +359,7 @@ class ValidationSetLearner(Learner):
             val_losses = [sys.float_info.max for _ in range(len(self.models))]
             for model_index in range(len(self.models)):
                 learners[model_index].train(
-                    train_data=train_data, max_iter=max_iter,
+                    data=data, max_iter=max_iter,
                     loss_chg_tol=loss_chg_tol,
                     loss_chg_iter_below_tol=loss_chg_iter_below_tol,
                     init_option=init_option, callbacks=callbacks,
@@ -376,7 +371,8 @@ class ValidationSetLearner(Learner):
                     restore_sequentially=restore_sequentially,
                     save_trained=save_trained)
                 val_losses[model_index] = learners[model_index].loss(
-                    loss_op=val_loss_ops[model_index], data=val_data)
+                    loss_op=val_loss_ops[model_index], data=val_data,
+                    pipelines=pipelines)
         self.best_model = np.argmin(val_losses)
         self.best_learner = learners[self.best_model]
         self.graph = self.best_learner.graph
@@ -419,6 +415,7 @@ class CrossValidationLearner(Learner):
         self._val_loss = val_loss
         self.best_model = 0
         self.best_learner = None
+        self._data_type = -1
 
     def _get_model_learner(self, model_index):
         learner = SimpleLearner(
@@ -429,30 +426,42 @@ class CrossValidationLearner(Learner):
                 learner.models.outputs, learner.models.train_outputs)
         return learner, val_loss_op
 
-    def train(self, train_data, cross_val=None, batch_size=None,
+    def _get_fold_data(self, data, indices):
+        if self._data_type == 0:
+            return data[indices]
+        elif self._data_type == 1:
+            return tuple(d[indices] for d in data)
+        elif self._data_type == 2:
+            return {k: v[indices] for k, v in data.items()}
+        error_msg = 'Unsupported data type provided.'
+        logger.error(error_msg)
+        raise ValueError(error_msg)
+
+    def train(self, data, pipelines=None, batch_size=None, cross_val=None,
               max_iter=100000, loss_chg_tol=1e-3, loss_chg_iter_below_tol=5,
               init_option=-1, callbacks=None, run_metadata_freq=1000,
               trace_level=tf.RunOptions.FULL_TRACE, working_dir=os.getcwd(),
               ckpt_file_prefix='ckpt', restore_sequentially=False,
               save_trained=False, parallel=True):
-        if not isinstance(train_data, tuple) or len(train_data) != 2 \
-                or not isinstance(train_data[0], np.ndarray) \
-                or not isinstance(train_data[1], np.ndarray) \
-                or len(train_data[0]) != len(train_data[1]):
-            raise ValueError('The training data provided to the '
-                             'cross-validation learner needs to be a tuple of '
-                             'two numpy arrays with matching first dimensions. '
-                             'The first array should contain the inputs and '
-                             'the second, the corresponding labels.')
+        self._data_type = -1
+        if isinstance(data, list) or isinstance(data, np.ndarray):
+            self._data_type = 0
+        elif isinstance(data, tuple):
+            self._data_type = 1
+        elif isinstance(data, dict):
+            self._data_type = 2
+        else:
+            error_msg = 'Unsupported data type provided.'
+            logger.error(error_msg)
+            raise ValueError(error_msg)
         if cross_val is None:
-            cross_val = KFold(len(train_data[0]), k=10)
+            cross_val = KFold(len(data[0]), k=10)
         if parallel:
             def _train_model(config):
                 config[0].train(
-                    train_data=(train_data[0][config[3], :],
-                                train_data[1][config[3], :]),
-                    batch_size=batch_size, max_iter=max_iter,
-                    loss_chg_tol=loss_chg_tol,
+                    data=self._get_fold_data(data, [config[3]]),
+                    pipelines=pipelines, batch_size=batch_size,
+                    max_iter=max_iter, loss_chg_tol=loss_chg_tol,
                     loss_chg_iter_below_tol=loss_chg_iter_below_tol,
                     init_option=init_option, callbacks=callbacks,
                     run_metadata_freq=run_metadata_freq,
@@ -462,8 +471,8 @@ class CrossValidationLearner(Learner):
                     save_trained=save_trained)
                 return config[0].loss(
                     loss_op=config[1],
-                    data=(train_data[0][config[4], :],
-                          train_data[1][config[4], :]))
+                    data=self._get_fold_data(data, config[4]),
+                    pipelines=pipelines)
             learners = []
             for model_index in range(len(self.models)):
                 for fold in range(len(cross_val)):
@@ -477,8 +486,9 @@ class CrossValidationLearner(Learner):
                         configs.append((
                             learners[learner_index],
                             val_loss_ops[learner_index],
-                            os.path.join(working_dir, 'model_%d_fold_%d'
-                                         % (model_index, fold)),
+                            os.path.join(
+                                working_dir,
+                                'model_%d_fold_%d' % (model_index, fold)),
                             indices[0], indices[1]))
                         learner_index += 1
                 val_losses = pool.map(_train_model, configs, chunksize=1)
@@ -495,10 +505,9 @@ class CrossValidationLearner(Learner):
                     num_folds += 1
                     learner, val_loss_op = self._get_model_learner(model_index)
                     learner.train(
-                        train_data=(train_data[0][train_indices, :],
-                                    train_data[1][train_indices, :]),
-                        batch_size=batch_size, max_iter=max_iter,
-                        loss_chg_tol=loss_chg_tol,
+                        data=self._get_fold_data(data, train_indices),
+                        pipelines=pipelines, batch_size=batch_size,
+                        max_iter=max_iter, loss_chg_tol=loss_chg_tol,
                         loss_chg_iter_below_tol=loss_chg_iter_below_tol,
                         init_option=init_option, callbacks=callbacks,
                         run_metadata_freq=run_metadata_freq,
@@ -510,15 +519,15 @@ class CrossValidationLearner(Learner):
                         save_trained=save_trained)
                     val_losses[model_index] += learner.loss(
                         loss_op=val_loss_op,
-                        data=(train_data[0][val_indices, :],
-                              train_data[1][val_indices, :]))
+                        data=self._get_fold_data(data, val_indices),
+                        pipelines=pipelines)
                 val_losses[model_index] /= num_folds
         self.best_model = np.argmin(val_losses)
         self.best_learner, _ = self._get_model_learner(self.best_model)
         self.graph = self.best_learner.graph
         if save_trained:
             self.best_learner.train(
-                train_data=train_data, batch_size=batch_size, max_iter=max_iter,
+                data=data, batch_size=batch_size, max_iter=max_iter,
                 loss_chg_tol=loss_chg_tol,
                 loss_chg_iter_below_tol=loss_chg_iter_below_tol,
                 init_option=init_option, callbacks=callbacks,

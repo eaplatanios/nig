@@ -4,7 +4,6 @@ import numpy as np
 import tensorflow as tf
 from six import with_metaclass
 
-from nig.utilities.functions import PipelineFunction
 from nig.utilities.generic import logger
 
 __author__ = 'eaplatanios'
@@ -149,18 +148,14 @@ class MultiLayerPerceptron(Model):
             with tf.variable_scope('hidden' + str(layer_index)):
                 weights = tf.Variable(tf.random_normal(
                     [input_size, output_size],
-                    stddev=1.0 / np.math.sqrt(float(input_size))),
-                    name='W'
-                )
+                    stddev=1.0 / np.math.sqrt(float(input_size))), name='W')
                 biases = tf.Variable(tf.zeros([output_size]), name='b')
                 hidden = self.activation(tf.matmul(hidden, weights) + biases)
             input_size = output_size
         with tf.variable_scope('output_softmax_linear'):
             weights = tf.Variable(tf.random_normal(
                 [input_size, self.output_size],
-                stddev=1.0 / np.math.sqrt(float(input_size))),
-                name='W'
-            )
+                stddev=1.0 / np.math.sqrt(float(input_size))), name='W')
             biases = tf.Variable(tf.zeros([self.output_size]), name='b')
             outputs = tf.matmul(hidden, weights) + biases
         if self.softmax_output and self.use_log:
@@ -169,13 +164,12 @@ class MultiLayerPerceptron(Model):
             return tf.nn.softmax(outputs)
         elif self.use_log:
             return tf.log(outputs)
-        else:
-            return outputs
+        return outputs
 
     def __str__(self):
-        return 'MultiLayerPerceptron[{}:{}:{}:{}]' \
-            .format(self.inputs.get_shape()[1], self.output_size,
-                    self.hidden_layer_sizes, self.softmax_output)
+        return 'MultiLayerPerceptron[{}:{}:{}:{}]'.format(
+            self.inputs.get_shape()[1], self.output_size,
+            self.hidden_layer_sizes, self.softmax_output)
 
 
 # class ADIOS(Model):

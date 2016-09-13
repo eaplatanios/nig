@@ -34,9 +34,7 @@ train_data, val_data, test_data = mnist.load('data', float_images=True)
 inputs_pipeline = ColumnsExtractor(list(range(784)))
 labels_pipeline = ColumnsExtractor(784)
 if use_one_hot_encoding:
-    labels_pipeline = labels_pipeline | \
-                      DataTypeEncoder(np.int8) | \
-                      OneHotEncoder(10)
+    labels_pipeline = labels_pipeline | DataTypeEncoder(np.int8) | OneHotEncoder(10)
 
 
 def get_iterator(mnist_data, include_labels=True):
@@ -52,15 +50,11 @@ loss = CrossEntropyOneHotEncodingMetric() if use_one_hot_encoding \
 eval_metric = AccuracyOneHotEncodingMetric() if use_one_hot_encoding \
     else AccuracyIntegerEncodingMetric()
 
-models = [MultiLayerPerceptron(784, 10, architecture, activation=activation,
-                               softmax_output=use_one_hot_encoding,
-                               use_log=use_one_hot_encoding, loss=loss,
-                               optimizer=optimizer, loss_summary=True,
-                               grads_processor=gradients_processor)
-          for architecture in architectures]
-
-outputs_dtype = tf.float32 if use_one_hot_encoding else tf.int32
-output_shape = 10 if use_one_hot_encoding else 1
+models = [MultiLayerPerceptron(
+    784, 10, architecture, activation=activation,
+    softmax_output=use_one_hot_encoding, use_log=use_one_hot_encoding,
+    loss=loss, optimizer=optimizer, loss_summary=True,
+    grads_processor=gradients_processor) for architecture in architectures]
 
 callbacks = [
     LoggerCallback(frequency=logging_frequency),
@@ -77,21 +71,15 @@ callbacks = [
         metrics=eval_metric, name='eval/val'),
     EvaluationCallback(
         frequency=evaluation_frequency, iterator=get_iterator(test_data),
-        metrics=eval_metric, name='eval/test'),
-]
-
-# learner = CrossValidationLearner(
-#     models=symbols, loss=loss, optimizers=optimizer, loss_summary=True,
-#     grads_processor=gradients_processor, inputs_dtype=tf.float32,
-#     outputs_dtype=outputs_dtype, output_shape=output_shape,
-#     predict_postprocess=lambda l: tf.argmax(l, 1))
+        metrics=eval_metric, name='eval/test')]
 
 learner = CrossValidationLearner(
     models=models, val_loss=loss, predict_postprocess=lambda l: tf.argmax(l, 1))
 
 learner.train(
     # train_data=get_iterator(train_data), val_data=get_iterator(val_data),
-    train_data=(inputs_pipeline(train_data), labels_pipeline(train_data)),
+    data=(inputs_pipeline(train_data), labels_pipeline(train_data)),
+    # data=train_data, pipelines=[inputs_pipeline, labels_pipeline],
     cross_val=KFold(len(train_data), 5),
     batch_size=batch_size,
     max_iter=max_iter, loss_chg_tol=loss_chg_tol,
