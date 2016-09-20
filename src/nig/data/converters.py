@@ -22,6 +22,17 @@ class Converter(with_metaclass(abc.ABCMeta, PipelineFunction)):
         pass
 
 
+class NPArrayListToNPArrayConverter(Converter):
+    def __init__(self, flatten=False):
+        super(NPArrayListToNPArrayConverter, self).__init__()
+        self.flatten = flatten
+
+    def convert(self, data):
+        if not self.flatten:
+            return np.array(data)
+        return np.array([array.flatten(order='C') for array in data])
+
+
 class PDSeriesToNPConverter(Converter):
     def __init__(self, data=None, periods=None, frequency=None, flatten=False):
         super(PDSeriesToNPConverter, self).__init__()
