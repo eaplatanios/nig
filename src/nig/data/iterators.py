@@ -7,6 +7,7 @@ import pandas as pd
 from six import with_metaclass
 
 from nig.utilities.functions import pipe
+from nig.utilities.generic import raise_error
 from nig.utilities.iterators import Iterator
 
 __author__ = 'eaplatanios'
@@ -30,8 +31,9 @@ class DataIterator(with_metaclass(abc.ABCMeta, Iterator)):
             self._total_length = len(self.data[0])
             for d in self.data:
                 if len(d) != self._total_length:
-                    raise ValueError('All tuple elements must have the same '
-                                     'length.')
+                    raise_error(
+                        ValueError,
+                        'All tuple elements must have the same length.')
         else:
             self._total_length = len(self.data)
         self._begin_index = 0
@@ -124,7 +126,7 @@ class DataIterator(with_metaclass(abc.ABCMeta, Iterator)):
         return self._total_length
 
 
-class NPArrayIterator(DataIterator):
+class ListIterator(DataIterator):
     def shuffle_data(self):
         indices = self.rng.permutation(np.arange(self._total_length))
         self.data = tuple(data[indices] for data in self.data) \
@@ -136,6 +138,14 @@ class NPArrayIterator(DataIterator):
             if isinstance(self.data, tuple) \
             else self.data[from_index:to_index]
 
+    def concatenate_data(self, data_batch_1, data_batch_2):
+        return tuple(db_1 + db_2
+                     for (db_1, db_2) in zip(data_batch_1, data_batch_2)) \
+            if isinstance(self.data, tuple) \
+            else data_batch_1 + data_batch_2
+
+
+class NPArrayIterator(ListIterator):
     def concatenate_data(self, data_batch_1, data_batch_2):
         return tuple(np.vstack([db_1, db_2])
                      for (db_1, db_2) in zip(data_batch_1, data_batch_2)) \
