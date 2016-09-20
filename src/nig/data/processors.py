@@ -40,13 +40,19 @@ class ColumnsExtractor(Processor):
     """Extracts the specified columns from the input data."""
     def __init__(self, columns):
         super(ColumnsExtractor, self).__init__()
-        self.columns = columns if isinstance(columns, list) else [columns]
+        self.columns = columns
 
     def process(self, data):
         if isinstance(data, np.ndarray):
             return data[:, self.columns]
         if isinstance(data, pd.Series) or isinstance(data, pd.DataFrame):
             return data[self.columns]
+        if isinstance(data, list):
+            if isinstance(self.columns, list):
+                return [[d[col] for col in self.columns] for d in data]
+            if isinstance(self.columns, tuple):
+                return [tuple([d[col] for col in self.columns]) for d in data]
+            return [d[self.columns] for d in data]
         raise_error(ValueError, __UNSUPPORTED_DATA_TYPE_ERROR__)
 
 
