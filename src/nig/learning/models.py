@@ -4,7 +4,7 @@ import numpy as np
 import tensorflow as tf
 from six import with_metaclass
 
-from nig.utilities.generic import logger
+from nig.utilities.generic import logger, raise_error
 
 __author__ = 'eaplatanios'
 
@@ -20,8 +20,9 @@ class Model(with_metaclass(abc.ABCMeta, object)):
         self.outputs = outputs
         if isinstance(outputs, list) and isinstance(loss, list):
             if len(outputs) != len(loss):
-                raise ValueError('The number of provided output ops must '
-                                 'match the number of provided loss ops.')
+                raise_error(ValueError, 'The number of provided output ops '
+                                        'must match the number of provided '
+                                        'loss ops.')
         self.loss = loss
         self.trainable = loss is not None and optimizer is not None
         if self.trainable:
@@ -45,7 +46,7 @@ class Model(with_metaclass(abc.ABCMeta, object)):
         if callable(optimizer):
             optimizer = optimizer()
         if not isinstance(optimizer, tf.train.Optimizer):
-            raise ValueError('Unsupported optimizer encountered.')
+            raise_error(ValueError, 'Unsupported optimizer encountered.')
         return optimizer
 
     def _train_op(self, loss_summary=False, grads_processor=None):
@@ -112,8 +113,7 @@ class Model(with_metaclass(abc.ABCMeta, object)):
                 for input_op in op.op.inputs:
                     variables.update(self._op_variables(input_op))
             return variables
-        logger.error('Invalid op provided.')
-        raise ValueError('Invalid op provided.')
+        raise_error(ValueError, 'Invalid op provided.')
 
     @staticmethod
     def _copy_ops_to_graph(ops, graph, scope=''):

@@ -13,6 +13,11 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger(inspect.currentframe().f_back.f_globals['__name__'])
 
 
+def raise_error(error, message):
+    logger.error(message)
+    raise error(message)
+
+
 @contextmanager
 def elapsed_timer():
     start = default_timer()

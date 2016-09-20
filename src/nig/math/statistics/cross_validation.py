@@ -6,6 +6,7 @@ from itertools import combinations
 from math import factorial
 from six import with_metaclass
 
+from nig.utilities.generic import raise_error
 from nig.utilities.iterators import Iterator
 
 __author__ = 'eaplatanios'
@@ -210,13 +211,13 @@ class LeavePLabelsOut(_Base):
 class _KFoldBase(with_metaclass(abc.ABCMeta, _Base)):
     def __init__(self, data_size, k, shuffle=False, seed=None):
         if k <= 1:
-            raise ValueError('The number of folds, k, needs to be > 1. '
-                             'Provided value is %d' % k)
+            raise_error(ValueError, 'The number of folds, k, needs to be > 1. '
+                                    'Provided value is %d' % k)
         if k > data_size:
-            raise ValueError('The number of folds, k, cannot be larger than '
-                             'the number of data instances. Provided k is %d '
-                             'and the number of data instances is %d.'
-                             % k, data_size)
+            raise_error(ValueError, 'The number of folds, k, cannot be larger '
+                                    'than the number of data instances. '
+                                    'Provided k is %d and the number of data '
+                                    'instances is %d.' % k, data_size)
         super(_KFoldBase, self).__init__(data_size, shuffle, seed)
         self.k = k
 

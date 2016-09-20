@@ -6,7 +6,7 @@ import os
 from six import with_metaclass
 
 from nig.learning.metrics import tf_aggregate_over_iterator
-from nig.utilities.generic import logger
+from nig.utilities.generic import logger, raise_error
 
 __author__ = 'eaplatanios'
 
@@ -75,7 +75,7 @@ class SummaryWriterCallback(Callback):
 
     def execute(self, session, feed_dict, loss, global_step):
         if self.summary_op is None:
-            raise ValueError(__NOT_INITIALIZED_ERROR__)
+            raise_error(ValueError, __NOT_INITIALIZED_ERROR__)
         summary = session.run(self.summary_op, feed_dict=feed_dict)
         self.summary_writer.add_summary(summary, global_step)
         self.summary_writer.flush()
@@ -138,7 +138,7 @@ class VariableStatisticsSummaryWriterCallback(Callback):
 
     def execute(self, session, feed_dict, loss, global_step):
         if self.summary_op is None:
-            raise ValueError(__NOT_INITIALIZED_ERROR__)
+            raise_error(ValueError, __NOT_INITIALIZED_ERROR__)
         summary = session.run(self.summary_op, feed_dict=feed_dict)
         self.summary_writer.add_summary(summary, global_step)
         self.summary_writer.flush()
@@ -172,7 +172,7 @@ class CheckpointWriterCallback(Callback):
 
     def execute(self, session, feed_dict=None, loss=None, global_step=None):
         if self.saver is None:
-            raise ValueError(__NOT_INITIALIZED_ERROR__)
+            raise_error(ValueError, __NOT_INITIALIZED_ERROR__)
         self.saver.save(
             session, os.path.join(self.working_dir, self.file_prefix),
             global_step=global_step, latest_filename=self.file_prefix)
@@ -217,7 +217,7 @@ class EvaluationCallback(Callback):
 
     def execute(self, session, feed_dict=None, loss=None, global_step=None):
         if self.eval_ops is None:
-            raise ValueError(__NOT_INITIALIZED_ERROR__)
+            raise_error(ValueError, __NOT_INITIALIZED_ERROR__)
         self.iterator.reset()
         metrics = []
         for index, eval_op in enumerate(self.eval_ops):

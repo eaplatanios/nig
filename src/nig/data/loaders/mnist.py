@@ -7,7 +7,7 @@ import numpy as np
 import os
 
 from nig.data.loaders import utilities
-from nig.utilities.generic import logger
+from nig.utilities.generic import logger, raise_error
 
 __author__ = 'eaplatanios'
 
@@ -29,8 +29,9 @@ def extract_images(filename):
     with open(filename, 'rb') as f, gzip.GzipFile(fileobj=f) as bytestream:
         magic = _read32(bytestream)
         if magic != 2051:
-            raise ValueError('Invalid magic number %d in MNIST image file: %s' %
-                             (magic, filename))
+            raise_error(
+                ValueError, 'Invalid magic number %d in MNIST image file: %s' %
+                            (magic, filename))
         num_images = _read32(bytestream)
         num_rows = _read32(bytestream)
         num_cols = _read32(bytestream)
@@ -45,8 +46,9 @@ def extract_labels(filename):
     with open(filename, 'rb') as f, gzip.GzipFile(fileobj=f) as bytestream:
         magic = _read32(bytestream)
         if magic != 2049:
-            raise ValueError('Invalid magic number %d in MNIST label file: %s' %
-                             (magic, filename))
+            raise_error(
+                ValueError, 'Invalid magic number %d in MNIST label file: %s' %
+                            (magic, filename))
         num_items = _read32(bytestream)
         buffer = bytestream.read(num_items)
         labels = np.frombuffer(buffer, dtype=np.uint8)

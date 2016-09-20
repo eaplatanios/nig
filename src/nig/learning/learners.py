@@ -9,9 +9,11 @@ from six import with_metaclass
 
 from nig.data.iterators import NPArrayIterator
 from nig.math.statistics.cross_validation import KFold
-from nig.utilities.generic import logger
+from nig.utilities.generic import logger, raise_error
 
 __author__ = 'eaplatanios'
+
+__LEARNER_NOT_TRAINED_ERROR__ = 'The current learner has not been trained.'
 
 
 def _graph_context(func):
@@ -33,7 +35,7 @@ def _process_data(data, batch_size=None, cycle=False, pipelines=None):
             data, batch_size=batch_size, shuffle=False, cycle=cycle,
             keep_last=True, pipelines=pipelines)
     if not isinstance(data, NPArrayIterator):
-        raise ValueError('Unsupported data format encountered.')
+        raise_error(ValueError, 'Unsupported data format encountered.')
     return data.reset_copy(
         batch_size=batch_size, cycle=cycle, pipelines=pipelines)
 
@@ -58,16 +60,12 @@ class Learner(with_metaclass(abc.ABCMeta, object)):
             for model in models:
                 if not self._equal_shapes(
                         self._get_shapes(model.inputs), input_shapes):
-                    error_msg = 'The input ops shapes must be equal for all ' \
-                                'models.'
-                    logger.error(error_msg)
-                    raise ValueError(error_msg)
+                    raise_error(ValueError, 'The input ops shapes must be '
+                                            'equal for all models.')
                 if not self._equal_shapes(
                         self._get_shapes(model.outputs), output_shapes):
-                    error_msg = 'The output ops shapes must be equal for all ' \
-                                'models.'
-                    logger.error(error_msg)
-                    raise ValueError(error_msg)
+                    raise_error(ValueError, 'The output ops shapes must be '
+                                            'equal for all models.')
         self.predict_postprocess = (lambda x: x) \
             if predict_postprocess is None \
             else predict_postprocess
@@ -100,21 +98,22 @@ class Learner(with_metaclass(abc.ABCMeta, object)):
                 self.session.run(tf.initialize_all_variables())
                 return
             elif self.session is None:
-                raise ValueError('When the initialization option is a boolean '
-                                 'value set to False, then a session needs to '
-                                 'be provided.')
+                raise_error(ValueError, 'When the initialization option is a '
+                                        'boolean value set to False, then a '
+                                        'session needs to be provided.')
             return
         if saver is None:
-            raise ValueError('When the initialization option is an integer, '
-                             'indicating that a saved checkpoint should be '
-                             'loaded, then a saver must also be provided.')
+            raise_error(ValueError, 'When the initialization option is an '
+                                    'integer, indicating that a saved '
+                                    'checkpoint should be loaded, then a saver '
+                                    'must also be provided.')
         if self.session is None:
             self.session = tf.Session()
         if isinstance(option, int):
             self._load_checkpoint(self.session, saver, working_dir,
                                   ckpt_file_prefix, option)
         else:
-            raise ValueError('Unsupported initialization.')
+            raise_error(ValueError, 'Unsupported initialization.')
         return
 
     @staticmethod
@@ -199,10 +198,8 @@ class SimpleLearner(Learner):
     """Used for training a single TensorFlow model."""
     def __init__(self, model, session=None, predict_postprocess=None):
         if isinstance(model, list):
-            error_msg = 'Cannot construct a simple learner with multiple ' \
-                        'models.'
-            logger.error(error_msg)
-            raise ValueError(error_msg)
+            raise_error(ValueError, 'Cannot construct a simple learner with '
+                                    'multiple models.')
         super(SimpleLearner, self).__init__(model, session, predict_postprocess)
 
     @_graph_context
@@ -236,8 +233,9 @@ class SimpleLearner(Learner):
 
         """
         if not self.models.trainable:
-            raise ValueError('A model is trainable only if both a  loss and an '
-                             'optimizer are provided when constructing it.')
+            raise_error(ValueError, 'A model is trainable only if both a loss '
+                                    'and an optimizer are provided when '
+                                    'constructing it.')
         data = _process_data(data, batch_size, cycle=True, pipelines=pipelines)
         callbacks = _process_callbacks(callbacks)
         summary_writer = tf.train.SummaryWriter(working_dir, self.graph)
@@ -387,16 +385,12 @@ class ValidationSetLearner(Learner):
 
     def _combined_model(self):
         if self.best_learner is None:
-            error_msg = 'The current learner has not been trained yet.'
-            logger.error(error_msg)
-            raise ValueError(error_msg)
+            raise_error(ValueError, __LEARNER_NOT_TRAINED_ERROR__)
         return self.best_learner.models
 
     def _output_ops(self):
         if self.best_learner is None:
-            error_msg = 'The current learner has not been trained yet.'
-            logger.error(error_msg)
-            raise ValueError(error_msg)
+            raise_error(ValueError, __LEARNER_NOT_TRAINED_ERROR__)
         return self.best_learner.models.outputs
 
 
@@ -433,9 +427,7 @@ class CrossValidationLearner(Learner):
             return tuple(d[indices] for d in data)
         elif self._data_type == 2:
             return {k: v[indices] for k, v in data.items()}
-        error_msg = 'Unsupported data type provided.'
-        logger.error(error_msg)
-        raise ValueError(error_msg)
+        raise_error(ValueError, 'Unsupported data type provided.')
 
     def train(self, data, pipelines=None, batch_size=None, cross_val=None,
               max_iter=100000, loss_chg_tol=1e-3, loss_chg_iter_below_tol=5,
@@ -451,9 +443,7 @@ class CrossValidationLearner(Learner):
         elif isinstance(data, dict):
             self._data_type = 2
         else:
-            error_msg = 'Unsupported data type provided.'
-            logger.error(error_msg)
-            raise ValueError(error_msg)
+            raise_error(ValueError, 'Unsupported data type provided.')
         if cross_val is None:
             cross_val = KFold(len(data[0]), k=10)
         if parallel:
@@ -538,16 +528,12 @@ class CrossValidationLearner(Learner):
 
     def _combined_model(self):
         if self.best_learner is None:
-            error_msg = 'The current learner has not been trained yet.'
-            logger.error(error_msg)
-            raise ValueError(error_msg)
+            raise_error(ValueError, __LEARNER_NOT_TRAINED_ERROR__)
         return self.best_learner.models
 
     def _output_ops(self):
         if self.best_learner is None:
-            error_msg = 'The current learner has not been trained yet.'
-            logger.error(error_msg)
-            raise ValueError(error_msg)
+            raise_error(ValueError, __LEARNER_NOT_TRAINED_ERROR__)
         return self.best_learner.models.outputs
 
 
