@@ -7,7 +7,7 @@ from contextlib import closing
 from multiprocessing.dummy import Pool as ThreadPool
 from six import with_metaclass
 
-from nig.data.iterators import NPArrayIterator
+from nig.data.iterators import DataIterator, NPArrayIterator
 from nig.math.statistics.cross_validation import KFold
 from nig.utilities.generic import logger, raise_error
 
@@ -34,7 +34,7 @@ def _process_data(data, batch_size=None, cycle=False, pipelines=None):
         return NPArrayIterator(
             data, batch_size=batch_size, shuffle=False, cycle=cycle,
             keep_last=True, pipelines=pipelines)
-    if not isinstance(data, NPArrayIterator):
+    if not isinstance(data, DataIterator):
         raise_error(ValueError, 'Unsupported data format encountered.')
     return data.reset_copy(
         batch_size=batch_size, cycle=cycle, pipelines=pipelines)
