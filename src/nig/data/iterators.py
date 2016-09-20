@@ -13,10 +13,39 @@ from nig.utilities.iterators import Iterator
 __author__ = 'eaplatanios'
 
 
+# TODO: Add support for various last batch filling options (e.g., pad, roll).
+# TODO: Add support for a CSV iterator.
+# TODO: Add support for a prefetching iterator.
+
 class DataIterator(with_metaclass(abc.ABCMeta, Iterator)):
     def __init__(self, data, batch_size=128, shuffle=False, cycle=False,
-                 cycle_shuffle=False, keep_last=False, pipelines=None,
+                 cycle_shuffle=False, keep_last=True, pipelines=None,
                  seed=None):
+        """Constructs and returns a data iterator to be used with a learner for
+        the specified data.
+
+        Args:
+            data:
+            batch_size (int): Optional batch size value. Defaults to 128.
+            shuffle (bool): Optional boolean value indicating whether to shuffle
+                the data instances before iterating over them. Defaults to
+                `False`.
+            cycle (bool): Optional boolean value indicating whether the returned
+                iterator should cycle when it reaches its end and become an
+                effectively infinite iterator. Defaults to `False`.
+            cycle_shuffle (bool): Optional boolean value indicating whether the
+                returned iterator should shuffle the data instances at the end
+                of each cycle. Defaults to `False`. Note that this argument is
+                only effective if `cycle` is set to `True`.
+            keep_last (bool): Optional boolean value indicating whether the
+                returned iterator should keep and return the last batch in the
+                data, if that batch has size less than the specified batch size.
+            seed (long): Optional seed value for the random number generator
+                used when shuffling the data within the iterator.
+
+        Returns:
+            Iterator: Constructed iterator to be used with learners.
+        """
         self.data = data
         self.batch_size = batch_size
         if shuffle:
