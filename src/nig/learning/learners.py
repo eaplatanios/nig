@@ -181,8 +181,9 @@ class Learner(with_metaclass(abc.ABCMeta, object)):
 
     @_graph_context
     def predict_iterator(
-            self, input_data, ckpt=None, working_dir=os.getcwd(),
-            ckpt_file_prefix='ckpt', restore_sequentially=False):
+            self, input_data, yield_input_data=False, ckpt=None,
+            working_dir=os.getcwd(), ckpt_file_prefix='ckpt',
+            restore_sequentially=False):
         input_data = _process_data(input_data, cycle=False)
         outputs_ops = self._postprocessed_output_ops()
         saver = tf.train.Saver(restore_sequentially=restore_sequentially)
@@ -190,8 +191,11 @@ class Learner(with_metaclass(abc.ABCMeta, object)):
             option=ckpt, saver=saver, working_dir=working_dir,
             ckpt_file_prefix=ckpt_file_prefix)
         for data_batch in input_data:
-            yield self.session.run(
-                outputs_ops, self._combined_model().get_feed_dict(data_batch))
+            feed_dict = self._combined_model().get_feed_dict(data_batch)
+            if not yield_input_data:
+                yield self.session.run(outputs_ops, feed_dict)
+            else:
+                yield input_data, self.session.run(outputs_ops, feed_dict)
 
 
 class SimpleLearner(Learner):
