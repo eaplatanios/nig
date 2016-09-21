@@ -22,9 +22,9 @@ class Converter(with_metaclass(abc.ABCMeta, PipelineFunction)):
         pass
 
 
-class NPArrayListToNPArrayConverter(Converter):
+class ListToNPArrayConverter(Converter):
     def __init__(self, flatten=False):
-        super(NPArrayListToNPArrayConverter, self).__init__()
+        super(ListToNPArrayConverter, self).__init__()
         self.flatten = flatten
 
     def convert(self, data):
