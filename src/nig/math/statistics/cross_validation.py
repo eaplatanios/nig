@@ -217,7 +217,7 @@ class _KFoldBase(with_metaclass(abc.ABCMeta, _Base)):
             raise_error(ValueError, 'The number of folds, k, cannot be larger '
                                     'than the number of data instances. '
                                     'Provided k is %d and the number of data '
-                                    'instances is %d.' % k, data_size)
+                                    'instances is %d.' % (k, data_size))
         super(_KFoldBase, self).__init__(data_size, shuffle, seed)
         self.k = k
 

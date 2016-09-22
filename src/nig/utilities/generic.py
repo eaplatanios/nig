@@ -13,6 +13,10 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger(inspect.currentframe().f_back.f_globals['__name__'])
 
 
+def add_logging_file_handler(path):
+    logger.addHandler(logging.FileHandler(path))
+
+
 def raise_error(error, message):
     logger.error(message)
     raise error(message)
