@@ -17,7 +17,10 @@ class CrossValidation(with_metaclass(abc.ABCMeta, Iterator)):
         self.data_size = data_size
         self.shuffle = shuffle
         if self.shuffle:
-            self.rng = np.random.RandomState(seed)
+            if isinstance(seed, np.random.RandomState):
+                self.rng = seed
+            else:
+                self.rng = np.random.RandomState(seed)
             self.indices = self.rng.permutation(np.arange(data_size))
         else:
             self.indices = np.arange(data_size)
@@ -136,7 +139,7 @@ class LeavePOut(_Base):
 class LeaveOneLabelOut(_Base):
     def __init__(self, labels):
         super(LeaveOneLabelOut, self).__init__(len(labels), shuffle=False)
-        self.labels = np.array(labels, copy=True)
+        self.labels = np.asarray(labels)
         self.unique_labels = np.unique(labels)
         self.num_unique_labels = len(self.unique_labels)
         self._current_label_index = -1
@@ -163,7 +166,7 @@ class LeaveOneLabelOut(_Base):
 class LeavePLabelsOut(_Base):
     def __init__(self, labels, p=1):
         super(LeavePLabelsOut, self).__init__(len(labels), shuffle=False)
-        self.labels = labels
+        self.labels = np.asarray(labels)
         self.unique_labels = np.unique(labels)
         self.num_unique_labels = len(self.unique_labels)
         self.p = p
@@ -288,8 +291,78 @@ class KFold(_KFoldBase):
         return self.k - self._current_fold
 
 
+class StratifiedKFold(_KFoldBase):
+    def __init__(self, labels, k, shuffle=False, seed=None):
+        super(StratifiedKFold, self).__init__(len(labels), k, shuffle, seed)
+        self.labels = np.asarray(labels)
+        self.test_folds = None
+        self._current_fold = 0
+        self._initialize()
+
+    def _initialize(self):
+        labels = self.labels[self.indices]
+        unique_labels, indices = np.unique(labels, return_inverse=True)
+        label_counts = np.bincount(indices)
+        min_label_count = np.min(label_counts)
+        if self.k > min_label_count:
+            raise_error(ValueError, 'The least frequent label appears only %d '
+                                    'times, which is lower than the number of '
+                                    'folds %d. Stratified k-fold '
+                                    'cross-validation is thus not possible.'
+                        % (min_label_count, self.k))
+        # We use individual KFold cross-validation strategies for each label in
+        # order to respect the balance of the labels.
+        per_label_k_folds = [KFold(
+            count, k=self.k, shuffle=self.shuffle, seed=self.rng)
+                             for count in label_counts]
+        test_folds = np.zeros(self.data_size, dtype=np.int)
+        for fold_index, per_label_k_fold in enumerate(zip(*per_label_k_folds)):
+            for label, (_, test_split) in zip(unique_labels, per_label_k_fold):
+                label_test_folds = test_folds[labels == label]
+                label_test_folds[test_split] = fold_index
+                test_folds[labels == label] = label_test_folds
+        self.test_folds = test_folds
+        self._current_fold = 0
+
+    def _next_test(self):
+        pass
+
+    def next(self):
+        if self._current_fold == self.k:
+            raise StopIteration()
+        test_mask = self._empty_mask()
+        test_mask[self.test_folds == self._current_fold] = True
+        train_mask = np.logical_not(test_mask)
+        self._current_fold += 1
+        return self.indices[train_mask], self.indices[test_mask]
+
+    def reset(self, k=None, shuffle=None, seed=None):
+        if k is not None:
+            self.k = k
+        if shuffle is not None:
+            self.shuffle = shuffle
+        if self.shuffle:
+            if seed is not None:
+                self.rng = np.random.RandomState(seed)
+            self.indices = self.rng.permutation(np.arange(self.data_size))
+        else:
+            self.indices = np.arange(self.data_size)
+        self._current_fold = 0
+        self._initialize()
+
+    def reset_copy(self, k=None, shuffle=None, seed=None):
+        k = k if k is not None else self.k
+        shuffle = shuffle if shuffle is not None else self.shuffle
+        return StratifiedKFold(self.labels, k, shuffle, seed)
+
+    def __len__(self):
+        return self.k
+
+    def remaining_length(self):
+        return self.k - self._current_fold
+
+
 # TODO: Add LabelKFold.
-# TODO: Add StratifiedKFold.
 # TODO: Add ShuffleSplit.
 # TODO: Add LabelShuffleSplit.
 # TODO: Add PredefinedSplit.
