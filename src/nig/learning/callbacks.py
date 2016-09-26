@@ -74,16 +74,17 @@ class SummaryWriterCallback(Callback):
             self.summary_writer = summary_writer
 
     def execute(self, session, feed_dict, loss, global_step):
-        if self.summary_op is None:
+        if self.summary_writer is None:
             raise_error(ValueError, __NOT_INITIALIZED_ERROR__)
-        summary = session.run(self.summary_op, feed_dict=feed_dict)
-        self.summary_writer.add_summary(summary, global_step)
-        self.summary_writer.flush()
+        if self.summary_op is not None:
+            summary = session.run(self.summary_op, feed_dict=feed_dict)
+            self.summary_writer.add_summary(summary, global_step)
+            self.summary_writer.flush()
 
 
 class VariableStatisticsSummaryWriterCallback(Callback):
     def __init__(self, frequency=100, variables='trainable', statistics=None,
-                 histogram=True, name='trainable'):
+                 histogram=True, name='variable_stats_writer_callback'):
         super(VariableStatisticsSummaryWriterCallback, self).__init__(frequency)
         self.variables = variables
         self.tf_variables = None
@@ -106,7 +107,7 @@ class VariableStatisticsSummaryWriterCallback(Callback):
 
     def _variable_statistics_summaries(self):
         summaries = []
-        with tf.name_scope('summaries') as scope:
+        with tf.name_scope(self.name) as scope:
             for variable in self.tf_variables:
                 for name, statistic in self.statistics.items():
                     tag = scope + '/variables/' + variable.name + '/' + name
@@ -210,8 +211,9 @@ class EvaluationCallback(Callback):
     def initialize(self, graph, model, summary_writer, working_dir):
         if self.eval_ops is None:
             self.model = model
-            self.eval_ops = [metric.tf_op(model.outputs, model.train_outputs)
-                             for metric in self.metrics]
+            with tf.name_scope(self.name):
+                self.eval_ops = [metric(model.outputs, model.train_outputs)
+                                 for metric in self.metrics]
             if self.summary:
                 self.summary_writer = summary_writer
 
@@ -223,8 +225,8 @@ class EvaluationCallback(Callback):
         for index, eval_op in enumerate(self.eval_ops):
             value = tf_aggregate_over_iterator(
                 session, eval_op, self.iterator,
-                lambda data_batch: self.model.get_feed_dict(data_batch[0],
-                                                            data_batch[1]),
+                lambda data_batch: self.model.get_feed_dict(
+                    data_batch, is_train=True),
                 self.number_of_batches, self.aggregating_function)
             metrics.append(value)
             if self.summary:

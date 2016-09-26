@@ -1,6 +1,8 @@
 import abc
 from six import with_metaclass
 
+from nig.utilities.generic import raise_error
+
 __author__ = 'eaplatanios'
 
 
@@ -33,21 +35,34 @@ class Iterator(with_metaclass(abc.ABCMeta, object)):
 
 
 class ZipIterator(Iterator):
-    def __init__(self, iterators):
+    def __init__(self, iterators, keys=None):
+        if any(len(iterator) != len(iterators[0]) for iterator in iterators):
+            raise_error(ValueError, 'The iterators being zipped must all have '
+                                    'equal length.')
         self._iterators = iterators
+        if keys is not None:
+            if len(iterators) != len(keys):
+                raise_error(ValueError, 'The number of iterators %d does not '
+                                        'match the number of keys %d.'
+                            % (len(iterators), len(keys)))
+        self._keys = keys
 
     def next(self):
-        return tuple([i.next() for i in self._iterators])
+        if self._keys is None:
+            return tuple([iterator.next() for iterator in self._iterators])
+        return {self._keys[i]: iterator.next()
+                for i, iterator in enumerate(self._iterators)}
 
     def reset(self):
-        for i in self._iterators:
-            i.reset()
+        for iterator in self._iterators:
+            iterator.reset()
 
     def reset_copy(self):
-        return ZipIterator([i.reset_copy() for i in self._iterators])
+        return ZipIterator([iterator.reset_copy()
+                            for iterator in self._iterators], self._keys)
 
     def __len__(self):
-        raise NotImplementedError
+        return len(self._iterators[0])
 
     def remaining_length(self):
-        raise NotImplementedError
+        return self._iterators[0].remaining_length()

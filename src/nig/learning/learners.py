@@ -36,6 +36,10 @@ def _process_data(data, batch_size=None, cycle=False, pipelines=None):
         return ZipIterator(
             [_process_data_element(d, batch_size, cycle, pipelines)
              for d in data])
+    if isinstance(data, dict):
+        return ZipIterator(
+            [_process_data_element(d, batch_size, cycle, pipelines)
+             for d in data.values()], list(data.keys()))
     if not isinstance(data, DataIterator):
         raise_error(ValueError, 'Unsupported data format encountered.')
     return data.reset_copy(
@@ -48,12 +52,12 @@ def _process_data_element(data, batch_size=None, cycle=False, pipelines=None):
         return NPArrayIterator(
             data, batch_size=batch_size, shuffle=False, cycle=cycle,
             keep_last=True, pipelines=pipelines)
-    elif isinstance(data, tuple):
+    if isinstance(data, tuple):
         batch_size = batch_size if batch_size is not None else len(data[0])
         return NPArrayIterator(
             data, batch_size=batch_size, shuffle=False, cycle=cycle,
             keep_last=True, pipelines=pipelines)
-    elif isinstance(data, dict):
+    if isinstance(data, dict):
         batch_size = batch_size if batch_size is not None \
             else len(six.next(six.itervalues(data)))
         if pipelines is not None:
@@ -76,15 +80,22 @@ def _process_callbacks(callbacks):
 
 
 class Learner(with_metaclass(abc.ABCMeta, object)):
-    def __init__(self, models, session=None, predict_postprocess=None):
-        # TODO: Fix this.
-        self.graph = models.graph
-        self.models = models
-        # self.graph = tf.Graph()
-        # if isinstance(models, list):
-        #     self.models = [model.copy_to_graph(self.graph) for model in models]
-        # else:
-        #     self.models = models.copy_to_graph(self.graph)
+    def __init__(self, models, new_graph=True, session=None,
+                 predict_postprocess=None):
+        if new_graph:
+            self.graph = tf.Graph()
+            if isinstance(models, list):
+                self.models = [model.copy_to_graph(self.graph)
+                               for model in models]
+            else:
+                self.models = models.copy_to_graph(self.graph)
+        else:
+            self.graph = models[0].graph
+            if any(model.graph != self.graph for model in models):
+                raise_error(ValueError, 'When \'new_graph\' is set to '
+                                        '\'False\', all models need to lie on '
+                                        'the same graph.')
+            self.models = models
         self._initial_session = session
         self.session = session
         if isinstance(models, list):
@@ -215,7 +226,8 @@ class Learner(with_metaclass(abc.ABCMeta, object)):
             option=ckpt, saver=saver, working_dir=working_dir,
             ckpt_file_prefix=ckpt_file_prefix)
         return self.session.run(
-            outputs_ops, self._combined_model().get_feed_dict(input_data))
+            outputs_ops,
+            self._combined_model().get_feed_dict(input_data, is_train=False))
 
     @_graph_context
     def predict_iterator(
@@ -229,7 +241,8 @@ class Learner(with_metaclass(abc.ABCMeta, object)):
             option=ckpt, saver=saver, working_dir=working_dir,
             ckpt_file_prefix=ckpt_file_prefix)
         for data_batch in input_data:
-            feed_dict = self._combined_model().get_feed_dict(data_batch)
+            feed_dict = self._combined_model().get_feed_dict(
+                data_batch, is_train=False)
             if not yield_input_data:
                 yield self.session.run(outputs_ops, feed_dict)
             else:
@@ -238,15 +251,18 @@ class Learner(with_metaclass(abc.ABCMeta, object)):
 
 class SimpleLearner(Learner):
     """Used for training a single TensorFlow model."""
-    def __init__(self, model, session=None, predict_postprocess=None):
+    def __init__(self, model, new_graph=True, session=None,
+                 predict_postprocess=None):
         if isinstance(model, list):
             raise_error(ValueError, 'Cannot construct a simple learner with '
                                     'multiple models.')
-        super(SimpleLearner, self).__init__(model, session, predict_postprocess)
+        super(SimpleLearner, self).__init__(
+            models=model, new_graph=new_graph, session=session,
+            predict_postprocess=predict_postprocess)
 
     def copy(self):
         return SimpleLearner(
-            model=self.models, session=self._initial_session,
+            model=self.models, new_graph=True, session=self._initial_session,
             predict_postprocess=self.predict_postprocess)
 
     @_graph_context
@@ -297,20 +313,20 @@ class SimpleLearner(Learner):
         iter_below_tol = 0
         for step in range(max_iter):
             data_batch = data.next()
-            feed_dict = self.models.get_feed_dict(data_batch[0], data_batch[1])
+            feed_dict = self.models.get_feed_dict(data_batch, is_train=True)
             if run_metadata_freq > 0 \
                     and (step + 1) % run_metadata_freq == 0:
                 run_options = tf.RunOptions(trace_level=trace_level)
                 run_metadata = tf.RunMetadata()
                 _, loss = self.session.run(
-                    [self.models.train_op, self.models.loss_op], feed_dict,
+                    [self.models.train_op, self.models.loss], feed_dict,
                     options=run_options, run_metadata=run_metadata)
                 summary_writer.add_run_metadata(
                     run_metadata=run_metadata, tag='step' + str(step),
                     global_step=step)
             else:
                 _, loss = self.session.run(
-                    [self.models.train_op, self.models.loss_op], feed_dict)
+                    [self.models.train_op, self.models.loss], feed_dict)
             for callback in callbacks:
                 callback(self.session, feed_dict, loss, step)
             if abs((prev_loss - loss) / prev_loss) < loss_chg_tol:
@@ -330,7 +346,7 @@ class SimpleLearner(Learner):
         data = _process_data(data, cycle=False, pipelines=pipelines)
         loss = 0.0
         for data_batch in data:
-            feed_dict = self.models.get_feed_dict(data_batch[0], data_batch[1])
+            feed_dict = self.models.get_feed_dict(data_batch, is_train=True)
             loss += self.session.run(loss_op, feed_dict)
         return loss / len(data)
 
@@ -348,7 +364,8 @@ class ValidationSetLearner(Learner):
                  predict_postprocess=None):
         super(ValidationSetLearner, self).__init__(
             models=models if isinstance(models, list) else [models],
-            session=session, predict_postprocess=predict_postprocess)
+            new_graph=False, session=session,
+            predict_postprocess=predict_postprocess)
         if val_loss is None:
             val_loss = [model.loss for model in self.models]
         elif not isinstance(val_loss, list):
@@ -365,7 +382,7 @@ class ValidationSetLearner(Learner):
 
     def _get_model_learner(self, model_index):
         learner = SimpleLearner(
-            model=self.models[model_index],
+            model=self.models[model_index], new_graph=True,
             predict_postprocess=self.predict_postprocess)
         with learner.graph.as_default():
             val_loss_op = self._val_loss[model_index].tf_op(
@@ -454,7 +471,8 @@ class CrossValidationLearner(Learner):
                  predict_postprocess=None):
         super(CrossValidationLearner, self).__init__(
             models=models if isinstance(models, list) else [models],
-            session=session, predict_postprocess=predict_postprocess)
+            new_graph=False, session=session,
+            predict_postprocess=predict_postprocess)
         if val_loss is None:
             val_loss = [model.loss for model in self.models]
         elif not isinstance(val_loss, list):
@@ -472,11 +490,12 @@ class CrossValidationLearner(Learner):
 
     def _get_model_learner(self, model_index):
         learner = SimpleLearner(
-            model=self.models[model_index],
+            model=self.models[model_index], new_graph=True,
             predict_postprocess=self.predict_postprocess)
         with learner.graph.as_default():
-            val_loss_op = self._val_loss[model_index].tf_op(
-                learner.models.outputs, learner.models.train_outputs)
+            with tf.name_scope('learner'):
+                val_loss_op = self._val_loss[model_index].tf_op(
+                    learner.models.outputs, learner.models.train_outputs)
         return learner, val_loss_op
 
     def _get_fold_data(self, data, indices):

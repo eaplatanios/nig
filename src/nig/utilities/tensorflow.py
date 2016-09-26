@@ -1,3 +1,5 @@
+# TODO: Clean this up...A LOT...
+
 # Copyright 2015 The TensorFlow Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -139,13 +141,9 @@ def copy_op_to_graph(org_instance, to_graph, variables, scope=""):
             copied_variables[new_name].name)
 
     #If an instance of the same name exists, return appropriately
-    try:
-        already_present = to_graph.as_graph_element(new_name,
-                                                    allow_tensor=True,
-                                                    allow_operation=True)
+    already_present = check_if_present(to_graph, new_name)
+    if already_present is not None:
         return already_present
-    except:
-        pass
 
     #Get the collections that the new instance needs to be added to.
     #The new collections will also be a part of the given scope.
@@ -185,6 +183,14 @@ def copy_op_to_graph(org_instance, to_graph, variables, scope=""):
         else:
             new_original_op = None
 
+        #If it has control inputs, call this function recursively on each.
+        new_control_inputs = [copy_op_to_graph(x, to_graph, variables, scope)
+                              for x in op.control_inputs]
+
+        already_present = check_if_present(to_graph, new_name)
+        if already_present is not None:
+            return already_present
+
         #Make a new node_def based on that of the original.
         #An instance of tensorflow.core.framework.graph_pb2.NodeDef, it
         #stores String-based info such as name, device and type of the op.
@@ -206,23 +212,19 @@ def copy_op_to_graph(org_instance, to_graph, variables, scope=""):
                                to_graph,
                                None,
                                output_types,
-                               None,
+                               new_control_inputs,
                                None,
                                new_original_op,
                                op_def)
         #Use Graph's hidden methods to add the op
         to_graph._add_op(new_op)
-        # to_graph._record_op_seen_by_control_dependencies(new_op)
-
-        #If it has control inputs, call this function recursively on each.
-        new_op._add_control_inputs([copy_op_to_graph(x, to_graph, variables, scope)
-                              for x in op.control_inputs])
+        to_graph._record_op_seen_by_control_dependencies(new_op)
 
         #If it has inputs, call this function recursively on each.
         for x in op.inputs:
             new_op._add_input(copy_op_to_graph(x, to_graph, variables, scope))
 
-        to_graph._record_op_seen_by_control_dependencies(new_op)
+        # to_graph._record_op_seen_by_control_dependencies(new_op)
 
         for device_function in reversed(to_graph._device_function_stack):
             new_op._set_device(device_function(new_op))
@@ -231,6 +233,15 @@ def copy_op_to_graph(org_instance, to_graph, variables, scope=""):
 
     else:
         raise TypeError("Could not copy instance: " + str(org_instance))
+
+
+def check_if_present(graph, op_name):
+    try:
+        op = graph.as_graph_element(
+            op_name, allow_tensor=True, allow_operation=True)
+        return op
+    except:
+        return None
 
 
 def get_copied_op(org_instance, graph, scope=""):

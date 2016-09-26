@@ -27,6 +27,9 @@ class Metric(with_metaclass(abc.ABCMeta, object)):
     def __str__(self):
         pass
 
+    def __call__(self, prediction, truth, name='metric'):
+        return self.tf_op(prediction, truth, name)
+
     @abc.abstractmethod
     def tf_op(self, prediction, truth, name='metric'):
         pass
