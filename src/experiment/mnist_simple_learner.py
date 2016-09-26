@@ -73,6 +73,8 @@ callbacks = [
         frequency=evaluation_frequency, iterator=get_iterator(test_data),
         metrics=eval_metric, name='eval/test')]
 
+# learner = SimpleLearner(
+#     model=models[0], predict_postprocess=lambda l: tf.argmax(l, 1))
 learner = CrossValidationLearner(
     models=models, val_loss=loss, predict_postprocess=lambda l: tf.argmax(l, 1))
 
@@ -89,7 +91,7 @@ learner.train(
     trace_level=tf.RunOptions.FULL_TRACE, working_dir=working_dir,
     ckpt_file_prefix=checkpoint_file_prefix,
     restore_sequentially=restore_sequentially, save_trained=save_trained,
-    parallel=True)
+    parallel=False)
 test_predictions = learner.predict(
     get_iterator(test_data, False), ckpt=-1, working_dir=working_dir,
     ckpt_file_prefix=checkpoint_file_prefix)

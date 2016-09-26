@@ -30,3 +30,24 @@ class Iterator(with_metaclass(abc.ABCMeta, object)):
     @abc.abstractmethod
     def remaining_length(self):
         pass
+
+
+class ZipIterator(Iterator):
+    def __init__(self, iterators):
+        self._iterators = iterators
+
+    def next(self):
+        return tuple([i.next() for i in self._iterators])
+
+    def reset(self):
+        for i in self._iterators:
+            i.reset()
+
+    def reset_copy(self):
+        return ZipIterator([i.reset_copy() for i in self._iterators])
+
+    def __len__(self):
+        raise NotImplementedError
+
+    def remaining_length(self):
+        raise NotImplementedError

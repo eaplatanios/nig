@@ -94,10 +94,13 @@ class DataIterator(with_metaclass(abc.ABCMeta, Iterator)):
                 if self.cycle_shuffle:
                     self.shuffle_data()
                 self._reached_end = False
-                next_data = self.concatenate_data(
-                    self.get_data(begin_index, -1),
-                    self.get_data(0, self._begin_index - self._total_length)
-                )
+                if begin_index < self._total_length:
+                    next_data = self.concatenate_data(
+                        self.get_data(begin_index, -1),
+                        self.get_data(0, self._begin_index - self._total_length)
+                    )
+                else:
+                    next_data = self.get_data(0, self.batch_size)
                 self._begin_index %= self._total_length
             elif self.keep_last and begin_index != self._total_length:
                 next_data = self.get_data(begin_index, None)
@@ -174,7 +177,7 @@ class ListIterator(DataIterator):
 
     def concatenate_data(self, data_batch_1, data_batch_2):
         return tuple(db_1 + db_2
-                     for (db_1, db_2) in zip(data_batch_1, data_batch_2)) \
+                     for db_1, db_2 in zip(data_batch_1, data_batch_2)) \
             if isinstance(self.data, tuple) \
             else data_batch_1 + data_batch_2
 
@@ -193,7 +196,7 @@ class NPArrayIterator(DataIterator):
 
     def concatenate_data(self, data_batch_1, data_batch_2):
         return tuple(np.vstack([db_1, db_2])
-                     for (db_1, db_2) in zip(data_batch_1, data_batch_2)) \
+                     for db_1, db_2 in zip(data_batch_1, data_batch_2)) \
             if isinstance(self.data, tuple) \
             else np.vstack([data_batch_1, data_batch_2])
 
@@ -212,6 +215,6 @@ class PDDataFrameIterator(DataIterator):
 
     def concatenate_data(self, data_batch_1, data_batch_2):
         return tuple(pd.concat([db_1, db_2])
-                     for (db_1, db_2) in zip(data_batch_1, data_batch_2)) \
+                     for db_1, db_2 in zip(data_batch_1, data_batch_2)) \
             if isinstance(self.data, tuple) \
             else pd.concat([data_batch_1, data_batch_2])

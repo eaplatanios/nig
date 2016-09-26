@@ -22,6 +22,15 @@ class Converter(with_metaclass(abc.ABCMeta, PipelineFunction)):
         pass
 
 
+class TupleToDictConverter(Converter):
+    def __init__(self, keys):
+        super(TupleToDictConverter, self).__init__()
+        self.keys = keys
+
+    def convert(self, data):
+        return dict(zip(self.keys, data))
+
+
 class ListToNPArrayConverter(Converter):
     def __init__(self, flatten=False):
         super(ListToNPArrayConverter, self).__init__()

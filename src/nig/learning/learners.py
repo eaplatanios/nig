@@ -1,15 +1,18 @@
 import abc
 import numpy as np
 import os
+import six
 import sys
 import tensorflow as tf
 from contextlib import closing
 from multiprocessing.dummy import Pool as ThreadPool
 from six import with_metaclass
 
+from nig.data.converters import TupleToDictConverter
 from nig.data.iterators import DataIterator, NPArrayIterator
 from nig.math.statistics.cross_validation import KFold
 from nig.utilities.generic import logger, raise_error
+from nig.utilities.iterators import ZipIterator
 
 __author__ = 'eaplatanios'
 
@@ -30,10 +33,36 @@ def _process_data(data, batch_size=None, cycle=False, pipelines=None):
             data, batch_size=batch_size, shuffle=False, cycle=cycle,
             keep_last=True, pipelines=pipelines)
     if isinstance(data, tuple):
+        return ZipIterator(
+            [_process_data_element(d, batch_size, cycle, pipelines)
+             for d in data])
+    if not isinstance(data, DataIterator):
+        raise_error(ValueError, 'Unsupported data format encountered.')
+    return data.reset_copy(
+        batch_size=batch_size, cycle=cycle, pipelines=pipelines)
+
+
+def _process_data_element(data, batch_size=None, cycle=False, pipelines=None):
+    if isinstance(data, np.ndarray):
+        batch_size = batch_size if batch_size is not None else len(data)
+        return NPArrayIterator(
+            data, batch_size=batch_size, shuffle=False, cycle=cycle,
+            keep_last=True, pipelines=pipelines)
+    elif isinstance(data, tuple):
         batch_size = batch_size if batch_size is not None else len(data[0])
         return NPArrayIterator(
             data, batch_size=batch_size, shuffle=False, cycle=cycle,
             keep_last=True, pipelines=pipelines)
+    elif isinstance(data, dict):
+        batch_size = batch_size if batch_size is not None \
+            else len(six.next(six.itervalues(data)))
+        if pipelines is not None:
+            pipelines = pipelines | TupleToDictConverter(data.keys())
+        else:
+            pipelines = TupleToDictConverter(data.keys())
+        return NPArrayIterator(
+            data=tuple(data.values()), batch_size=batch_size, shuffle=False,
+            cycle=cycle, keep_last=True, pipelines=pipelines)
     if not isinstance(data, DataIterator):
         raise_error(ValueError, 'Unsupported data format encountered.')
     return data.reset_copy(
@@ -48,11 +77,15 @@ def _process_callbacks(callbacks):
 
 class Learner(with_metaclass(abc.ABCMeta, object)):
     def __init__(self, models, session=None, predict_postprocess=None):
-        self.graph = tf.Graph()
-        if isinstance(models, list):
-            self.models = [model.copy_to_graph(self.graph) for model in models]
-        else:
-            self.models = models.copy_to_graph(self.graph)
+        # TODO: Fix this.
+        self.graph = models.graph
+        self.models = models
+        # self.graph = tf.Graph()
+        # if isinstance(models, list):
+        #     self.models = [model.copy_to_graph(self.graph) for model in models]
+        # else:
+        #     self.models = models.copy_to_graph(self.graph)
+        self._initial_session = session
         self.session = session
         if isinstance(models, list):
             input_shapes = self._get_shapes(models[0].inputs)
@@ -69,6 +102,10 @@ class Learner(with_metaclass(abc.ABCMeta, object)):
         self.predict_postprocess = (lambda x: x) \
             if predict_postprocess is None \
             else predict_postprocess
+
+    @abc.abstractmethod
+    def copy(self):
+        pass
 
     @staticmethod
     def _get_shapes(ops):
@@ -160,12 +197,13 @@ class Learner(with_metaclass(abc.ABCMeta, object)):
 
     @_graph_context
     def predict(
-            self, input_data, ckpt=None, working_dir=os.getcwd(),
-            ckpt_file_prefix='ckpt', restore_sequentially=False):
+            self, input_data, pipelines=None, ckpt=None,
+            working_dir=os.getcwd(), ckpt_file_prefix='ckpt',
+            restore_sequentially=False):
         if not isinstance(input_data, np.ndarray):
             iterator = self.predict_iterator(
-                input_data=input_data, ckpt=ckpt, working_dir=working_dir,
-                ckpt_file_prefix=ckpt_file_prefix,
+                input_data=input_data, pipelines=pipelines, ckpt=ckpt,
+                working_dir=working_dir, ckpt_file_prefix=ckpt_file_prefix,
                 restore_sequentially=restore_sequentially)
             predictions = next(iterator)
             for batch in iterator:
@@ -181,10 +219,10 @@ class Learner(with_metaclass(abc.ABCMeta, object)):
 
     @_graph_context
     def predict_iterator(
-            self, input_data, yield_input_data=False, ckpt=None,
+            self, input_data, pipelines=None, yield_input_data=False, ckpt=None,
             working_dir=os.getcwd(), ckpt_file_prefix='ckpt',
             restore_sequentially=False):
-        input_data = _process_data(input_data, cycle=False)
+        input_data = _process_data(input_data, pipelines=pipelines, cycle=False)
         outputs_ops = self._postprocessed_output_ops()
         saver = tf.train.Saver(restore_sequentially=restore_sequentially)
         self._init_session(
@@ -205,6 +243,11 @@ class SimpleLearner(Learner):
             raise_error(ValueError, 'Cannot construct a simple learner with '
                                     'multiple models.')
         super(SimpleLearner, self).__init__(model, session, predict_postprocess)
+
+    def copy(self):
+        return SimpleLearner(
+            model=self.models, session=self._initial_session,
+            predict_postprocess=self.predict_postprocess)
 
     @_graph_context
     def train(self, data, pipelines=None, batch_size=None, max_iter=100000,
@@ -314,6 +357,12 @@ class ValidationSetLearner(Learner):
         self.best_model = 0
         self.best_learner = None
 
+    def copy(self):
+        return ValidationSetLearner(
+            models=self.models, val_loss=self._val_loss,
+            session=self._initial_session,
+            predict_postprocess=self.predict_postprocess)
+
     def _get_model_learner(self, model_index):
         learner = SimpleLearner(
             model=self.models[model_index],
@@ -414,6 +463,12 @@ class CrossValidationLearner(Learner):
         self.best_model = 0
         self.best_learner = None
         self._data_type = -1
+
+    def copy(self):
+        return CrossValidationLearner(
+            models=self.models, val_loss=self._val_loss,
+            session=self._initial_session,
+            predict_postprocess=self.predict_postprocess)
 
     def _get_model_learner(self, model_index):
         learner = SimpleLearner(

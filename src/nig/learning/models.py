@@ -5,13 +5,14 @@ import tensorflow as tf
 from six import with_metaclass
 
 from nig.utilities.generic import logger, raise_error
+from nig.utilities.tensorflow import copy_op_to_graph
 
 __author__ = 'eaplatanios'
 
 
 class Model(with_metaclass(abc.ABCMeta, object)):
-    def __init__(self, inputs, outputs, loss=None, optimizer=None,
-                 loss_summary=False, grads_processor=None):
+    def __init__(self, inputs, outputs, train_outputs=None, loss=None,
+                 optimizer=None, loss_summary=False, grads_processor=None):
         if isinstance(inputs, list):
             self.graph = inputs[0].graph
         else:
@@ -24,20 +25,23 @@ class Model(with_metaclass(abc.ABCMeta, object)):
                                         'must match the number of provided '
                                         'loss ops.')
         self.loss = loss
-        self.trainable = loss is not None and optimizer is not None
+        self.optimizer = optimizer
+        self.trainable = self.loss is not None and self.optimizer is not None
         if self.trainable:
             with self.graph.as_default():
-                self.optimizer = optimizer
                 self.tf_optimizer = self._process_optimizer(optimizer)
-                if isinstance(outputs, list):
-                    self.train_outputs = [tf.placeholder(
-                        dtype=output.dtype, shape=output.get_shape(),
-                        name=output.name.split(':')[0] + '/observed')
-                                          for output in outputs]
+                if train_outputs is not None:
+                    self.train_outputs = train_outputs
                 else:
-                    self.train_outputs = tf.placeholder(
-                        dtype=outputs.dtype, shape=outputs.get_shape(),
-                        name=outputs.name.split(':')[0] + 'observed/')
+                    if isinstance(outputs, list):
+                        self.train_outputs = [tf.placeholder(
+                            dtype=output.dtype, shape=output.get_shape(),
+                            name=output.name.split(':')[0] + '/observed')
+                                              for output in outputs]
+                    else:
+                        self.train_outputs = tf.placeholder(
+                            dtype=outputs.dtype, shape=outputs.get_shape(),
+                            name=outputs.name.split(':')[0] + 'observed/')
                 self.loss_op = loss.tf_op(outputs, self.train_outputs)
                 self.train_op = self._train_op(loss_summary, grads_processor)
 
@@ -65,7 +69,8 @@ class Model(with_metaclass(abc.ABCMeta, object)):
 
     def get_feed_dict(self, input_data_batch, output_data_batch=None):
         if isinstance(input_data_batch, dict):
-            feed_dict = {k.name: v for k, v in input_data_batch.items()}
+            feed_dict = {Model._get_tensor_name(k): v
+                         for k, v in input_data_batch.items()}
         elif isinstance(input_data_batch, list) \
                 or isinstance(input_data_batch, tuple):
             feed_dict = dict(zip(self.inputs, input_data_batch))
@@ -76,20 +81,56 @@ class Model(with_metaclass(abc.ABCMeta, object)):
         if isinstance(output_data_batch, dict):
             feed_dict.update({k.name + '/observed': v
                               for k, v in output_data_batch.items()})
-        elif isinstance(input_data_batch, list) \
-                or isinstance(input_data_batch, tuple):
+        elif isinstance(output_data_batch, list) \
+                or isinstance(output_data_batch, tuple):
             feed_dict.update(dict(zip(self.train_outputs, output_data_batch)))
         else:
             feed_dict[self.train_outputs] = output_data_batch
         return feed_dict
 
+    @staticmethod
+    def _get_tensor_name(tensor):
+        if isinstance(tensor, str):
+            return tensor
+        return tensor.name
+
     def copy_to_graph(self, graph, scope=''):
+        # if graph == self.graph:
+        #     return self
+        # with self.graph.as_default():
+        #     meta_graph = tf.train.export_meta_graph(
+        #         saver_def=self.saver.as_saver_def(),
+        #         collection_list=[str(self._id) + 'inputs',
+        #                          str(self._id) + 'outputs',
+        #                          str(self._id) + 'train'])
+        # with graph.as_default():
+        #     saver = tf.train.import_meta_graph(meta_graph)
+        #     inputs_collection = tf.get_collection(str(self._id) + 'inputs')
+        #     if len(inputs_collection) == 1:
+        #         inputs = inputs_collection[0]
+        #     else:
+        #         inputs = inputs_collection
+        #     outputs_collection = tf.get_collection(str(self._id) + 'outputs')
+        #     if len(outputs_collection) == 1:
+        #         outputs = outputs_collection[0]
+        #     else:
+        #         outputs = outputs_collection
+        #     return Model(
+        #         inputs=inputs, outputs=outputs,
+        #         train_output_shapes=self.train_output_shapes, loss=self.loss,
+        #         optimizer=self.optimizer, loss_summary=self.loss_summary,
+        #         grads_processor=self.grads_processor, saver=saver, id=self._id)
+        # TODO: The code that follows fails when dealing with dynamic RNNs.
         for variable in self._variables():
             tf.contrib.copy_graph.copy_variable_to_graph(
                 org_instance=variable, to_graph=graph, scope=scope)
         inputs = self._copy_ops_to_graph(self.inputs, graph, scope)
         outputs = self._copy_ops_to_graph(self.outputs, graph, scope)
-        return Model(inputs, outputs, self.loss, self.optimizer)
+        train_outputs = self._copy_ops_to_graph(
+            self.train_outputs, graph, scope) if self.trainable else None
+        return Model(
+            inputs=inputs, outputs=outputs, train_outputs=train_outputs,
+            loss=self.loss, optimizer=self.optimizer)
 
     def _variables(self):
         all_variables = {var.name.split(':')[0]: var
@@ -101,28 +142,34 @@ class Model(with_metaclass(abc.ABCMeta, object)):
         return set(all_variables[var]
                    for var in self._op_variables(self.outputs))
 
-    def _op_variables(self, op):
+    def _op_variables(self, op, traversed_ops=None):
+        if traversed_ops is None:
+            traversed_ops = set()
+        traversed_ops.add(op)
         if isinstance(op, tf.Operation):
             return set(itertools.chain(
-                *[self._op_variables(input_op) for input_op in op.inputs]))
+                *[self._op_variables(input_op, traversed_ops)
+                  for input_op in op.inputs if op not in traversed_ops]))
         elif isinstance(op, tf.Tensor):
             variables = set()
             if op.op.type == 'Variable':
                 variables.add(op.op.name)
             if len(op.op.inputs) > 0:
                 for input_op in op.op.inputs:
-                    variables.update(self._op_variables(input_op))
+                    if input_op not in traversed_ops:
+                        variables.update(
+                            self._op_variables(input_op, traversed_ops))
             return variables
         raise_error(ValueError, 'Invalid op provided.')
 
     @staticmethod
     def _copy_ops_to_graph(ops, graph, scope=''):
         if isinstance(ops, list):
-            return [tf.contrib.copy_graph.copy_op_to_graph(
+            return [copy_op_to_graph(
                 org_instance=op, to_graph=graph, variables=[], scope=scope)
                     for op in ops]
         else:
-            return tf.contrib.copy_graph.copy_op_to_graph(
+            return copy_op_to_graph(
                 org_instance=ops, to_graph=graph, variables=[], scope=scope)
 
 
@@ -138,8 +185,9 @@ class MultiLayerPerceptron(Model):
         inputs = tf.placeholder(tf.float32, shape=[None, input_size])
         outputs = self._output_op(inputs)
         super(MultiLayerPerceptron, self).__init__(
-            inputs=inputs, outputs=outputs, loss=loss, optimizer=optimizer,
-            loss_summary=loss_summary, grads_processor=grads_processor)
+            inputs=inputs, outputs=outputs, train_outputs=None,
+            loss=loss, optimizer=optimizer, loss_summary=loss_summary,
+            grads_processor=grads_processor)
 
     def __str__(self):
         return 'MultiLayerPerceptron[{}:{}:{}:{}]'.format(
