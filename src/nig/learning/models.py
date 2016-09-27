@@ -13,7 +13,7 @@ __author__ = 'eaplatanios'
 
 class Model(with_metaclass(abc.ABCMeta, object)):
     def __init__(self, inputs, outputs, train_outputs=None, loss=None,
-                 loss_summary=False, optimizer=None, optimizer_opts=None,
+                 loss_summary=False, optimizer=None, optimizer_kwargs=None,
                  grads_processor=None, train_op=None):
         if isinstance(inputs, list):
             self.graph = inputs[0].graph
@@ -36,11 +36,11 @@ class Model(with_metaclass(abc.ABCMeta, object)):
             self.uses_external_optimizer = inspect.isclass(optimizer)
             if self.uses_external_optimizer:
                 self._optimizer = optimizer
-                self._optimizer_opts = optimizer_opts
+                self._optimizer_kwargs = optimizer_kwargs
                 self.optimizer = self._process_optimizer(
-                    self._optimizer, self._optimizer_opts)
+                    self._optimizer, self._optimizer_kwargs)
             else:
-                optimizer = self._process_optimizer(optimizer, optimizer_opts)
+                optimizer = self._process_optimizer(optimizer, optimizer_kwargs)
                 self.train_op = self._train_op(
                     train_op=train_op, optimizer=optimizer,
                     grads_processor=grads_processor)
@@ -67,13 +67,18 @@ class Model(with_metaclass(abc.ABCMeta, object)):
                         % type(loss))
         return loss
 
-    def _process_optimizer(self, optimizer, optimizer_opts):
+    def _process_optimizer(self, optimizer, optimizer_kwargs):
         if optimizer is None:
             return None
         if self.uses_external_optimizer:
             with self.graph.as_default():
                 with tf.name_scope('external_optimizer'):
-                    return optimizer(self.loss, options=optimizer_opts)
+                    if 'options' in optimizer_kwargs:
+                        if 'disp' not in optimizer_kwargs['options']:
+                            optimizer_kwargs['options']['disp'] = False
+                    else:
+                        optimizer_kwargs['options'] = {'disp': False}
+                    return optimizer(self.loss, **optimizer_kwargs)
         if not isinstance(optimizer, tf.train.Optimizer):
             raise_error(ValueError, 'Unsupported optimizer type %s encountered.'
                         % type(optimizer))
@@ -143,7 +148,7 @@ class Model(with_metaclass(abc.ABCMeta, object)):
                 return Model(
                     inputs=inputs, outputs=outputs, train_outputs=train_outputs,
                     loss=loss, optimizer=self._optimizer,
-                    optimizer_opts=self._optimizer_opts)
+                    optimizer_kwargs=self._optimizer_kwargs)
             train_op = self._copy_ops_to_graph(
                 ops=self.train_op, graph=graph, variables=variables,
                 scope=scope)
@@ -207,7 +212,7 @@ class MultiLayerPerceptron(Model):
     def __init__(self, input_size, output_size, hidden_layer_sizes, activation,
                  softmax_output=True, use_log=True, train_outputs_one_hot=False,
                  loss=None, loss_summary=False, optimizer=None,
-                 optimizer_opts=None, grads_processor=None):
+                 optimizer_kwargs=None, grads_processor=None):
         self.output_size = output_size
         self.hidden_layer_sizes = hidden_layer_sizes
         self.activation = activation
@@ -221,7 +226,7 @@ class MultiLayerPerceptron(Model):
         super(MultiLayerPerceptron, self).__init__(
             inputs=inputs, outputs=outputs, train_outputs=train_outputs,
             loss=loss, loss_summary=loss_summary, optimizer=optimizer,
-            optimizer_opts=optimizer_opts, grads_processor=grads_processor)
+            optimizer_kwargs=optimizer_kwargs, grads_processor=grads_processor)
 
     def __str__(self):
         return 'MultiLayerPerceptron[{}:{}:{}:{}]'.format(
@@ -272,7 +277,7 @@ class ADIOS(Model):
     """
     def __init__(self, input_size, output_size, hidden_layer_sizes, activation,
                  loss=None, loss_summary=False, optimizer=None,
-                 optimizer_opts=None, grads_processor=None):
+                 optimizer_kwargs=None, grads_processor=None):
         assert len(output_size) == 2, "ADIOS works with exactly two outputs."
         self.input_size = input_size
         self.output_size = output_size
@@ -283,7 +288,7 @@ class ADIOS(Model):
         super(ADIOS, self).__init__(
             inputs=inputs, outputs=outputs, loss=loss,
             loss_summary=loss_summary, optimizer=optimizer,
-            optimizer_opts=optimizer_opts, grads_processor=grads_processor)
+            optimizer_kwargs=optimizer_kwargs, grads_processor=grads_processor)
 
     def _output_op(self, inputs):
         # Sanity check

@@ -155,6 +155,11 @@ class RunMetaDataSummaryWriter(Callback):
             trace_level (tf.RunOptions): Supported values include
                 `tf.RunOptions.{NO_TRACE, SOFTWARE_TRACE HARDWARE_TRACE,
                 FULL_TRACE}`.
+
+        Note:
+            If an external optimizer is used, then the meta-data collected will
+            only account for the computation required for the loss function and
+            not the whole training update (i.e., the TensorFlow training op).
         """
         super(RunMetaDataSummaryWriter, self).__init__(frequency)
         self.trace_level = trace_level
@@ -175,9 +180,13 @@ class RunMetaDataSummaryWriter(Callback):
             raise_error(ValueError, __NOT_INITIALIZED_ERROR__)
         run_options = tf.RunOptions(trace_level=self.trace_level)
         run_metadata = tf.RunMetadata()
+        if hasattr(self._model, 'train_op'):
+            fetches = [self._model.train_op, self._model.loss]
+        else:
+            fetches = [self._model.loss]
         session.run(
-            fetches=[self._model.train_op, self._model.loss],
-            feed_dict=feed_dict, options=run_options, run_metadata=run_metadata)
+            fetches=fetches, feed_dict=feed_dict, options=run_options,
+            run_metadata=run_metadata)
         self._summary_writer.add_run_metadata(
             run_metadata=run_metadata, tag='step' + str(global_step),
             global_step=global_step)

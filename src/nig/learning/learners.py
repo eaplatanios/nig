@@ -396,14 +396,14 @@ class SimpleLearnerExternalOptimizer(Learner):
                 inner.step += 1
             inner.step = 0
             return inner
-
+        loss_callback = _loss_callback()
         self.models.optimizer.minimize(
             session=self.session, feed_dict=feed_dict,
-            fetches=[self.models.loss], loss_callback=_loss_callback())
+            fetches=[self.models.loss], loss_callback=loss_callback)
         if save_trained:
             Learner._save_checkpoint(
                 session=self.session, saver=saver, working_dir=working_dir,
-                file_prefix=ckpt_file_prefix, step=1000000)
+                file_prefix=ckpt_file_prefix, step=loss_callback.step)
 
     def loss(self, loss_op, data, pipelines=None):
         data = _process_data(data, cycle=False, pipelines=pipelines)
@@ -643,9 +643,9 @@ class CrossValidationLearner(Learner):
                     learner, val_loss_op = self._get_model_learner(model_index)
                     learner.train(
                         data=self._get_fold_data(data, train_indices),
-                        pipelines=pipelines, batch_size=batch_size,
-                        max_iter=max_iter, loss_chg_tol=loss_chg_tol,
-                        loss_chg_iter_below_tol=loss_chg_iter_below_tol,
+                        pipelines=pipelines, # batch_size=batch_size,
+                        # max_iter=max_iter, loss_chg_tol=loss_chg_tol,
+                        # loss_chg_iter_below_tol=loss_chg_iter_below_tol,
                         init_option=init_option, callbacks=callbacks,
                         working_dir=os.path.join(
                             working_dir,

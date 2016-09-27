@@ -17,7 +17,7 @@ architectures = [[], [5], [5, 10, 5], [64, 32, 16]]
 activation = tf.nn.relu
 # optimizer = gradient_descent(1e-1, decay_rate=0.99, learning_rate_summary=True)
 optimizer = tf.contrib.opt.ScipyOptimizerInterface
-optimizer_opts = {'maxiter': 10000}
+optimizer_opts = {'options': {'maxiter': 10000}}
 gradients_processor = None #norm_clipping(clip_norm=0.1) \
                       #| norm_summary(name='gradients/norm')
 batch_size = 100
@@ -58,7 +58,7 @@ models = [MultiLayerPerceptron(
     784, 10, architecture, activation=activation,
     softmax_output=use_one_hot_encoding, use_log=use_one_hot_encoding,
     train_outputs_one_hot=use_one_hot_encoding, loss=loss, loss_summary=True,
-    optimizer=optimizer, optimizer_opts=optimizer_opts,
+    optimizer=optimizer, optimizer_kwargs=optimizer_opts,
     grads_processor=gradients_processor) for architecture in architectures]
 
 callbacks = [
