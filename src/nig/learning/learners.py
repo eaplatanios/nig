@@ -389,21 +389,40 @@ class SimpleLearnerExternalOptimizer(Learner):
                 self.graph, self.models, summary_writer, working_dir)
         feed_dict = self.models.get_feed_dict(data.next(), is_train=True)
 
-        def _loss_callback():
-            def inner(*fetches):
-                for call in callbacks:
-                    call(self.session, feed_dict, *(fetches + (inner.step,)))
+        def _step_callback():
+            """Returns a step callback function for the TensorFlow external
+            optimizer interface that keeps track of the current step number
+            internally."""
+            def inner(variables):
                 inner.step += 1
             inner.step = 0
             return inner
+        step_callback = _step_callback()
+
+        def _loss_callback():
+            """Returns a loss callback function for the TensorFlow external
+            optimizer interface that only gets evoked when the step callback
+            defined above had updated its step. In order to do that, this
+            function also keep an internal state, of the last step value of
+            the step callback function, in which it was evoked."""
+            def inner(*fetches):
+                if inner.step != step_callback.step:
+                    inner.step = step_callback.step
+                    for call in callbacks:
+                        args = fetches + (inner.step,)
+                        call(self.session, feed_dict, *args)
+            inner.step = -1
+            return inner
         loss_callback = _loss_callback()
+
         self.models.optimizer.minimize(
             session=self.session, feed_dict=feed_dict,
-            fetches=[self.models.loss], loss_callback=loss_callback)
+            fetches=[self.models.loss], loss_callback=loss_callback,
+            step_callback=step_callback)
         if save_trained:
             Learner._save_checkpoint(
                 session=self.session, saver=saver, working_dir=working_dir,
-                file_prefix=ckpt_file_prefix, step=loss_callback.step)
+                file_prefix=ckpt_file_prefix, step=step_callback.step)
 
     def loss(self, loss_op, data, pipelines=None):
         data = _process_data(data, cycle=False, pipelines=pipelines)
