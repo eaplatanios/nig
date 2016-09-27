@@ -90,11 +90,14 @@ class Learner(with_metaclass(abc.ABCMeta, object)):
             else:
                 self.models = models.copy_to_graph(self.graph)
         else:
-            self.graph = models[0].graph
-            if any(model.graph != self.graph for model in models):
-                raise_error(ValueError, 'When \'new_graph\' is set to '
-                                        '\'False\', all models need to lie on '
-                                        'the same graph.')
+            if isinstance(models, list):
+                self.graph = models[0].graph
+                if any(model.graph != self.graph for model in models):
+                    raise_error(
+                        ValueError, 'When \'new_graph\' is set to \'False\', '
+                                    'all models need to lie on the same graph.')
+            else:
+                self.graph = models.graph
             self.models = models
         self._initial_session = session
         self.session = session
@@ -165,7 +168,7 @@ class Learner(with_metaclass(abc.ABCMeta, object)):
         return
 
     @staticmethod
-    def _save_checkpoint(session, saver, working_dir, file_prefix, step):
+    def _save_checkpoint(session, saver, working_dir, file_prefix, step=None):
         saver.save(
             sess=session, save_path=os.path.join(working_dir, file_prefix),
             global_step=step, latest_filename=file_prefix)
@@ -186,10 +189,7 @@ class Learner(with_metaclass(abc.ABCMeta, object)):
             session.run(tf.initialize_all_variables())
 
     @abc.abstractmethod
-    def train(
-            self, data, pipelines=None, batch_size=None, init_option=-1,
-            callbacks=None, working_dir=os.getcwd(), ckpt_file_prefix='ckpt',
-            restore_sequentially=False, save_trained=False):
+    def train(self, data, *args, **kwargs):
         pass
 
     @abc.abstractmethod
@@ -256,6 +256,10 @@ class SimpleLearner(Learner):
         if isinstance(model, list):
             raise_error(ValueError, 'Cannot construct a simple learner with '
                                     'multiple models.')
+        if model.uses_external_optimizer:
+            raise_error(ValueError, 'SimpleLearner cannot be used with an '
+                                    'external optimizer. Use '
+                                    'SimpleLearnerExternalOptimizer instead.')
         super(SimpleLearner, self).__init__(
             models=model, new_graph=new_graph, session=session,
             predict_postprocess=predict_postprocess)
@@ -357,7 +361,80 @@ class SimpleLearner(Learner):
         return self.models.outputs
 
 
+class SimpleLearnerExternalOptimizer(Learner):
+    """Used for training a single TensorFlow model."""
+    def __init__(self, model, new_graph=True, session=None,
+                 predict_postprocess=None):
+        if isinstance(model, list):
+            raise_error(ValueError, 'Cannot construct a simple learner with '
+                                    'multiple models.')
+        if not model.uses_external_optimizer:
+            raise_error(ValueError, 'SimpleLearnerExternalOptimizer cannot be '
+                                    'used with an external optimizer. Use '
+                                    'SimpleLearner instead.')
+        super(SimpleLearnerExternalOptimizer, self).__init__(
+            models=model, new_graph=new_graph, session=session,
+            predict_postprocess=predict_postprocess)
+
+    def copy(self):
+        return SimpleLearnerExternalOptimizer(
+            model=self.models, new_graph=True, session=self._initial_session,
+            predict_postprocess=self.predict_postprocess)
+
+    @_graph_context
+    def train(self, data, pipelines=None, init_option=-1, callbacks=None,
+              working_dir=os.getcwd(), ckpt_file_prefix='ckpt',
+              restore_sequentially=False, save_trained=False):
+        if not self.models.trainable:
+            raise_error(ValueError, 'A model is trainable only if both a loss '
+                                    'and an optimizer are provided when '
+                                    'constructing it.')
+        data = _process_data(
+            data=data, batch_size=None, cycle=True, pipelines=pipelines)
+        callbacks = _process_callbacks(callbacks)
+        summary_writer = tf.train.SummaryWriter(working_dir, self.graph)
+        saver = tf.train.Saver(restore_sequentially=restore_sequentially)
+        self._init_session(
+            option=init_option, saver=saver, working_dir=working_dir,
+            ckpt_file_prefix=ckpt_file_prefix)
+        for callback in callbacks:
+            callback.initialize(
+                self.graph, self.models, summary_writer, working_dir)
+        feed_dict = self.models.get_feed_dict(data.next(), is_train=True)
+
+        def _loss_callback():
+            def inner(*fetches):
+                for call in callbacks:
+                    call(self.session, feed_dict, *(fetches + (inner.step,)))
+                inner.step += 1
+            inner.step = 0
+            return inner
+
+        self.models.optimizer.minimize(
+            session=self.session, feed_dict=feed_dict,
+            fetches=[self.models.loss], loss_callback=_loss_callback())
+        if save_trained:
+            Learner._save_checkpoint(
+                session=self.session, saver=saver, working_dir=working_dir,
+                file_prefix=ckpt_file_prefix, step=1000000)
+
+    def loss(self, loss_op, data, pipelines=None):
+        data = _process_data(data, cycle=False, pipelines=pipelines)
+        loss = 0.0
+        for data_batch in data:
+            feed_dict = self.models.get_feed_dict(data_batch, is_train=True)
+            loss += self.session.run(loss_op, feed_dict)
+        return loss / len(data)
+
+    def _combined_model(self):
+        return self.models
+
+    def _output_ops(self):
+        return self.models.outputs
+
+
 class ValidationSetLearner(Learner):
+    # TODO: Make this work with external optimizers.
     """Used for training multiple models that have the same input and predict
     the same quantities, using a validation data set to pick the best model."""
     def __init__(self, models, val_loss, session=None,
@@ -381,9 +458,15 @@ class ValidationSetLearner(Learner):
             predict_postprocess=self.predict_postprocess)
 
     def _get_model_learner(self, model_index):
-        learner = SimpleLearner(
-            model=self.models[model_index], new_graph=True,
-            predict_postprocess=self.predict_postprocess)
+        model = self.models[model_index]
+        if model.uses_external_optimizer:
+            learner = SimpleLearnerExternalOptimizer(
+                model=model, new_graph=True,
+                predict_postprocess=self.predict_postprocess)
+        else:
+            learner = SimpleLearner(
+                model=model, new_graph=True,
+                predict_postprocess=self.predict_postprocess)
         with learner.graph.as_default():
             val_loss_op = self._val_loss[model_index].tf_op(
                 learner.models.outputs, learner.models.train_outputs)
@@ -465,6 +548,7 @@ class ValidationSetLearner(Learner):
 
 
 class CrossValidationLearner(Learner):
+    # TODO: Make this work with external optimizers.
     """Used for training multiple symbols that have the same input and predict
     the same quantities, using cross-validation to pick the best model."""
     def __init__(self, models, val_loss, session=None,
@@ -489,9 +573,15 @@ class CrossValidationLearner(Learner):
             predict_postprocess=self.predict_postprocess)
 
     def _get_model_learner(self, model_index):
-        learner = SimpleLearner(
-            model=self.models[model_index], new_graph=True,
-            predict_postprocess=self.predict_postprocess)
+        model = self.models[model_index]
+        if model.uses_external_optimizer:
+            learner = SimpleLearnerExternalOptimizer(
+                model=model, new_graph=True,
+                predict_postprocess=self.predict_postprocess)
+        else:
+            learner = SimpleLearner(
+                model=model, new_graph=True,
+                predict_postprocess=self.predict_postprocess)
         with learner.graph.as_default():
             with tf.name_scope('learner'):
                 val_loss_op = self._val_loss[model_index].tf_op(

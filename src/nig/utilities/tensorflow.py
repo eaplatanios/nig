@@ -32,6 +32,9 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import itertools
+import tensorflow as tf
+
 from copy import deepcopy
 from tensorflow.python.ops.variables import Variable
 from tensorflow.python.client.session import Session
@@ -95,12 +98,13 @@ def copy_variable_to_graph(org_instance, to_graph, scope=""):
                            trainable,
                            name=new_name,
                            collections=collections,
-                           validate_shape=False)
+                           validate_shape=True)
 
     return new_var
 
 
-def copy_op_to_graph(org_instance, to_graph, variables, scope=""):
+def copy_op_to_graph(org_instance, to_graph, variables, copy_summaries=False,
+                     scope=''):
     """Given an `Operation` 'org_instance` from one `Graph`,
     initializes and returns a copy of it from another `Graph`,
     under the specified scope (default `""`).
@@ -137,12 +141,20 @@ def copy_op_to_graph(org_instance, to_graph, variables, scope=""):
     #If a variable by the new name already exists, return the
     #correspondng tensor that will act as an input
     if new_name in copied_variables:
-        return to_graph.get_tensor_by_name(
-            copied_variables[new_name].name)
+        op = to_graph.get_tensor_by_name(copied_variables[new_name].name)
+        if copy_summaries:
+            _copy_summaries(
+                op=org_instance, to_graph=to_graph, variables=variables,
+                scope=scope)
+        return op
 
     #If an instance of the same name exists, return appropriately
-    already_present = check_if_present(to_graph, new_name)
+    already_present = check_if_present(op_name=new_name, to_graph=to_graph)
     if already_present is not None:
+        if copy_summaries:
+            _copy_summaries(
+                op=org_instance, to_graph=to_graph, variables=variables,
+                scope=scope)
         return already_present
 
     #Get the collections that the new instance needs to be added to.
@@ -163,12 +175,19 @@ def copy_op_to_graph(org_instance, to_graph, variables, scope=""):
         #op. Therefore, copy the op itself and return the appropriate
         #output.
         op = org_instance.op
-        new_op = copy_op_to_graph(op, to_graph, variables, scope)
+        new_op = copy_op_to_graph(
+            org_instance=op, to_graph=to_graph, variables=variables,
+            copy_summaries=copy_summaries, scope=scope)
         output_index = op.outputs.index(org_instance)
         new_tensor = new_op.outputs[output_index]
         #Add to collections if any
         for collection in collections:
             to_graph.add_to_collection(collection, new_tensor)
+
+        if copy_summaries:
+            _copy_summaries(
+                op=org_instance, to_graph=to_graph, variables=variables,
+                scope=scope)
 
         return new_tensor
 
@@ -178,16 +197,19 @@ def copy_op_to_graph(org_instance, to_graph, variables, scope=""):
 
         #If it has an original_op parameter, copy it
         if op._original_op is not None:
-            new_original_op = copy_op_to_graph(op._original_op, to_graph,
-                                               variables, scope)
+            new_original_op = copy_op_to_graph(
+                org_instance=op._original_op, to_graph=to_graph,
+                variables=variables, copy_summaries=copy_summaries, scope=scope)
         else:
             new_original_op = None
 
         #If it has control inputs, call this function recursively on each.
-        new_control_inputs = [copy_op_to_graph(x, to_graph, variables, scope)
+        new_control_inputs = [copy_op_to_graph(
+            org_instance=x, to_graph=to_graph, variables=variables,
+            copy_summaries=copy_summaries, scope=scope)
                               for x in op.control_inputs]
 
-        already_present = check_if_present(to_graph, new_name)
+        already_present = check_if_present(op_name=new_name, to_graph=to_graph)
         if already_present is not None:
             return already_present
 
@@ -218,13 +240,15 @@ def copy_op_to_graph(org_instance, to_graph, variables, scope=""):
                                op_def)
         #Use Graph's hidden methods to add the op
         to_graph._add_op(new_op)
-        to_graph._record_op_seen_by_control_dependencies(new_op)
+        # to_graph._record_op_seen_by_control_dependencies(new_op)
 
         #If it has inputs, call this function recursively on each.
         for x in op.inputs:
-            new_op._add_input(copy_op_to_graph(x, to_graph, variables, scope))
+            new_op._add_input(copy_op_to_graph(
+                org_instance=x, to_graph=to_graph, variables=variables,
+                copy_summaries=copy_summaries, scope=scope))
 
-        # to_graph._record_op_seen_by_control_dependencies(new_op)
+        to_graph._record_op_seen_by_control_dependencies(new_op)
 
         for device_function in reversed(to_graph._device_function_stack):
             new_op._set_device(device_function(new_op))
@@ -235,13 +259,24 @@ def copy_op_to_graph(org_instance, to_graph, variables, scope=""):
         raise TypeError("Could not copy instance: " + str(org_instance))
 
 
-def check_if_present(graph, op_name):
+def check_if_present(op_name, to_graph):
     try:
-        op = graph.as_graph_element(
+        op = to_graph.as_graph_element(
             op_name, allow_tensor=True, allow_operation=True)
         return op
     except:
         return None
+
+
+def _copy_summaries(op, to_graph, variables, scope):
+    # TODO: This is kind of hacky right now.
+    if isinstance(op, tf.Tensor):
+        for consumer in op.consumers():
+            if 'Summary' in consumer.type:
+                for output in consumer.outputs:
+                    copy_op_to_graph(
+                        org_instance=output, to_graph=to_graph,
+                        variables=variables, copy_summaries=True, scope=scope)
 
 
 def get_copied_op(org_instance, graph, scope=""):

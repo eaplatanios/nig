@@ -1,19 +1,20 @@
 import abc
+import inspect
 import itertools
 import numpy as np
 import tensorflow as tf
 from six import with_metaclass
 
 from nig.utilities.generic import logger, raise_error
-from nig.utilities.tensorflow import copy_op_to_graph
+from nig.utilities.tensorflow import copy_op_to_graph, copy_variable_to_graph
 
 __author__ = 'eaplatanios'
 
 
 class Model(with_metaclass(abc.ABCMeta, object)):
     def __init__(self, inputs, outputs, train_outputs=None, loss=None,
-                 loss_summary=False, optimizer=None, grads_processor=None,
-                 train_op=None):
+                 loss_summary=False, optimizer=None, optimizer_opts=None,
+                 grads_processor=None, train_op=None):
         if isinstance(inputs, list):
             self.graph = inputs[0].graph
         else:
@@ -30,12 +31,19 @@ class Model(with_metaclass(abc.ABCMeta, object)):
         if self.trainable:
             self.train_outputs = self._process_train_outputs(train_outputs)
             self.loss = self._process_loss(loss)
-            self.loss_summary = loss_summary
-            if self.loss_summary:
+            if loss_summary:
                 tf.scalar_summary(self.loss.op.name, self.loss)
-            self.train_op = self._train_op(
-                train_op=train_op, optimizer=self._process_optimizer(optimizer),
-                grads_processor=grads_processor)
+            self.uses_external_optimizer = inspect.isclass(optimizer)
+            if self.uses_external_optimizer:
+                self._optimizer = optimizer
+                self._optimizer_opts = optimizer_opts
+                self.optimizer = self._process_optimizer(
+                    self._optimizer, self._optimizer_opts)
+            else:
+                optimizer = self._process_optimizer(optimizer, optimizer_opts)
+                self.train_op = self._train_op(
+                    train_op=train_op, optimizer=optimizer,
+                    grads_processor=grads_processor)
 
     def _process_train_outputs(self, train_outputs):
         if train_outputs is not None:
@@ -59,12 +67,13 @@ class Model(with_metaclass(abc.ABCMeta, object)):
                         % type(loss))
         return loss
 
-    def _process_optimizer(self, optimizer):
+    def _process_optimizer(self, optimizer, optimizer_opts):
         if optimizer is None:
             return None
-        if callable(optimizer):
+        if self.uses_external_optimizer:
             with self.graph.as_default():
-                optimizer = optimizer()
+                with tf.name_scope('external_optimizer'):
+                    return optimizer(self.loss, options=optimizer_opts)
         if not isinstance(optimizer, tf.train.Optimizer):
             raise_error(ValueError, 'Unsupported optimizer type %s encountered.'
                         % type(optimizer))
@@ -116,25 +125,42 @@ class Model(with_metaclass(abc.ABCMeta, object)):
         return tensor.name
 
     def copy_to_graph(self, graph, scope=''):
+        variables = []
         for variable in self._variables():
-            tf.contrib.copy_graph.copy_variable_to_graph(
-                org_instance=variable, to_graph=graph, scope=scope)
-        inputs = self._copy_ops_to_graph(self.inputs, graph, scope)
-        outputs = self._copy_ops_to_graph(self.outputs, graph, scope)
+            variables.append(copy_variable_to_graph(
+                org_instance=variable, to_graph=graph, scope=scope))
+        inputs = self._copy_ops_to_graph(
+            ops=self.inputs, graph=graph, variables=variables, scope=scope)
+        outputs = self._copy_ops_to_graph(
+            ops=self.outputs, graph=graph, variables=variables, scope=scope)
         if self.trainable:
             train_outputs = self._copy_ops_to_graph(
-                self.train_outputs, graph, scope)
-            loss = self._copy_ops_to_graph(self.loss, graph, scope)
-            train_op = self._copy_ops_to_graph(self.train_op, graph, scope)
+                ops=self.train_outputs, graph=graph, variables=variables,
+                scope=scope)
+            loss = self._copy_ops_to_graph(
+                ops=self.loss, graph=graph, variables=variables, scope=scope)
+            if self.uses_external_optimizer:
+                return Model(
+                    inputs=inputs, outputs=outputs, train_outputs=train_outputs,
+                    loss=loss, optimizer=self._optimizer,
+                    optimizer_opts=self._optimizer_opts)
+            train_op = self._copy_ops_to_graph(
+                ops=self.train_op, graph=graph, variables=variables,
+                scope=scope)
             return Model(
                 inputs=inputs, outputs=outputs, train_outputs=train_outputs,
-                loss=loss, loss_summary=self.loss_summary, train_op=train_op)
+                loss=loss, train_op=train_op)
         return Model(inputs=inputs, outputs=outputs)
 
     def _variables(self):
         all_variables = {var.name.split(':')[0]: var
                          for var in tf.all_variables()}
-        start_ops = self.train_op if self.trainable else self.outputs
+        if self.trainable and self.uses_external_optimizer:
+            start_ops = self.loss
+        elif self.trainable:
+            start_ops = self.train_op
+        else:
+            start_ops = self.outputs
         if isinstance(start_ops, list):
             return set(all_variables[var]
                        for var in itertools.chain.from_iterable(
@@ -164,31 +190,38 @@ class Model(with_metaclass(abc.ABCMeta, object)):
         raise_error(ValueError, 'Invalid op provided.')
 
     @staticmethod
-    def _copy_ops_to_graph(ops, graph, scope=''):
+    def _copy_ops_to_graph(ops, graph, variables=None, scope=''):
+        if variables is None:
+            variables = []
         if isinstance(ops, list):
             return [copy_op_to_graph(
-                org_instance=op, to_graph=graph, variables=[], scope=scope)
-                    for op in ops]
+                org_instance=op, to_graph=graph, variables=variables,
+                copy_summaries=True, scope=scope) for op in ops]
         else:
             return copy_op_to_graph(
-                org_instance=ops, to_graph=graph, variables=[], scope=scope)
+                org_instance=ops, to_graph=graph, variables=variables,
+                copy_summaries=True, scope=scope)
 
 
 class MultiLayerPerceptron(Model):
     def __init__(self, input_size, output_size, hidden_layer_sizes, activation,
-                 softmax_output=True, use_log=True, loss=None,
-                 loss_summary=False, optimizer=None, grads_processor=None):
+                 softmax_output=True, use_log=True, train_outputs_one_hot=False,
+                 loss=None, loss_summary=False, optimizer=None,
+                 optimizer_opts=None, grads_processor=None):
         self.output_size = output_size
         self.hidden_layer_sizes = hidden_layer_sizes
         self.activation = activation
         self.softmax_output = softmax_output
         self.use_log = use_log
+        self.train_outputs_one_hot = train_outputs_one_hot
         inputs = tf.placeholder(tf.float32, shape=[None, input_size])
         outputs = self._output_op(inputs)
+        train_outputs = None if train_outputs_one_hot \
+            else tf.placeholder(tf.int32, shape=[None])
         super(MultiLayerPerceptron, self).__init__(
-            inputs=inputs, outputs=outputs, train_outputs=None,
+            inputs=inputs, outputs=outputs, train_outputs=train_outputs,
             loss=loss, loss_summary=loss_summary, optimizer=optimizer,
-            grads_processor=grads_processor)
+            optimizer_opts=optimizer_opts, grads_processor=grads_processor)
 
     def __str__(self):
         return 'MultiLayerPerceptron[{}:{}:{}:{}]'.format(
@@ -239,7 +272,7 @@ class ADIOS(Model):
     """
     def __init__(self, input_size, output_size, hidden_layer_sizes, activation,
                  loss=None, loss_summary=False, optimizer=None,
-                 grads_processor=None):
+                 optimizer_opts=None, grads_processor=None):
         assert len(output_size) == 2, "ADIOS works with exactly two outputs."
         self.input_size = input_size
         self.output_size = output_size
@@ -250,7 +283,7 @@ class ADIOS(Model):
         super(ADIOS, self).__init__(
             inputs=inputs, outputs=outputs, loss=loss,
             loss_summary=loss_summary, optimizer=optimizer,
-            grads_processor=grads_processor)
+            optimizer_opts=optimizer_opts, grads_processor=grads_processor)
 
     def _output_op(self, inputs):
         # Sanity check
