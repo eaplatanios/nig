@@ -1,5 +1,6 @@
 import codecs
 import numpy as np
+import sklearn
 
 from nig.data.utilities import deserialize_data, serialize_data
 from nig.utilities.generic import raise_error
@@ -28,3 +29,8 @@ def save_map(path, mapping):
         serialize_data(mapping, path)
     else:
         raise_error(ValueError, 'Unsupported file extension %s.' % ext)
+
+
+def l2_normalize_word_vectors(mapping):
+    return {k: sklearn.preprocessing.normalize(v, norm='l2', axis=0)
+            for k, v in mapping}
