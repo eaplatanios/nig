@@ -264,9 +264,10 @@ class SimpleLearner(Learner):
             models=model, new_graph=new_graph, session=session,
             predict_postprocess=predict_postprocess)
 
-    def copy(self):
+    def copy(self, new_graph=True):
         return SimpleLearner(
-            model=self.models, new_graph=True, session=self._initial_session,
+            model=self.models, new_graph=new_graph,
+            session=self._initial_session,
             predict_postprocess=self.predict_postprocess)
 
     @_graph_context
@@ -376,9 +377,10 @@ class SimpleLearnerExternalOptimizer(Learner):
             models=model, new_graph=new_graph, session=session,
             predict_postprocess=predict_postprocess)
 
-    def copy(self):
+    def copy(self, new_graph=True):
         return SimpleLearnerExternalOptimizer(
-            model=self.models, new_graph=True, session=self._initial_session,
+            model=self.models, new_graph=new_graph,
+            session=self._initial_session,
             predict_postprocess=self.predict_postprocess)
 
     @_graph_context
