@@ -32,5 +32,4 @@ def save_map(path, mapping):
 
 
 def l2_normalize_word_vectors(mapping):
-    return {k: sklearn.preprocessing.normalize(v, norm='l2', axis=0)
-            for k, v in mapping}
+    return {k: v / np.linalg.norm(v, ord=2) for k, v in mapping.items()}
