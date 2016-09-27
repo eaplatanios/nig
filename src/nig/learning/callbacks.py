@@ -148,6 +148,14 @@ class VariableStatisticsSummaryWriterCallback(Callback):
 
 class RunMetaDataSummaryWriter(Callback):
     def __init__(self, frequency=1000, trace_level=tf.RunOptions.FULL_TRACE):
+        """
+
+        Args:
+            frequency:
+            trace_level (tf.RunOptions): Supported values include
+                `tf.RunOptions.{NO_TRACE, SOFTWARE_TRACE HARDWARE_TRACE,
+                FULL_TRACE}`.
+        """
         super(RunMetaDataSummaryWriter, self).__init__(frequency)
         self.trace_level = trace_level
         self._summary_writer = None
