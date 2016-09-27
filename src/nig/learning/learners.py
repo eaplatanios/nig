@@ -273,8 +273,7 @@ class SimpleLearner(Learner):
     @_graph_context
     def train(self, data, pipelines=None, batch_size=None, max_iter=100000,
               loss_chg_tol=1e-3, loss_chg_iter_below_tol=5, init_option=-1,
-              callbacks=None, run_metadata_freq=1000,
-              trace_level=tf.RunOptions.FULL_TRACE, working_dir=os.getcwd(),
+              callbacks=None, working_dir=os.getcwd(),
               ckpt_file_prefix='ckpt', restore_sequentially=False,
               save_trained=False):
         """
@@ -288,10 +287,6 @@ class SimpleLearner(Learner):
             loss_chg_iter_below_tol:
             init_option:
             callbacks:
-            run_metadata_freq:
-            trace_level (tf.RunOptions): Supported values include
-                `tf.RunOptions.{NO_TRACE, SOFTWARE_TRACE HARDWARE_TRACE,
-                FULL_TRACE}`.
             working_dir:
             ckpt_file_prefix:
             restore_sequentially:
@@ -319,19 +314,9 @@ class SimpleLearner(Learner):
         for step in range(max_iter):
             data_batch = data.next()
             feed_dict = self.models.get_feed_dict(data_batch, is_train=True)
-            if run_metadata_freq > 0 \
-                    and (step + 1) % run_metadata_freq == 0:
-                run_options = tf.RunOptions(trace_level=trace_level)
-                run_metadata = tf.RunMetadata()
-                _, loss = self.session.run(
-                    [self.models.train_op, self.models.loss], feed_dict,
-                    options=run_options, run_metadata=run_metadata)
-                summary_writer.add_run_metadata(
-                    run_metadata=run_metadata, tag='step' + str(step),
-                    global_step=step)
-            else:
-                _, loss = self.session.run(
-                    [self.models.train_op, self.models.loss], feed_dict)
+            _, loss = self.session.run(
+                fetches=[self.models.train_op, self.models.loss],
+                feed_dict=feed_dict)
             for callback in callbacks:
                 callback(self.session, feed_dict, loss, step)
             if abs((prev_loss - loss) / prev_loss) < loss_chg_tol:
@@ -476,8 +461,7 @@ class ValidationSetLearner(Learner):
 
     def train(self, data, pipelines=None, val_data=None, batch_size=None,
               max_iter=100000, loss_chg_tol=1e-3, loss_chg_iter_below_tol=5,
-              init_option=-1, callbacks=None, run_metadata_freq=1000,
-              trace_level=tf.RunOptions.FULL_TRACE, working_dir=os.getcwd(),
+              init_option=-1, callbacks=None, working_dir=os.getcwd(),
               ckpt_file_prefix='ckpt', restore_sequentially=False,
               save_trained=False, parallel=True):
         if val_data is None:
@@ -494,9 +478,7 @@ class ValidationSetLearner(Learner):
                     loss_chg_tol=loss_chg_tol,
                     loss_chg_iter_below_tol=loss_chg_iter_below_tol,
                     init_option=init_option, callbacks=callbacks,
-                    run_metadata_freq=run_metadata_freq,
-                    trace_level=trace_level, working_dir=config[2],
-                    ckpt_file_prefix=ckpt_file_prefix,
+                    working_dir=config[2], ckpt_file_prefix=ckpt_file_prefix,
                     restore_sequentially=restore_sequentially,
                     save_trained=save_trained)
                 return config[0].loss(
@@ -516,8 +498,6 @@ class ValidationSetLearner(Learner):
                     loss_chg_tol=loss_chg_tol,
                     loss_chg_iter_below_tol=loss_chg_iter_below_tol,
                     init_option=init_option, callbacks=callbacks,
-                    run_metadata_freq=run_metadata_freq,
-                    trace_level=trace_level,
                     working_dir=os.path.join(
                         working_dir, 'model_' + str(model_index)),
                     ckpt_file_prefix=ckpt_file_prefix,
@@ -601,8 +581,7 @@ class CrossValidationLearner(Learner):
 
     def train(self, data, pipelines=None, batch_size=None, cross_val=None,
               max_iter=100000, loss_chg_tol=1e-3, loss_chg_iter_below_tol=5,
-              init_option=-1, callbacks=None, run_metadata_freq=1000,
-              trace_level=tf.RunOptions.FULL_TRACE, working_dir=os.getcwd(),
+              init_option=-1, callbacks=None, working_dir=os.getcwd(),
               ckpt_file_prefix='ckpt', restore_sequentially=False,
               save_trained=False, parallel=True):
         self._data_type = -1
@@ -624,9 +603,7 @@ class CrossValidationLearner(Learner):
                     max_iter=max_iter, loss_chg_tol=loss_chg_tol,
                     loss_chg_iter_below_tol=loss_chg_iter_below_tol,
                     init_option=init_option, callbacks=callbacks,
-                    run_metadata_freq=run_metadata_freq,
-                    trace_level=trace_level, working_dir=config[2],
-                    ckpt_file_prefix=ckpt_file_prefix,
+                    working_dir=config[2], ckpt_file_prefix=ckpt_file_prefix,
                     restore_sequentially=restore_sequentially,
                     save_trained=save_trained)
                 return config[0].loss(
@@ -670,8 +647,7 @@ class CrossValidationLearner(Learner):
                         max_iter=max_iter, loss_chg_tol=loss_chg_tol,
                         loss_chg_iter_below_tol=loss_chg_iter_below_tol,
                         init_option=init_option, callbacks=callbacks,
-                        run_metadata_freq=run_metadata_freq,
-                        trace_level=trace_level, working_dir=os.path.join(
+                        working_dir=os.path.join(
                             working_dir,
                             'model_%d_fold_%d' % (model_index, num_folds - 1)),
                         ckpt_file_prefix=ckpt_file_prefix,
@@ -691,7 +667,6 @@ class CrossValidationLearner(Learner):
                 loss_chg_tol=loss_chg_tol,
                 loss_chg_iter_below_tol=loss_chg_iter_below_tol,
                 init_option=init_option, callbacks=callbacks,
-                run_metadata_freq=run_metadata_freq, trace_level=trace_level,
                 working_dir=working_dir, ckpt_file_prefix=ckpt_file_prefix,
                 restore_sequentially=restore_sequentially,
                 save_trained=save_trained)

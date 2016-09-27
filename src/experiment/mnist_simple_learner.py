@@ -1,3 +1,5 @@
+import tensorflow as tf
+
 from nig.data.iterators import NPArrayIterator
 from nig.data.loaders import mnist
 from nig.data.processors import *
@@ -62,6 +64,8 @@ models = [MultiLayerPerceptron(
 callbacks = [
     LoggerCallback(frequency=logging_frequency),
     SummaryWriterCallback(frequency=summary_frequency),
+    RunMetaDataSummaryWriter(
+        frequency=1000, trace_level=tf.RunOptions.FULL_TRACE),
     VariableStatisticsSummaryWriterCallback(
         frequency=200, variables='trainable'),
     CheckpointWriterCallback(
@@ -89,10 +93,7 @@ learner.train(
     batch_size=batch_size,
     max_iter=max_iter, loss_chg_tol=loss_chg_tol,
     loss_chg_iter_below_tol=loss_chg_iter_below_tol, init_option=True,
-    callbacks=callbacks,
-    run_metadata_freq=1000,
-    trace_level=tf.RunOptions.FULL_TRACE,
-    working_dir=working_dir,
+    callbacks=callbacks, working_dir=working_dir,
     ckpt_file_prefix=checkpoint_file_prefix,
     restore_sequentially=restore_sequentially, save_trained=save_trained,
     parallel=False)
