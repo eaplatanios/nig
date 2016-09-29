@@ -23,7 +23,9 @@ def dynamic_hierarchical_rnn(cells, periods, inputs, sequence_length=None,
                     and not isinstance(levels, list) \
                     and not isinstance(levels, int):
                 raise TypeError(error_msg)
-            if any(not isinstance(input_level, int) for input_level in levels):
+            if not isinstance(levels, int) \
+                    and any(not isinstance(input_level, int)
+                            for input_level in levels):
                 raise TypeError(error_msg)
     else:
         # -1 means the previous level.
@@ -56,15 +58,15 @@ def dynamic_hierarchical_rnn(cells, periods, inputs, sequence_length=None,
             if level_index == 0:
                 assert level == 0
             else:
-                assert level < len(level_outputs), 'Levels can only depend ' \
-                                                   'on other previous levels.'
+                assert level <= len(level_outputs), 'Levels can only depend ' \
+                                                    'on other previous levels.'
             if level == -1:
                 level = level_index - 1
             if level != 0:
                 assert period >= periods[level - 1]
                 assert period % periods[level - 1] == 0
                 step = period // periods[level - 1]
-                outputs = level_outputs[level]
+                outputs = level_outputs[level - 1]
             else:
                 step = period
                 outputs = unpacked_inputs
