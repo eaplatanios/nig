@@ -33,13 +33,28 @@ def _process_data(data, batch_size=None, cycle=False, pipelines=None):
             data, batch_size=batch_size, shuffle=False, cycle=cycle,
             keep_last=True, pipelines=pipelines)
     if isinstance(data, tuple):
-        return ZipIterator(
-            [_process_data_element(d, batch_size, cycle, pipelines)
-             for d in data])
+        if pipelines is None:
+            return ZipIterator([_process_data_element(
+                data=d, batch_size=batch_size, cycle=cycle) for d in data])
+        if len(data) != len(pipelines):
+            raise ValueError('data length should match that of pipelines.')
+        return ZipIterator([_process_data_element(
+            data=d, batch_size=batch_size, cycle=cycle, pipelines=p)
+                            for d, p in zip(data, pipelines)])
     if isinstance(data, dict):
-        return ZipIterator(
-            [_process_data_element(d, batch_size, cycle, pipelines)
-             for d in data.values()], list(data.keys()))
+        if pipelines is None:
+            return ZipIterator([_process_data_element(
+                data=d, batch_size=batch_size, cycle=cycle)
+                                for d in data.values()], list(data.keys()))
+        if len(data) != len(pipelines):
+            raise ValueError('data length should match that of pipelines.')
+        if isinstance(pipelines, dict):
+            pipelines = [pipelines[k] for k in data.keys()]
+            return ZipIterator(
+                [_process_data_element(
+                    data=d, batch_size=batch_size, cycle=cycle, pipelines=p)
+                 for d, p in zip(data.values(), pipelines)],
+                list(data.keys()))
     if not isinstance(data, DataIterator):
         raise_error(ValueError, 'Unsupported data format encountered.')
     return data.reset_copy(
@@ -61,7 +76,11 @@ def _process_data_element(data, batch_size=None, cycle=False, pipelines=None):
         batch_size = batch_size if batch_size is not None \
             else len(six.next(six.itervalues(data)))
         if pipelines is not None:
-            pipelines = pipelines | TupleToDictConverter(data.keys())
+            if isinstance(pipelines, list):
+                pipelines = [p | TupleToDictConverter(data.keys())
+                             for p in pipelines]
+            else:
+                pipelines = pipelines | TupleToDictConverter(data.keys())
         else:
             pipelines = TupleToDictConverter(data.keys())
         return NPArrayIterator(
