@@ -2,9 +2,30 @@ import tensorflow as tf
 
 
 def dynamic_hierarchical_rnn(cells, periods, inputs, sequence_length=None,
-                             input_levels=None, initial_states=None, dtype=None,
+                             input_levels=None, inputs_reduction=None,
+                             initial_states=None, dtype=None,
                              parallel_iterations=None, swap_memory=False,
                              time_major=False, scope=None):
+    """
+
+    Args:
+        cells:
+        periods:
+        inputs:
+        sequence_length:
+        input_levels:
+        inputs_reduction (function): Needs to be ones of TensorFlow's
+            reduction ops (i.e., tf.reduce_*).
+        initial_states:
+        dtype:
+        parallel_iterations:
+        swap_memory:
+        time_major:
+        scope:
+
+    Returns:
+
+    """
     # Check validity of provided cells and periods
     if not isinstance(cells, list):
         raise TypeError('cells must be a list of tf.nn.rnn_cell.RNNCells.')
@@ -75,9 +96,14 @@ def dynamic_hierarchical_rnn(cells, periods, inputs, sequence_length=None,
                 outputs = unpacked_inputs
             return tf.pack(outputs[::step], axis=time_axis)
         if isinstance(in_levels, list):
-            inputs_ = tf.concat(  # TODO: Support other pooling operations.
-                concat_dim=2,
-                values=[_get_level_output(l) for l in in_levels])
+            if inputs_reduction is None:
+                inputs_ = tf.concat(
+                    concat_dim=2,
+                    values=[_get_level_output(l) for l in in_levels])
+            else:
+                inputs_ = tf.pack(
+                    [_get_level_output(l) for l in in_levels], axis=0)
+                inputs_ = inputs_reduction(inputs_, reduction_indices=0)
         else:
             inputs_ = _get_level_output(in_levels)
         sequence_length_ = tf.div(sequence_length, period)
