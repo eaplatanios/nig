@@ -56,15 +56,18 @@ def dynamic_hierarchical_rnn(cells, periods, inputs, sequence_length=None,
         # Obtain the inputs for the current level
         def _get_level_output(level):
             if level_index == 0:
-                assert level == 0
+                assert level == 0, 'The first level can only depend on the ' \
+                                   'input time series.'
             else:
                 assert level <= len(level_outputs), 'Levels can only depend ' \
                                                     'on other previous levels.'
             if level == -1:
                 level = level_index - 1
             if level != 0:
-                assert period >= periods[level - 1]
-                assert period % periods[level - 1] == 0
+                period_msg = 'Periods must be positive multiples of the ' \
+                             'corresponding input level periods.'
+                assert period >= periods[level - 1], period_msg
+                assert period % periods[level - 1] == 0, period_msg
                 step = period // periods[level - 1]
                 outputs = level_outputs[level - 1]
             else:
@@ -82,9 +85,9 @@ def dynamic_hierarchical_rnn(cells, periods, inputs, sequence_length=None,
         # Create RNN for the current level
         output, state = tf.nn.dynamic_rnn(
             cell=cell, inputs=inputs_, sequence_length=sequence_length_,
-            dtype=dtype, parallel_iterations=parallel_iterations,
-            swap_memory=swap_memory, time_major=time_major,
-            scope=scope + '/level_%d' % level_index)
+            initial_state=initial_state, dtype=dtype,
+            parallel_iterations=parallel_iterations, swap_memory=swap_memory,
+            time_major=time_major, scope=scope + '/level_%d' % level_index)
         level_outputs.append(tf.unpack(output, axis=time_axis))
         level_states.append(state)
     return [tf.pack(o, axis=time_axis) for o in level_outputs], level_states
