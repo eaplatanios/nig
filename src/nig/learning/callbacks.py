@@ -22,7 +22,7 @@ class Callback(with_metaclass(abc.ABCMeta, object)):
         pass
 
     @abc.abstractmethod
-    def initialize(self, graph, model, summary_writer, working_dir):
+    def initialize(self, learner, summary_writer):
         pass
 
     def __call__(self, session, feed_dict=None, loss=None, global_step=None):
@@ -50,7 +50,7 @@ class LoggerCallback(Callback):
         return LoggerCallback(self.frequency, self.name, self.log_format,
                               self.header, self.header_frequency)
 
-    def initialize(self, graph, model, summary_writer, working_dir):
+    def initialize(self, learner, summary_writer):
         pass
 
     def execute(self, session, feed_dict, loss, global_step):
@@ -68,7 +68,7 @@ class SummaryWriterCallback(Callback):
     def copy(self):
         return SummaryWriterCallback(frequency=self.frequency)
 
-    def initialize(self, graph, model, summary_writer, working_dir):
+    def initialize(self, learner, summary_writer):
         if self._summary_op is None:
             self._summary_op = tf.merge_all_summaries()
             self._summary_writer = summary_writer
@@ -121,7 +121,7 @@ class VariableStatisticsSummaryWriterCallback(Callback):
                         tag=tag, values=variable, name=tag.replace(':', '_')))
             return tf.merge_summary(summaries, name='variables' + self.name)
 
-    def initialize(self, graph, model, summary_writer, working_dir):
+    def initialize(self, learner, summary_writer):
         if self._summary_op is None:
             if self.variables is 'trainable':
                 self._tf_variables = tf.trainable_variables()
@@ -170,10 +170,10 @@ class RunMetaDataSummaryWriter(Callback):
         return RunMetaDataSummaryWriter(
             frequency=self.frequency, trace_level=self.trace_level)
 
-    def initialize(self, graph, model, summary_writer, working_dir):
+    def initialize(self, learner, summary_writer):
         if self._summary_writer is None:
             self._summary_writer = summary_writer
-            self._model = model
+            self._model = learner.model
 
     def execute(self, session, feed_dict, loss, global_step):
         if self._summary_writer is None:
@@ -211,13 +211,13 @@ class CheckpointWriterCallback(Callback):
             keep_ckpt_every_n_hours=self.keep_ckpt_every_n_hours,
             working_dir=self.working_dir, file_prefix=self.file_prefix)
 
-    def initialize(self, graph, model, summary_writer, working_dir):
+    def initialize(self, learner, summary_writer):
         if self._saver is None:
             self._saver = tf.train.Saver(
                 var_list=self.variable_list, max_to_keep=self.max_to_keep,
                 keep_checkpoint_every_n_hours=self.keep_ckpt_every_n_hours)
             if self.working_dir is None:
-                self.working_dir = working_dir
+                self.working_dir = learner.working_dir
 
     def execute(self, session, feed_dict=None, loss=None, global_step=None):
         if self._saver is None:
@@ -258,11 +258,12 @@ class EvaluationCallback(Callback):
             log_format=self.log_format, header=self.header,
             header_frequency=self.header_frequency, summary=self.summary)
 
-    def initialize(self, graph, model, summary_writer, working_dir):
+    def initialize(self, learner, summary_writer):
         if self._eval_ops is None:
-            self._model = model
+            self._model = learner.model
             with tf.name_scope(self.name):
-                self._eval_ops = [metric(model.outputs, model.train_outputs)
+                self._eval_ops = [metric(
+                    learner.model.outputs, learner.model.train_outputs)
                                   for metric in self.metrics]
             if self.summary:
                 self._summary_writer = summary_writer
@@ -290,3 +291,92 @@ class EvaluationCallback(Callback):
         logger.info(self.log_format.format(self.name, global_step+1, *metrics))
         if self.summary:
             self._summary_writer.flush()
+
+
+# class ExternalEvaluationCallback(Callback):
+#     def __init__(self, frequency, iterator, metrics, number_of_batches=-1,
+#                  aggregating_function=np.mean, name='eval_callback',
+#                  log_format=None, header=None, header_frequency=sys.maxsize,
+#                  summary=True):
+#         super(ExternalEvaluationCallback, self).__init__(frequency)
+#         self.iterator = iterator
+#         self.metrics = metrics if isinstance(metrics, list) else [metrics]
+#         self.number_of_batches = number_of_batches
+#         self.aggregating_function = aggregating_function
+#         self.name = name
+#         self.log_format = log_format if log_format is not None \
+#             else '{:>20} - | {:>10d} | {:>10.4e} |' * len(self.metrics)
+#         self.header = header if header is not None \
+#             else ('{:>20} - | {:>10} | {:>10} |' * len(self.metrics)) \
+#             .format(name, 'Step', *[str(metric)
+#                                     for metric in self.metrics])
+#         self.header_frequency = header_frequency
+#         self.summary = summary
+#         self._summary_writer = None
+#         self._model = None
+#         self._output_ops = None
+#         self._predict_postprocess = None
+#
+#     def copy(self):
+#         return ExternalEvaluationCallback(
+#             frequency=self.frequency, iterator=self.iterator,
+#             metrics=self.metrics, number_of_batches=self.number_of_batches,
+#             aggregating_function=self.aggregating_function, name=self.name,
+#             log_format=self.log_format, header=self.header,
+#             header_frequency=self.header_frequency, summary=self.summary)
+#
+#     def initialize(self, learner, summary_writer):
+#         if self._summary_writer is None:
+#             if self.summary:
+#                 self._summary_writer = summary_writer
+#             self._model = learner.model
+#             self._output_ops = learner._output_ops
+#             self._predict_postprocess = learner.predict_postprocess
+#
+#     def execute(self, session, feed_dict=None, loss=None, global_step=None):
+#         if self._summary_writer is None:
+#             raise_error(ValueError, __NOT_INITIALIZED_ERROR__)
+#         self.iterator.reset()
+#         metrics = []
+#         for index, metric in enumerate(self.metrics):
+#             value = self._aggregate_over_iterator(
+#                 session, metric, self.iterator,
+#                 lambda data_batch: self._model.get_feed_dict(
+#                     data_batch, is_train=True),
+#                 self.number_of_batches, self.aggregating_function)
+#             metrics.append(value)
+#             if self.summary:
+#                 summary = tf.Summary()
+#                 summary_value = summary.value.add()
+#                 summary_value.tag = self.name + '/' + str(self.metrics[index])
+#                 summary_value.simple_value = float(value)
+#                 self._summary_writer.add_summary(summary, global_step)
+#         if global_step % self.header_frequency == 0:
+#             logger.info(self.header)
+#         logger.info(self.log_format.format(self.name, global_step+1, *metrics))
+#         if self.summary:
+#             self._summary_writer.flush()
+#
+#     def _aggregate_over_iterator(
+#             self, session, metric, iterator, data_to_feed_dict,
+#             number_of_batches=-1, aggregating_function=np.mean):
+#         metrics = []
+#         if number_of_batches > -1:
+#             for batch_number in range(number_of_batches):
+#                 data_batch = iterator.next()
+#                 outputs_ops = self._postprocessed_output_ops()
+#                 outputs = session.run(
+#                     outputs_ops,
+#                     self._model().get_feed_dict(data_batch, is_train=False))
+#                 metrics.append(metric(outputs, data_batch[1]))
+#         else:
+#             for data_batch in iterator:
+#                 metrics.append(session.run(
+#                     metric_tf_op, feed_dict=data_to_feed_dict(data_batch)))
+#         return aggregating_function(metrics)
+#
+#     def _postprocessed_output_ops(self):
+#         outputs_ops = self._output_ops()
+#         if not isinstance(outputs_ops, list):
+#             return self._predict_postprocess(outputs_ops)
+#         return list(map(lambda op: self._predict_postprocess(op), outputs_ops))

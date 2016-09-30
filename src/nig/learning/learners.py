@@ -326,8 +326,7 @@ class SimpleLearner(Learner):
             option=init_option, saver=saver, working_dir=working_dir,
             ckpt_file_prefix=ckpt_file_prefix)
         for callback in callbacks:
-            callback.initialize(
-                self.graph, self.models, summary_writer, working_dir)
+            callback.initialize(self, summary_writer)
         prev_loss = sys.float_info.max
         iter_below_tol = 0
         for step in range(max_iter):
@@ -404,8 +403,7 @@ class SimpleLearnerExternalOptimizer(Learner):
             option=init_option, saver=saver, working_dir=working_dir,
             ckpt_file_prefix=ckpt_file_prefix)
         for callback in callbacks:
-            callback.initialize(
-                self.graph, self.models, summary_writer, working_dir)
+            callback.initialize(self, summary_writer)
         feed_dict = self.models.get_feed_dict(data.next(), is_train=True)
 
         def _step_callback():
