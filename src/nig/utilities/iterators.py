@@ -56,6 +56,7 @@ class ZipIterator(Iterator):
     def reset(self):
         for iterator in self._iterators:
             iterator.reset()
+        return self
 
     def reset_copy(self):
         return ZipIterator([iterator.reset_copy()

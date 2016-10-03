@@ -7,10 +7,44 @@ import pandas as pd
 from six import with_metaclass
 
 from nig.utilities.functions import pipe
-from nig.utilities.generic import raise_error
 from nig.utilities.iterators import Iterator
 
 __author__ = 'eaplatanios'
+
+
+def _process_pipelines(pipelines):
+    if pipelines is None:
+        return lambda x: x
+    if callable(pipelines):
+        return pipelines
+    if isinstance(pipelines, list):
+        return [(lambda x: x) if pipeline is None
+                else pipeline if callable(pipeline)
+                else pipe(*pipeline)
+                for pipeline in pipelines]
+    if isinstance(pipelines, tuple):
+        return tuple([(lambda x: x) if pipeline is None
+                      else pipeline if callable(pipeline)
+                      else pipe(*pipeline)
+                      for pipeline in pipelines])
+    if isinstance(pipelines, dict):
+        return {k: (lambda x: x) if pipeline is None
+                else pipeline if callable(pipeline)
+                else pipe(*pipeline)
+                for k, pipeline in pipelines.items()}
+    raise TypeError('Unsupported pipelines type.')
+
+
+def _apply_pipelines(data, pipelines):
+    if callable(pipelines):
+        return pipelines(data)
+    if isinstance(pipelines, list):
+        return [pipeline(data) for pipeline in pipelines]
+    if isinstance(pipelines, tuple):
+        return tuple([pipeline(data) for pipeline in pipelines])
+    if isinstance(pipelines, dict):
+        return {k: pipeline(data) for k, pipeline in pipelines.items()}
+    raise TypeError('Unsupported pipelines type.')
 
 
 # TODO: Add support for various last batch filling options (e.g., pad, roll).
@@ -18,34 +52,34 @@ __author__ = 'eaplatanios'
 # TODO: Add support for a prefetching iterator.
 
 class DataIterator(with_metaclass(abc.ABCMeta, Iterator)):
+    """Constructs and returns a data iterator to be used with a learner for
+    the specified data.
+
+    Args:
+        data:
+        batch_size (int): Optional batch size value. Defaults to 128.
+        shuffle (bool): Optional boolean value indicating whether to shuffle
+            the data instances before iterating over them. Defaults to
+            `False`.
+        cycle (bool): Optional boolean value indicating whether the returned
+            iterator should cycle when it reaches its end and become an
+            effectively infinite iterator. Defaults to `False`.
+        cycle_shuffle (bool): Optional boolean value indicating whether the
+            returned iterator should shuffle the data instances at the end
+            of each cycle. Defaults to `False`. Note that this argument is
+            only effective if `cycle` is set to `True`.
+        keep_last (bool): Optional boolean value indicating whether the
+            returned iterator should keep and return the last batch in the
+            data, if that batch has size less than the specified batch size.
+        seed (long): Optional seed value for the random number generator
+            used when shuffling the data within the iterator.
+
+    Returns:
+        Iterator: Constructed iterator to be used with learners.
+    """
     def __init__(self, data, batch_size=128, shuffle=False, cycle=False,
                  cycle_shuffle=False, keep_last=True, pipelines=None,
                  seed=None):
-        """Constructs and returns a data iterator to be used with a learner for
-        the specified data.
-
-        Args:
-            data:
-            batch_size (int): Optional batch size value. Defaults to 128.
-            shuffle (bool): Optional boolean value indicating whether to shuffle
-                the data instances before iterating over them. Defaults to
-                `False`.
-            cycle (bool): Optional boolean value indicating whether the returned
-                iterator should cycle when it reaches its end and become an
-                effectively infinite iterator. Defaults to `False`.
-            cycle_shuffle (bool): Optional boolean value indicating whether the
-                returned iterator should shuffle the data instances at the end
-                of each cycle. Defaults to `False`. Note that this argument is
-                only effective if `cycle` is set to `True`.
-            keep_last (bool): Optional boolean value indicating whether the
-                returned iterator should keep and return the last batch in the
-                data, if that batch has size less than the specified batch size.
-            seed (long): Optional seed value for the random number generator
-                used when shuffling the data within the iterator.
-
-        Returns:
-            Iterator: Constructed iterator to be used with learners.
-        """
         self.data = data
         self.batch_size = batch_size
         if shuffle:
@@ -54,39 +88,18 @@ class DataIterator(with_metaclass(abc.ABCMeta, Iterator)):
         self.cycle = cycle
         self.cycle_shuffle = cycle_shuffle
         self.keep_last = keep_last
-        self.pipelines = self._preprocess_pipelines(None, pipelines)
+        self.pipelines = _process_pipelines(pipelines)
         self.rng = np.random.RandomState(seed)
-        if isinstance(self.data, tuple):
-            self._total_length = len(self.data[0])
-            for d in self.data:
-                if len(d) != self._total_length:
-                    raise_error(
-                        ValueError,
-                        'All tuple elements must have the same length.')
-        else:
-            self._total_length = len(self.data)
+        self._length = len(self.data)
         self._begin_index = 0
         self._reached_end = False
-
-    @staticmethod
-    def _preprocess_pipelines(current_pipelines, new_pipelines):
-        if new_pipelines is not None:
-            if isinstance(new_pipelines, list):
-                return [(lambda x: x) if pipeline is None
-                        else pipeline if callable(pipeline)
-                        else pipe(*pipeline)
-                        for pipeline in new_pipelines]
-            return [new_pipelines]
-        elif current_pipelines is not None:
-            return current_pipelines
-        return [lambda x: x]
 
     def next(self):
         next_data = None
         if self.cycle or not self._reached_end:
             begin_index = self._begin_index
             self._begin_index += self.batch_size
-            if self._begin_index > self._total_length:
+            if self._begin_index > self._length:
                 self._reached_end = True
             if not self._reached_end:
                 next_data = self.get_data(begin_index, self._begin_index)
@@ -94,19 +107,17 @@ class DataIterator(with_metaclass(abc.ABCMeta, Iterator)):
                 if self.cycle_shuffle:
                     self.shuffle_data()
                 self._reached_end = False
-                if begin_index < self._total_length:
+                if begin_index < self._length:
                     next_data = self.concatenate_data(
                         self.get_data(begin_index, -1),
-                        self.get_data(0, self._begin_index - self._total_length)
-                    )
+                        self.get_data(0, self._begin_index - self._length))
                 else:
                     next_data = self.get_data(0, self.batch_size)
-                self._begin_index %= self._total_length
-            elif self.keep_last and begin_index != self._total_length:
+                self._begin_index %= self._length
+            elif self.keep_last and begin_index != self._length:
                 next_data = self.get_data(begin_index, None)
         if next_data is not None:
-            next_data = [pipeline(next_data) for pipeline in self.pipelines]
-            return tuple(next_data) if len(next_data) > 1 else next_data[0]
+            return _apply_pipelines(next_data, self.pipelines)
         raise StopIteration()
 
     @abc.abstractmethod
@@ -133,11 +144,13 @@ class DataIterator(with_metaclass(abc.ABCMeta, Iterator)):
             self.cycle_shuffle = cycle_shuffle
         if keep_last is not None:
             self.keep_last = keep_last
-        self.pipelines = self._preprocess_pipelines(self.pipelines, pipelines)
+        if pipelines is not None:
+            self.pipelines = _process_pipelines(pipelines)
         if self.shuffle:
             self.shuffle_data()
         self._begin_index = 0
         self._reached_end = False
+        return self
 
     def reset_copy(self, batch_size=None, shuffle=None, cycle=None,
                    cycle_shuffle=None, keep_last=None, pipelines=None):
@@ -155,66 +168,136 @@ class DataIterator(with_metaclass(abc.ABCMeta, Iterator)):
         return len(self) - self._begin_index if not self.cycle else -1
 
     def __len__(self):
-        return self._total_length
+        return self._length
 
 
 class ListIterator(DataIterator):
     def shuffle_data(self):
-        indices = self.rng.permutation(np.arange(self._total_length))
-        self.data = tuple(self._index_list(data, indices)
-                          for data in self.data) \
-            if isinstance(self.data, tuple) \
-            else self._index(self.data, indices)
+        indices = self.rng.permutation(np.arange(self._length))
+        self.data = self._index(self.data, indices)
 
     @staticmethod
     def _index(array, indices):
         return [array[i] for i in indices]
 
     def get_data(self, from_index, to_index):
-        return tuple(data[from_index:to_index] for data in self.data) \
-            if isinstance(self.data, tuple) \
-            else self.data[from_index:to_index]
+        return self.data[from_index:to_index]
 
     def concatenate_data(self, data_batch_1, data_batch_2):
-        return tuple(db_1 + db_2
-                     for db_1, db_2 in zip(data_batch_1, data_batch_2)) \
-            if isinstance(self.data, tuple) \
-            else data_batch_1 + data_batch_2
+        return data_batch_1 + data_batch_2
 
 
 class NPArrayIterator(DataIterator):
     def shuffle_data(self):
-        indices = self.rng.permutation(np.arange(self._total_length))
-        self.data = tuple(data[indices] for data in self.data) \
-            if isinstance(self.data, tuple) \
-            else self.data[indices]
+        indices = self.rng.permutation(np.arange(self._length))
+        self.data = self.data[indices]
 
     def get_data(self, from_index, to_index):
-        return tuple(data[from_index:to_index] for data in self.data) \
-            if isinstance(self.data, tuple) \
-            else self.data[from_index:to_index]
+        return self.data[from_index:to_index]
 
     def concatenate_data(self, data_batch_1, data_batch_2):
-        return tuple(np.vstack([db_1, db_2])
-                     for db_1, db_2 in zip(data_batch_1, data_batch_2)) \
-            if isinstance(self.data, tuple) \
-            else np.vstack([data_batch_1, data_batch_2])
+        return np.vstack([data_batch_1, data_batch_2])
 
 
 class PDDataFrameIterator(DataIterator):
     def shuffle_data(self):
-        indices = self.rng.permutation(np.arange(self._total_length))
-        self.data = tuple(data.iloc[indices] for data in self.data) \
-            if isinstance(self.data, tuple) \
-            else self.data.iloc[indices]
+        indices = self.rng.permutation(np.arange(self._length))
+        self.data = self.data.iloc[indices]
 
     def get_data(self, from_index, to_index):
-        return tuple(data.iloc[from_index:to_index] for data in self.data) \
-            if isinstance(self.data, tuple) \
-            else self.data.iloc[from_index:to_index]
+        return self.data.iloc[from_index:to_index]
 
     def concatenate_data(self, data_batch_1, data_batch_2):
-        return tuple(pd.concat([db_1, db_2])
-                     for db_1, db_2 in zip(data_batch_1, data_batch_2)) \
-            if isinstance(self.data, tuple) \
-            else pd.concat([data_batch_1, data_batch_2])
+        return pd.concat([data_batch_1, data_batch_2])
+
+
+class ZipDataIterator(Iterator):
+    # TODO: Handle shuffling operations correctly.
+    def __init__(self, iterators, keys=None, batch_size=128, shuffle=False,
+                 cycle=False, cycle_shuffle=False, keep_last=True,
+                 pipelines=None, seed=None):
+        self._length = len(iterators[0])
+        if any(len(it) != self._length for it in iterators):
+            raise ValueError('The iterators being zipped must all have equal '
+                             'length.')
+        if any(not isinstance(it, DataIterator) for it in iterators):
+            raise TypeError('The iterators being zipped must be DataIterators.')
+        if keys is not None:
+            if len(iterators) != len(keys):
+                raise ValueError('The number of iterators %d does not match '
+                                 'the number of keys %d.'
+                                 % (len(iterators), len(keys)))
+        if pipelines is not None:
+            if len(iterators) != len(pipelines):
+                raise ValueError('The number of iterators %d does not match '
+                                 'the number of pipelines %d.'
+                                 % (len(iterators), len(pipelines)))
+        else:
+            pipelines = [it.pipelines for it in iterators]
+        if shuffle or cycle_shuffle:
+            raise NotImplementedError('Shuffling is not currently supported '
+                                      'for zip iterators.')
+        self.batch_size = batch_size
+        self.shuffle = shuffle
+        self.cycle = cycle
+        self.cycle_shuffle = cycle_shuffle
+        self.keep_last = keep_last
+        self.pipelines = pipelines
+        self.seed = seed
+        self._iterators = iterators
+        self._keys = keys
+        self._reset_iterators()
+
+    def _reset_iterators(self):
+        self._iterators = [it.reset(
+            batch_size=self.batch_size, shuffle=self.shuffle,
+            cycle=self.cycle, cycle_shuffle=self.cycle_shuffle,
+            keep_last=self.keep_last, pipelines=p)
+                           for it, p in zip(self._iterators, self.pipelines)]
+
+    def next(self):
+        if self._keys is None:
+            return tuple([iterator.next() for iterator in self._iterators])
+        return {self._keys[i]: iterator.next()
+                for i, iterator in enumerate(self._iterators)}
+
+    def reset(self, batch_size=None, shuffle=None, cycle=None,
+              cycle_shuffle=None, keep_last=None, pipelines=None):
+        if batch_size is not None:
+            self.batch_size = batch_size
+        if shuffle is not None:
+            self.shuffle = shuffle
+        if cycle is not None:
+            self.cycle = cycle
+        if cycle_shuffle is not None:
+            self.cycle_shuffle = cycle_shuffle
+        if keep_last is not None:
+            self.keep_last = keep_last
+        if pipelines is not None:
+            self.pipelines = pipelines
+        if self.shuffle or self.cycle_shuffle:
+            raise NotImplementedError('Shuffling is not currently supported '
+                                      'for zip iterators.')
+        self._reset_iterators()
+        return self
+
+    def reset_copy(self, batch_size=None, shuffle=None, cycle=None,
+                   cycle_shuffle=None, keep_last=None, pipelines=None):
+        batch_size = batch_size if batch_size is not None else self.batch_size
+        shuffle = shuffle if shuffle is not None else self.shuffle
+        cycle = cycle if cycle is not None else self.cycle
+        cycle_shuffle = cycle_shuffle if cycle_shuffle is not None \
+            else self.cycle_shuffle
+        keep_last = keep_last if keep_last is not None else self.keep_last
+        pipelines = pipelines if pipelines is not None else self.pipelines
+        return ZipDataIterator(
+            iterators=self._iterators, keys=self._keys, batch_size=batch_size,
+            shuffle=shuffle, cycle=cycle, cycle_shuffle=cycle_shuffle,
+            keep_last=keep_last, pipelines=pipelines)
+
+    def remaining_length(self):
+        # TODO: Confirm that all iterators have the same remaining length.
+        return self._iterators[0].remaining_length()
+
+    def __len__(self):
+        return self._length

@@ -13,7 +13,7 @@ __author__ = 'eaplatanios'
 
 class Model(with_metaclass(abc.ABCMeta, object)):
     def __init__(self, inputs, outputs, train_outputs=None, loss=None,
-                 loss_summary=False, optimizer=None, optimizer_kwargs=None,
+                 loss_summary=False, optimizer=None, optimizer_opts=None,
                  grads_processor=None, train_op=None):
         if isinstance(inputs, list):
             self.graph = inputs[0].graph
@@ -29,39 +29,40 @@ class Model(with_metaclass(abc.ABCMeta, object)):
         self.trainable = (loss is not None and optimizer is not None) \
             or train_op is not None
         if self.trainable:
-            self.train_outputs = self._process_train_outputs(train_outputs)
-            self.loss = self._process_loss(loss)
-            if loss_summary:
-                tf.scalar_summary(self.loss.op.name, self.loss)
-            self.uses_external_optimizer = inspect.isclass(optimizer)
-            if self.uses_external_optimizer:
-                self._optimizer = optimizer
-                self._optimizer_kwargs = optimizer_kwargs
-                self.optimizer = self._process_optimizer(
-                    self._optimizer, self._optimizer_kwargs)
-            else:
-                optimizer = self._process_optimizer(optimizer, optimizer_kwargs)
-                self.train_op = self._train_op(
-                    train_op=train_op, optimizer=optimizer,
-                    grads_processor=grads_processor)
+            with self.graph.as_default():
+                self.train_outputs = self._process_train_outputs(train_outputs)
+                self.loss = self._process_loss(loss)
+                if loss_summary:
+                    tf.scalar_summary(self.loss.op.name, self.loss)
+                self.global_step = \
+                    tf.contrib.framework.get_or_create_global_step()
+                self.uses_external_optimizer = inspect.isclass(optimizer)
+                self.optimizer_opts = optimizer_opts
+                if self.uses_external_optimizer:
+                    self._optimizer = optimizer
+                    self.optimizer = self._process_optimizer(
+                        self._optimizer, self.optimizer_opts)
+                else:
+                    optimizer = self._process_optimizer(optimizer, None)
+                    self.train_op = self._train_op(
+                        train_op=train_op, optimizer=optimizer,
+                        grads_processor=grads_processor)
 
     def _process_train_outputs(self, train_outputs):
         if train_outputs is not None:
             return train_outputs
-        with self.graph.as_default():
-            if isinstance(self.outputs, list):
-                return [tf.placeholder(
-                    dtype=output.dtype, shape=output.get_shape(),
-                    name=output.name.split(':')[0] + '/observed')
-                        for output in self.outputs]
-            return tf.placeholder(
-                dtype=self.outputs.dtype, shape=self.outputs.get_shape(),
-                name=self.outputs.name.split(':')[0] + 'observed/')
+        if isinstance(self.outputs, list):
+            return [tf.placeholder(
+                dtype=output.dtype, shape=output.get_shape(),
+                name=output.name.split(':')[0] + '/observed')
+                    for output in self.outputs]
+        return tf.placeholder(
+            dtype=self.outputs.dtype, shape=self.outputs.get_shape(),
+            name=self.outputs.name.split(':')[0] + 'observed/')
 
     def _process_loss(self, loss):
         if callable(loss):
-            with self.graph.as_default():
-                loss = loss(self.outputs, self.train_outputs)
+            loss = loss(self.outputs, self.train_outputs)
         if not isinstance(loss, tf.Tensor):
             raise_error(ValueError, 'Unsupported loss type %s encountered.'
                         % type(loss))
@@ -71,14 +72,13 @@ class Model(with_metaclass(abc.ABCMeta, object)):
         if optimizer is None:
             return None
         if self.uses_external_optimizer:
-            with self.graph.as_default():
-                with tf.name_scope('external_optimizer'):
-                    if 'options' in optimizer_kwargs:
-                        if 'disp' not in optimizer_kwargs['options']:
-                            optimizer_kwargs['options']['disp'] = False
-                    else:
-                        optimizer_kwargs['options'] = {'disp': False}
-                    return optimizer(self.loss, **optimizer_kwargs)
+            with tf.name_scope('external_optimizer'):
+                if 'options' in optimizer_kwargs:
+                    if 'disp' not in optimizer_kwargs['options']:
+                        optimizer_kwargs['options']['disp'] = False
+                else:
+                    optimizer_kwargs['options'] = {'disp': False}
+                return optimizer(self.loss, **optimizer_kwargs)
         if not isinstance(optimizer, tf.train.Optimizer):
             raise_error(ValueError, 'Unsupported optimizer type %s encountered.'
                         % type(optimizer))
@@ -93,20 +93,19 @@ class Model(with_metaclass(abc.ABCMeta, object)):
                 raise_error(ValueError, 'Unsupported train op type %s '
                                         'encountered.' % type(train_op))
             return train_op
-        global_step = tf.contrib.framework.get_or_create_global_step()
         if grads_processor is not None:
             trainable_vars = tf.trainable_variables()
             grads = tf.gradients(ys=self.loss, xs=trainable_vars)
             grads = grads_processor(grads)
             return optimizer.apply_gradients(
                 grads_and_vars=zip(grads, trainable_vars),
-                global_step=global_step)
-        return optimizer.minimize(loss=self.loss, global_step=global_step)
+                global_step=self.global_step)
+        return optimizer.minimize(loss=self.loss, global_step=self.global_step)
 
     def get_feed_dict(self, data, is_train=False):
-        if isinstance(data, dict):
-            return {Model._get_tensor_name(k): v for k, v in data.items()}
-        if isinstance(data, tuple):
+        if isinstance(data, np.ndarray):
+            return {self.inputs: data}
+        if isinstance(data, list) or isinstance(data, tuple):
             tensors = []
             if isinstance(self.inputs, list):
                 tensors.extend(self.inputs)
@@ -118,6 +117,8 @@ class Model(with_metaclass(abc.ABCMeta, object)):
                 else:
                     tensors.append(self.train_outputs)
             return dict(zip(tensors, data))
+        if isinstance(data, dict):
+            return {Model._get_tensor_name(k): v for k, v in data.items()}
         if not is_train:
             return {self.inputs: data}
         return {self.inputs: data[0], self.train_outputs: data[1]}
@@ -148,13 +149,14 @@ class Model(with_metaclass(abc.ABCMeta, object)):
                 return Model(
                     inputs=inputs, outputs=outputs, train_outputs=train_outputs,
                     loss=loss, optimizer=self._optimizer,
-                    optimizer_kwargs=self._optimizer_kwargs)
+                    optimizer_opts=self.optimizer_opts)
             train_op = self._copy_ops_to_graph(
                 ops=self.train_op, graph=graph, variables=variables,
                 scope=scope)
             return Model(
                 inputs=inputs, outputs=outputs, train_outputs=train_outputs,
-                loss=loss, train_op=train_op)
+                loss=loss, optimizer_opts=self.optimizer_opts,
+                train_op=train_op)
         return Model(inputs=inputs, outputs=outputs)
 
     def _variables(self):
@@ -212,7 +214,7 @@ class MultiLayerPerceptron(Model):
     def __init__(self, input_size, output_size, hidden_layer_sizes, activation,
                  softmax_output=True, use_log=True, train_outputs_one_hot=False,
                  loss=None, loss_summary=False, optimizer=None,
-                 optimizer_kwargs=None, grads_processor=None):
+                 optimizer_opts=None, grads_processor=None):
         self.output_size = output_size
         self.hidden_layer_sizes = hidden_layer_sizes
         self.activation = activation
@@ -226,7 +228,7 @@ class MultiLayerPerceptron(Model):
         super(MultiLayerPerceptron, self).__init__(
             inputs=inputs, outputs=outputs, train_outputs=train_outputs,
             loss=loss, loss_summary=loss_summary, optimizer=optimizer,
-            optimizer_kwargs=optimizer_kwargs, grads_processor=grads_processor)
+            optimizer_opts=optimizer_opts, grads_processor=grads_processor)
 
     def __str__(self):
         return 'MultiLayerPerceptron[{}:{}:{}:{}]'.format(
@@ -277,7 +279,7 @@ class ADIOS(Model):
     """
     def __init__(self, input_size, output_size, hidden_layer_sizes, activation,
                  loss=None, loss_summary=False, optimizer=None,
-                 optimizer_kwargs=None, grads_processor=None):
+                 optimizer_opts=None, grads_processor=None):
         assert len(output_size) == 2, "ADIOS works with exactly two outputs."
         self.input_size = input_size
         self.output_size = output_size
@@ -288,7 +290,7 @@ class ADIOS(Model):
         super(ADIOS, self).__init__(
             inputs=inputs, outputs=outputs, loss=loss,
             loss_summary=loss_summary, optimizer=optimizer,
-            optimizer_kwargs=optimizer_kwargs, grads_processor=grads_processor)
+            optimizer_opts=optimizer_opts, grads_processor=grads_processor)
 
     def _output_op(self, inputs):
         # Sanity check

@@ -22,7 +22,7 @@ class Callback(with_metaclass(abc.ABCMeta, object)):
         pass
 
     @abc.abstractmethod
-    def initialize(self, learner, summary_writer):
+    def initialize(self, learner, working_dir, summary_writer):
         pass
 
     def __call__(self, session, feed_dict=None, loss=None, global_step=None):
@@ -50,7 +50,7 @@ class LoggerCallback(Callback):
         return LoggerCallback(self.frequency, self.name, self.log_format,
                               self.header, self.header_frequency)
 
-    def initialize(self, learner, summary_writer):
+    def initialize(self, learner, working_dir, summary_writer):
         pass
 
     def execute(self, session, feed_dict, loss, global_step):
@@ -68,7 +68,7 @@ class SummaryWriterCallback(Callback):
     def copy(self):
         return SummaryWriterCallback(frequency=self.frequency)
 
-    def initialize(self, learner, summary_writer):
+    def initialize(self, learner, working_dir, summary_writer):
         if self._summary_op is None:
             self._summary_op = tf.merge_all_summaries()
             self._summary_writer = summary_writer
@@ -121,7 +121,7 @@ class VariableStatisticsSummaryWriterCallback(Callback):
                         tag=tag, values=variable, name=tag.replace(':', '_')))
             return tf.merge_summary(summaries, name='variables' + self.name)
 
-    def initialize(self, learner, summary_writer):
+    def initialize(self, learner, working_dir, summary_writer):
         if self._summary_op is None:
             if self.variables is 'trainable':
                 self._tf_variables = tf.trainable_variables()
@@ -170,10 +170,10 @@ class RunMetaDataSummaryWriter(Callback):
         return RunMetaDataSummaryWriter(
             frequency=self.frequency, trace_level=self.trace_level)
 
-    def initialize(self, learner, summary_writer):
+    def initialize(self, learner, working_dir, summary_writer):
         if self._summary_writer is None:
             self._summary_writer = summary_writer
-            self._model = learner.model
+            self._model = learner.combined_model
 
     def execute(self, session, feed_dict, loss, global_step):
         if self._summary_writer is None:
@@ -211,13 +211,13 @@ class CheckpointWriterCallback(Callback):
             keep_ckpt_every_n_hours=self.keep_ckpt_every_n_hours,
             working_dir=self.working_dir, file_prefix=self.file_prefix)
 
-    def initialize(self, learner, summary_writer):
+    def initialize(self, learner, working_dir, summary_writer):
         if self._saver is None:
             self._saver = tf.train.Saver(
                 var_list=self.variable_list, max_to_keep=self.max_to_keep,
                 keep_checkpoint_every_n_hours=self.keep_ckpt_every_n_hours)
             if self.working_dir is None:
-                self.working_dir = learner.working_dir
+                self.working_dir = working_dir
 
     def execute(self, session, feed_dict=None, loss=None, global_step=None):
         if self._saver is None:
@@ -258,12 +258,13 @@ class EvaluationCallback(Callback):
             log_format=self.log_format, header=self.header,
             header_frequency=self.header_frequency, summary=self.summary)
 
-    def initialize(self, learner, summary_writer):
+    def initialize(self, learner, working_dir, summary_writer):
         if self._eval_ops is None:
-            self._model = learner.model
+            self._model = learner.combined_model
             with tf.name_scope(self.name):
                 self._eval_ops = [metric(
-                    learner.model.outputs, learner.model.train_outputs)
+                    learner.combined_model.outputs,
+                    learner.combined_model.train_outputs)
                                   for metric in self.metrics]
             if self.summary:
                 self._summary_writer = summary_writer

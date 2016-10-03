@@ -42,9 +42,8 @@ class CrossEntropyOneHotEncodingMetric(Metric):
         return 'cross_entropy'
 
     def tf_op(self, prediction, truth, name='cross_entropy'):
-        with tf.name_scope('metric'):
-            metric = -tf.reduce_sum(truth * prediction, reduction_indices=[1])
-            metric = tf.reduce_mean(metric, name=name)
+        metric = -tf.reduce_sum(truth * prediction, reduction_indices=[1])
+        metric = tf.reduce_mean(metric, name=name)
         return metric
 
 
@@ -55,10 +54,9 @@ class CrossEntropyIntegerEncodingMetric(Metric):
         return 'cross_entropy'
 
     def tf_op(self, prediction, truth, name='cross_entropy'):
-        with tf.name_scope('metric'):
-            metric = tf.nn.sparse_softmax_cross_entropy_with_logits(
-                prediction, tf.to_int64(tf.squeeze(truth)))
-            metric = tf.reduce_mean(metric, name=name)
+        metric = tf.nn.sparse_softmax_cross_entropy_with_logits(
+            prediction, tf.to_int64(tf.squeeze(truth)))
+        metric = tf.reduce_mean(metric, name=name)
         return metric
 
 
@@ -69,9 +67,8 @@ class AccuracyOneHotEncodingMetric(Metric):
         return 'accuracy'
 
     def tf_op(self, prediction, truth, name='accuracy'):
-        with tf.name_scope('metric'):
-            metric = tf.equal(tf.argmax(prediction, 1), tf.argmax(truth, 1))
-            metric = tf.reduce_mean(tf.cast(metric, tf.float32), name=name)
+        metric = tf.equal(tf.argmax(prediction, 1), tf.argmax(truth, 1))
+        metric = tf.reduce_mean(tf.cast(metric, tf.float32), name=name)
         return metric
 
 
@@ -82,8 +79,7 @@ class AccuracyIntegerEncodingMetric(Metric):
         return 'accuracy'
 
     def tf_op(self, prediction, truth, name='accuracy'):
-        with tf.name_scope('metric'):
-            metric = tf.nn.in_top_k(
-                prediction, tf.to_int64(tf.squeeze(truth)), 1)
-            metric = tf.reduce_mean(tf.cast(metric, tf.float32), name=name)
+        metric = tf.nn.in_top_k(
+            prediction, tf.to_int64(tf.squeeze(truth)), 1)
+        metric = tf.reduce_mean(tf.cast(metric, tf.float32), name=name)
         return metric
