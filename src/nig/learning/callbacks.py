@@ -5,7 +5,6 @@ import tensorflow as tf
 import os
 from six import with_metaclass
 
-from nig.learning.metrics import tf_aggregate_over_iterator
 from nig.utilities.generic import logger, raise_error
 
 __author__ = 'eaplatanios'
@@ -275,11 +274,7 @@ class EvaluationCallback(Callback):
         self.iterator.reset()
         metrics = []
         for index, eval_op in enumerate(self._eval_ops):
-            value = tf_aggregate_over_iterator(
-                session, eval_op, self.iterator,
-                lambda data_batch: self._model.get_feed_dict(
-                    data_batch, is_train=True),
-                self.number_of_batches, self.aggregating_function)
+            value = self._aggregate_over_iterator(session, eval_op)
             metrics.append(value)
             if self.summary:
                 summary = tf.Summary()
@@ -293,7 +288,20 @@ class EvaluationCallback(Callback):
         if self.summary:
             self._summary_writer.flush()
 
-
+    def _aggregate_over_iterator(self, session, eval_op):
+        metrics = []
+        if self.number_of_batches > -1:
+            for batch_number in range(self.number_of_batches):
+                data_batch = self.iterator.next()
+                feed_dict = self._model.get_feed_dict(data_batch, is_train=True)
+                metrics.append(session.run(eval_op, feed_dict=feed_dict))
+        else:
+            for data_batch in self.iterator:
+                feed_dict = self._model.get_feed_dict(data_batch, is_train=True)
+                metrics.append(session.run(eval_op, feed_dict=feed_dict))
+        return self.aggregating_function(metrics)
+#
+#
 # class ExternalEvaluationCallback(Callback):
 #     def __init__(self, frequency, iterator, metrics, number_of_batches=-1,
 #                  aggregating_function=np.mean, name='eval_callback',
@@ -316,7 +324,6 @@ class EvaluationCallback(Callback):
 #         self._summary_writer = None
 #         self._model = None
 #         self._output_ops = None
-#         self._predict_postprocess = None
 #
 #     def copy(self):
 #         return ExternalEvaluationCallback(
@@ -326,13 +333,12 @@ class EvaluationCallback(Callback):
 #             log_format=self.log_format, header=self.header,
 #             header_frequency=self.header_frequency, summary=self.summary)
 #
-#     def initialize(self, learner, summary_writer):
+#     def initialize(self, learner, working_dir, summary_writer):
 #         if self._summary_writer is None:
 #             if self.summary:
 #                 self._summary_writer = summary_writer
 #             self._model = learner.model
-#             self._output_ops = learner._output_ops
-#             self._predict_postprocess = learner.predict_postprocess
+#             self._output_ops = learner._postprocessed_output_ops
 #
 #     def execute(self, session, feed_dict=None, loss=None, global_step=None):
 #         if self._summary_writer is None:
@@ -358,17 +364,16 @@ class EvaluationCallback(Callback):
 #         if self.summary:
 #             self._summary_writer.flush()
 #
-#     def _aggregate_over_iterator(
-#             self, session, metric, iterator, data_to_feed_dict,
-#             number_of_batches=-1, aggregating_function=np.mean):
+#     def _aggregate_over_iterator(self, session, metric, iterator,
+#                                  data_to_feed_dict, number_of_batches=-1,
+#                                  aggregating_function=np.mean):
 #         metrics = []
 #         if number_of_batches > -1:
 #             for batch_number in range(number_of_batches):
 #                 data_batch = iterator.next()
-#                 outputs_ops = self._postprocessed_output_ops()
+#                 feed_dict = self._model.get_feed_dict(data_batch, is_train=True)
 #                 outputs = session.run(
-#                     outputs_ops,
-#                     self._model().get_feed_dict(data_batch, is_train=False))
+#                     fetches=self._output_ops(), feed_dict=feed_dict)
 #                 metrics.append(metric(outputs, data_batch[1]))
 #         else:
 #             for data_batch in iterator:
