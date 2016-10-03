@@ -1,6 +1,8 @@
+from __future__ import absolute_import
+
 import abc
-import numpy as np
 import tensorflow as tf
+
 from six import with_metaclass
 
 __author__ = 'eaplatanios'

@@ -1,11 +1,14 @@
+from __future__ import absolute_import
+from __future__ import division
+
 import abc
 import inspect
 import itertools
 import numpy as np
 import tensorflow as tf
+
 from six import with_metaclass
 
-from nig.utilities.generic import logger, raise_error
 from nig.utilities.tensorflow import copy_op_to_graph, copy_variable_to_graph
 
 __author__ = 'eaplatanios'
@@ -23,9 +26,8 @@ class Model(with_metaclass(abc.ABCMeta, object)):
         self.outputs = outputs
         if isinstance(outputs, list) and isinstance(loss, list):
             if len(outputs) != len(loss):
-                raise_error(ValueError, 'The number of provided output ops '
-                                        'must match the number of provided '
-                                        'loss ops.')
+                raise ValueError('The number of provided output ops must match '
+                                 'the number of provided loss ops.')
         self.trainable = (loss is not None and optimizer is not None) \
             or train_op is not None
         if self.trainable:
@@ -58,14 +60,14 @@ class Model(with_metaclass(abc.ABCMeta, object)):
                     for output in self.outputs]
         return tf.placeholder(
             dtype=self.outputs.dtype, shape=self.outputs.get_shape(),
-            name=self.outputs.name.split(':')[0] + 'observed/')
+            name=self.outputs.name.split(':')[0] + '/observed')
 
     def _process_loss(self, loss):
         if callable(loss):
             loss = loss(self.outputs, self.train_outputs)
         if not isinstance(loss, tf.Tensor):
-            raise_error(ValueError, 'Unsupported loss type %s encountered.'
-                        % type(loss))
+            raise TypeError('Unsupported loss type %s encountered.'
+                            % type(loss))
         return loss
 
     def _process_optimizer(self, optimizer, optimizer_kwargs):
@@ -80,8 +82,8 @@ class Model(with_metaclass(abc.ABCMeta, object)):
                     optimizer_kwargs['options'] = {'disp': False}
                 return optimizer(self.loss, **optimizer_kwargs)
         if not isinstance(optimizer, tf.train.Optimizer):
-            raise_error(ValueError, 'Unsupported optimizer type %s encountered.'
-                        % type(optimizer))
+            raise TypeError('Unsupported optimizer type %s encountered.'
+                            % type(optimizer))
         return optimizer
 
     def _train_op(self, train_op=None, optimizer=None, grads_processor=None):
@@ -90,8 +92,8 @@ class Model(with_metaclass(abc.ABCMeta, object)):
                 with self.graph.as_default():
                     return train_op()
             if not isinstance(train_op, tf.Operation):
-                raise_error(ValueError, 'Unsupported train op type %s '
-                                        'encountered.' % type(train_op))
+                raise TypeError('Unsupported train op type %s encountered.'
+                                % type(train_op))
             return train_op
         if grads_processor is not None:
             trainable_vars = tf.trainable_variables()
@@ -194,7 +196,7 @@ class Model(with_metaclass(abc.ABCMeta, object)):
                       for input_op in input_ops
                       if input_op not in traversed_ops])))
             return variables
-        raise_error(ValueError, 'Invalid op provided.')
+        raise TypeError('Invalid op type provided.')
 
     @staticmethod
     def _copy_ops_to_graph(ops, graph, variables=None, scope=''):

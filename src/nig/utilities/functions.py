@@ -1,8 +1,11 @@
+from __future__ import absolute_import
+
 import inspect
 import six
+
 from functools import wraps
 
-from nig.utilities.generic import elapsed_timer, logger, raise_error
+from nig.utilities.generic import elapsed_timer, logger
 
 __author__ = 'eaplatanios'
 
@@ -122,8 +125,8 @@ class PipelineFunction(object):
             new_kwargs = dict.copy(self.__kwargs)
             # If unique_keys is True, we don't want repeated keyword arguments
             if self.__unique_keys and any(k in new_kwargs for k in kwargs):
-                raise_error(ValueError, 'Provided repeated named argument '
-                                        'while unique is set to `True`.')
+                raise ValueError('Provided repeated named argument while '
+                                 'unique is set to `True`.')
             new_kwargs.update(kwargs)
 
             # Check whether it's time to evaluate the underlying function
@@ -144,8 +147,8 @@ class PipelineFunction(object):
     def __or__(self, other):
         """Composes the pipeline function with another pipeline function."""
         if not isinstance(other, PipelineFunction):
-            raise_error(TypeError, 'A PipelineFunction can only be composed '
-                                   'with another PipelineFunction.')
+            raise TypeError('A PipelineFunction can only be composed with '
+                            'another PipelineFunction.')
 
         def composed_function(*args, **kwargs):
             result = self.__func(*args, **kwargs)

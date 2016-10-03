@@ -1,12 +1,11 @@
 from __future__ import absolute_import
-from __future__ import division
 
 import abc
 import numpy as np
 import pandas as pd
+
 from six import with_metaclass
 
-from nig.utilities.generic import raise_error
 from nig.utilities.functions import PipelineFunction
 
 __author__ = 'eaplatanios'
@@ -53,7 +52,7 @@ class ColumnsExtractor(Processor):
             if isinstance(self.columns, tuple):
                 return [tuple([d[col] for col in self.columns]) for d in data]
             return [d[self.columns] for d in data]
-        raise_error(ValueError, __UNSUPPORTED_DATA_TYPE_ERROR__ % type(data))
+        raise ValueError(__UNSUPPORTED_DATA_TYPE_ERROR__ % type(data))
 
 
 class DataTypeEncoder(Processor):
@@ -64,7 +63,7 @@ class DataTypeEncoder(Processor):
     def process(self, data):
         if isinstance(data, np.ndarray):
             return data.astype(self.dtype)
-        raise_error(ValueError, __UNSUPPORTED_DATA_TYPE_ERROR__ % type(data))
+        raise ValueError(__UNSUPPORTED_DATA_TYPE_ERROR__ % type(data))
 
 
 class ReshapeEncoder(Processor):
@@ -75,7 +74,7 @@ class ReshapeEncoder(Processor):
     def process(self, data):
         if isinstance(data, np.ndarray):
             return data.reshape(self.shape)
-        raise_error(ValueError, __UNSUPPORTED_DATA_TYPE_ERROR__ % type(data))
+        raise ValueError(__UNSUPPORTED_DATA_TYPE_ERROR__ % type(data))
 
 
 class OneHotEncoder(Processor):
@@ -95,7 +94,7 @@ class OneHotEncoder(Processor):
             map_values = np.vectorize(lambda k: self.encoding_map[k])
             encoded_array.flat[index_offset + map_values(data.ravel())] = 1
             return encoded_array
-        raise_error(ValueError, __UNSUPPORTED_DATA_TYPE_ERROR__ % type(data))
+        raise ValueError(__UNSUPPORTED_DATA_TYPE_ERROR__ % type(data))
 
 
 class OneHotDecoder(Processor):
@@ -114,4 +113,4 @@ class OneHotDecoder(Processor):
                 return decoded_array
             map_values = np.vectorize(lambda v: self.decoding_map[v])
             return map_values(decoded_array)
-        raise_error(ValueError, __UNSUPPORTED_DATA_TYPE_ERROR__ % type(data))
+        raise ValueError(__UNSUPPORTED_DATA_TYPE_ERROR__ % type(data))

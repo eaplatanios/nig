@@ -1,9 +1,9 @@
+from __future__ import absolute_import
+
 import codecs
 import numpy as np
-import sklearn
 
 from nig.data.utilities import deserialize_data, serialize_data
-from nig.utilities.generic import raise_error
 
 __author__ = 'eaplatanios'
 
@@ -16,7 +16,7 @@ def load_map(path):
         return {l[0]: np.array([float(v) for v in l[1:]]) for l in lines}
     elif ext == 'bin':
         return deserialize_data(path)
-    raise_error(ValueError, 'Unsupported file extension %s.' % ext)
+    raise ValueError('Unsupported file extension %s.' % ext)
 
 
 def save_map(path, mapping):
@@ -28,7 +28,7 @@ def save_map(path, mapping):
     elif ext == 'bin':
         serialize_data(mapping, path)
     else:
-        raise_error(ValueError, 'Unsupported file extension %s.' % ext)
+        raise ValueError('Unsupported file extension %s.' % ext)
 
 
 def l2_normalize_word_vectors(mapping):

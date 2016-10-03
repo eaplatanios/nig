@@ -1,7 +1,8 @@
-import abc
-from six import with_metaclass
+from __future__ import absolute_import
 
-from nig.utilities.generic import raise_error
+import abc
+
+from six import with_metaclass
 
 __author__ = 'eaplatanios'
 
@@ -37,14 +38,14 @@ class Iterator(with_metaclass(abc.ABCMeta, object)):
 class ZipIterator(Iterator):
     def __init__(self, iterators, keys=None):
         if any(len(iterator) != len(iterators[0]) for iterator in iterators):
-            raise_error(ValueError, 'The iterators being zipped must all have '
-                                    'equal length.')
+            raise ValueError('The iterators being zipped must all have equal '
+                             'length.')
         self._iterators = iterators
         if keys is not None:
             if len(iterators) != len(keys):
-                raise_error(ValueError, 'The number of iterators %d does not '
-                                        'match the number of keys %d.'
-                            % (len(iterators), len(keys)))
+                raise ValueError('The number of iterators %d does not match '
+                                 'the number of keys %d.'
+                                 % (len(iterators), len(keys)))
         self._keys = keys
 
     def next(self):

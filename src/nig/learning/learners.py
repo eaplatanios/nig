@@ -6,13 +6,15 @@ import numpy as np
 import os
 import sys
 import tensorflow as tf
+
 from contextlib import closing
 from multiprocessing.dummy import Pool as ThreadPool
 from six import with_metaclass
 
 from nig.data.iterators import DataIterator, NPArrayIterator, ZipDataIterator
+from nig.learning.models import Model
 from nig.math.statistics.cross_validation import KFold
-from nig.utilities.generic import logger, raise_error
+from nig.utilities.generic import logger
 
 __author__ = 'eaplatanios'
 
@@ -47,7 +49,7 @@ def _process_data(data, batch_size=None, cycle=False, pipelines=None):
             pipelines=pipelines)
     if not isinstance(data, DataIterator) \
             and not isinstance(data, ZipDataIterator):
-        raise_error(ValueError, 'Unsupported data format encountered.')
+        raise TypeError('Unsupported data type %s encountered.' % type(data))
     return data.reset_copy(
         batch_size=batch_size, cycle=cycle, pipelines=pipelines)
 
@@ -57,7 +59,7 @@ def _process_data_element(data, batch_size=None):
         batch_size = batch_size if batch_size is not None else len(data)
         return NPArrayIterator(data=data, batch_size=batch_size)
     if not isinstance(data, DataIterator):
-        raise_error(ValueError, 'Unsupported data format encountered.')
+        raise TypeError('Unsupported data type %s encountered.' % type(data))
     return data.reset_copy(batch_size=batch_size)
 
 
@@ -69,7 +71,7 @@ def _get_fold_data(data, indices):
         return tuple(d[indices] for d in data)
     if isinstance(data, dict):
         return {k: v[indices] for k, v in data.items()}
-    raise_error(ValueError, 'Unsupported data type provided.')
+    raise TypeError('Unsupported data type %s encountered.' % type(data))
 
 
 def _process_callbacks(callbacks):
@@ -92,9 +94,8 @@ class Learner(with_metaclass(abc.ABCMeta, object)):
             if isinstance(models, list):
                 self.graph = models[0].graph
                 if any(model.graph != self.graph for model in models):
-                    raise_error(
-                        ValueError, 'When \'new_graph\' is set to \'False\', '
-                                    'all models need to lie on the same graph.')
+                    raise ValueError('When `new_graph` is set to `False`, all '
+                                     'models must lie on the same graph.')
             else:
                 self.graph = models.graph
             self.models = models
@@ -106,12 +107,12 @@ class Learner(with_metaclass(abc.ABCMeta, object)):
             for model in models:
                 if not self._equal_shapes(
                         self._get_shapes(model.inputs), input_shapes):
-                    raise_error(ValueError, 'The input ops shapes must be '
-                                            'equal for all models.')
+                    raise ValueError('The input ops shapes must be equal for '
+                                     'all models.')
                 if not self._equal_shapes(
                         self._get_shapes(model.outputs), output_shapes):
-                    raise_error(ValueError, 'The output ops shapes must be '
-                                            'equal for all models.')
+                    raise ValueError('The output ops shapes must be equal for '
+                                     'all models.')
         self.predict_postprocess = (lambda x: x) \
             if predict_postprocess is None \
             else predict_postprocess
@@ -197,9 +198,9 @@ class SimpleLearner(Learner):
     """Used for training a single TensorFlow model."""
     def __init__(self, model, new_graph=True, session=None,
                  predict_postprocess=None):
-        if isinstance(model, list):
-            raise_error(ValueError, 'Cannot construct a simple learner with '
-                                    'multiple models.')
+        if not isinstance(model, Model):
+            raise TypeError('Unsupported model type %s encountered.'
+                            % type(model))
         super(SimpleLearner, self).__init__(
             models=model, new_graph=new_graph, session=session,
             predict_postprocess=predict_postprocess)
@@ -221,45 +222,28 @@ class SimpleLearner(Learner):
                 self.session.run(tf.initialize_all_variables())
                 return
             elif self.session is None:
-                raise_error(ValueError, 'When the initialization option is a '
-                                        'boolean value set to False, then a '
-                                        'session needs to be provided.')
+                raise ValueError('When the initialization option is a boolean '
+                                 'value set to `False`, a session needs to be '
+                                 'provided.')
         if saver is None:
-            raise_error(ValueError, 'When the initialization option is an '
-                                    'integer, indicating that a saved '
-                                    'checkpoint should be loaded, then a saver '
-                                    'must also be provided.')
+            raise ValueError('When the initialization option is an integer, '
+                             'indicating that a saved checkpoint should be '
+                             'loaded, a saver must also be provided.')
         if self.session is None:
             self.session = tf.Session()
         if isinstance(option, int):
             self._load_checkpoint(
                 self.session, saver, working_dir, ckpt_file_prefix, option)
         else:
-            raise_error(ValueError, 'Unsupported initialization.')
+            raise TypeError('Unsupported initialization type %s encountered.'
+                            % type(option))
 
     @_graph_context
     def train(self, data, pipelines=None, init_option=-1, callbacks=None,
               working_dir=os.getcwd(), ckpt_file_prefix='ckpt',
               restore_sequentially=False, save_trained=False):
-        """
-
-        Args:
-            data (Iterator or tuple(np.ndarray)):
-            pipelines:
-            init_option:
-            callbacks:
-            working_dir:
-            ckpt_file_prefix:
-            restore_sequentially:
-            save_trained:
-
-        Returns:
-
-        """
         if not self.models.trainable:
-            raise_error(ValueError, 'A model is trainable only if both a loss '
-                                    'and an optimizer are provided when '
-                                    'constructing it.')
+            raise ValueError('The provided model is not trainable.')
         if self.models.uses_external_optimizer:
             _train = self._train_external
         else:
@@ -522,18 +506,18 @@ class ValidationSetLearner(Learner):
     @property
     def combined_model(self):
         if self.best_learner is None:
-            raise_error(ValueError, __LEARNER_NOT_TRAINED_ERROR__)
+            raise ValueError(__LEARNER_NOT_TRAINED_ERROR__)
         return self.best_learner.models
 
     def _output_ops(self):
         if self.best_learner is None:
-            raise_error(ValueError, __LEARNER_NOT_TRAINED_ERROR__)
+            raise ValueError(__LEARNER_NOT_TRAINED_ERROR__)
         return self.best_learner.models.outputs
 
     def predict(self, data, pipelines=None, ckpt=None, working_dir=os.getcwd(),
                 ckpt_file_prefix='ckpt', restore_sequentially=False):
         if self.best_learner is None:
-            raise_error(ValueError, __LEARNER_NOT_TRAINED_ERROR__)
+            raise ValueError(__LEARNER_NOT_TRAINED_ERROR__)
         return self.best_learner.predict(
             data=data, pipelines=pipelines, ckpt=ckpt, working_dir=working_dir,
             ckpt_file_prefix=ckpt_file_prefix,
@@ -543,7 +527,7 @@ class ValidationSetLearner(Learner):
                          ckpt=None, working_dir=os.getcwd(),
                          ckpt_file_prefix='ckpt', restore_sequentially=False):
         if self.best_learner is None:
-            raise_error(ValueError, __LEARNER_NOT_TRAINED_ERROR__)
+            raise ValueError(__LEARNER_NOT_TRAINED_ERROR__)
         return self.best_learner.predict(
             data=data, pipelines=pipelines, yield_input_data=yield_input_data,
             ckpt=ckpt, working_dir=working_dir,
@@ -668,18 +652,18 @@ class CrossValidationLearner(Learner):
     @property
     def combined_model(self):
         if self.best_learner is None:
-            raise_error(ValueError, __LEARNER_NOT_TRAINED_ERROR__)
+            raise ValueError(__LEARNER_NOT_TRAINED_ERROR__)
         return self.best_learner.models
 
     def _output_ops(self):
         if self.best_learner is None:
-            raise_error(ValueError, __LEARNER_NOT_TRAINED_ERROR__)
+            raise ValueError(__LEARNER_NOT_TRAINED_ERROR__)
         return self.best_learner.models.outputs
 
     def predict(self, data, pipelines=None, ckpt=None, working_dir=os.getcwd(),
                 ckpt_file_prefix='ckpt', restore_sequentially=False):
         if self.best_learner is None:
-            raise_error(ValueError, __LEARNER_NOT_TRAINED_ERROR__)
+            raise ValueError(__LEARNER_NOT_TRAINED_ERROR__)
         return self.best_learner.predict(
             data=data, pipelines=pipelines, ckpt=ckpt, working_dir=working_dir,
             ckpt_file_prefix=ckpt_file_prefix,
@@ -689,7 +673,7 @@ class CrossValidationLearner(Learner):
                          ckpt=None, working_dir=os.getcwd(),
                          ckpt_file_prefix='ckpt', restore_sequentially=False):
         if self.best_learner is None:
-            raise_error(ValueError, __LEARNER_NOT_TRAINED_ERROR__)
+            raise ValueError(__LEARNER_NOT_TRAINED_ERROR__)
         return self.best_learner.predict(
             data=data, pipelines=pipelines, yield_input_data=yield_input_data,
             ckpt=ckpt, working_dir=working_dir,

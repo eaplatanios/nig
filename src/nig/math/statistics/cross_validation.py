@@ -1,12 +1,13 @@
+from __future__ import absolute_import
 from __future__ import division
 
 import abc
 import numpy as np
+
 from itertools import combinations
 from math import factorial
 from six import with_metaclass
 
-from nig.utilities.generic import raise_error
 from nig.utilities.iterators import Iterator
 
 __author__ = 'eaplatanios'
@@ -214,13 +215,13 @@ class LeavePLabelsOut(_Base):
 class _KFoldBase(with_metaclass(abc.ABCMeta, _Base)):
     def __init__(self, data_size, k, shuffle=False, seed=None):
         if k <= 1:
-            raise_error(ValueError, 'The number of folds, k, needs to be > 1. '
-                                    'Provided value is %d' % k)
+            raise ValueError('The number of folds, k, needs to be > 1. '
+                             'Provided value is %d.' % k)
         if k > data_size:
-            raise_error(ValueError, 'The number of folds, k, cannot be larger '
-                                    'than the number of data instances. '
-                                    'Provided k is %d and the number of data '
-                                    'instances is %d.' % (k, data_size))
+            raise ValueError('The number of folds, k, cannot be larger than '
+                             'the number of data instances. Provided k is %d '
+                             'and the number of data instances is %d.'
+                             % (k, data_size))
         super(_KFoldBase, self).__init__(data_size, shuffle, seed)
         self.k = k
 
@@ -305,11 +306,10 @@ class StratifiedKFold(_KFoldBase):
         label_counts = np.bincount(indices)
         min_label_count = np.min(label_counts)
         if self.k > min_label_count:
-            raise_error(ValueError, 'The least frequent label appears only %d '
-                                    'times, which is lower than the number of '
-                                    'folds %d. Stratified k-fold '
-                                    'cross-validation is thus not possible.'
-                        % (min_label_count, self.k))
+            raise ValueError('The least frequent label appears only %d times, '
+                             'which is lower than the number of folds %d. '
+                             'Stratified k-fold cross-validation is thus not '
+                             'possible.' % (min_label_count, self.k))
         # We use individual KFold cross-validation strategies for each label in
         # order to respect the balance of the labels.
         per_label_k_folds = [KFold(

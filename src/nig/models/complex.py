@@ -1,6 +1,11 @@
+from __future__ import absolute_import
+
 import numpy as np
 import tensorflow as tf
+
 from math import pi
+
+__author__ = 'eaplatanios'
 
 
 def complex(name, shape, initializer=None):

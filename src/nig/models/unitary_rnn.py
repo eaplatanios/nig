@@ -1,8 +1,11 @@
-import numpy as np
+from __future__ import absolute_import
+
 import tensorflow as tf
+
 from nig.models.complex import mod_relu, matmul_parameterized_unitary, \
     zero_complex
-from nig.utilities.generic import logger
+
+__author__ = 'eaplatanios'
 
 
 class URNNCell(tf.nn.rnn_cell.RNNCell):

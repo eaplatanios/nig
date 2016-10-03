@@ -1,5 +1,4 @@
 from __future__ import absolute_import
-from __future__ import division
 
 import abc
 import numpy as np

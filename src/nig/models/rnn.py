@@ -1,4 +1,8 @@
+from __future__ import absolute_import
+
 import tensorflow as tf
+
+__author__ = 'eaplatanios'
 
 
 def dynamic_hierarchical_rnn(cells, periods, inputs, sequence_length=None,

@@ -1,15 +1,18 @@
+from __future__ import absolute_import
+
 import abc
 import numpy as np
 import sys
 import tensorflow as tf
 import os
+
 from six import with_metaclass
 
-from nig.utilities.generic import logger, raise_error
+from nig.utilities.generic import logger
 
 __author__ = 'eaplatanios'
 
-__NOT_INITIALIZED_ERROR__ = 'The callback has not been initialized yet.'
+__CALLBACK_NOT_INITIALIZED_ERROR__ = 'The callback has not been initialized.'
 
 
 class Callback(with_metaclass(abc.ABCMeta, object)):
@@ -74,7 +77,7 @@ class SummaryWriterCallback(Callback):
 
     def execute(self, session, feed_dict, loss, global_step):
         if self._summary_writer is None:
-            raise_error(ValueError, __NOT_INITIALIZED_ERROR__)
+            raise ValueError(__CALLBACK_NOT_INITIALIZED_ERROR__)
         if self._summary_op is not None:
             summary = session.run(fetches=self._summary_op, feed_dict=feed_dict)
             self._summary_writer.add_summary(summary, global_step)
@@ -139,7 +142,7 @@ class VariableStatisticsSummaryWriterCallback(Callback):
 
     def execute(self, session, feed_dict, loss, global_step):
         if self._summary_op is None:
-            raise_error(ValueError, __NOT_INITIALIZED_ERROR__)
+            raise ValueError(__CALLBACK_NOT_INITIALIZED_ERROR__)
         summary = session.run(fetches=self._summary_op, feed_dict=feed_dict)
         self._summary_writer.add_summary(summary, global_step)
         self._summary_writer.flush()
@@ -176,7 +179,7 @@ class RunMetaDataSummaryWriter(Callback):
 
     def execute(self, session, feed_dict, loss, global_step):
         if self._summary_writer is None:
-            raise_error(ValueError, __NOT_INITIALIZED_ERROR__)
+            raise ValueError(__CALLBACK_NOT_INITIALIZED_ERROR__)
         run_options = tf.RunOptions(trace_level=self.trace_level)
         run_metadata = tf.RunMetadata()
         if hasattr(self._model, 'train_op'):
@@ -220,7 +223,7 @@ class CheckpointWriterCallback(Callback):
 
     def execute(self, session, feed_dict=None, loss=None, global_step=None):
         if self._saver is None:
-            raise_error(ValueError, __NOT_INITIALIZED_ERROR__)
+            raise ValueError(__CALLBACK_NOT_INITIALIZED_ERROR__)
         self._saver.save(
             session, os.path.join(self.working_dir, self.file_prefix),
             global_step=global_step, latest_filename=self.file_prefix)
@@ -270,7 +273,7 @@ class EvaluationCallback(Callback):
 
     def execute(self, session, feed_dict=None, loss=None, global_step=None):
         if self._eval_ops is None:
-            raise_error(ValueError, __NOT_INITIALIZED_ERROR__)
+            raise ValueError(__CALLBACK_NOT_INITIALIZED_ERROR__)
         self.iterator.reset()
         metrics = []
         for index, eval_op in enumerate(self._eval_ops):
