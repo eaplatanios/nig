@@ -1,3 +1,4 @@
+import logging
 import tensorflow as tf
 
 from nig.data.iterators import NPArrayIterator
@@ -11,6 +12,8 @@ from nig.learning.processors import norm_summary, norm_clipping
 from nig.learning.models import MultiLayerPerceptron
 
 __author__ = 'eaplatanios'
+
+logger = logging.getLogger(__name__)
 
 use_one_hot_encoding = False
 architectures = [[], [5]]
@@ -104,8 +107,8 @@ test_predictions = learner.predict(
     get_iterator(test_data, False), ckpt=-1, working_dir=working_dir,
     ckpt_file_prefix=checkpoint_file_prefix)
 test_truth = test_data[:, -1]
-print('Best model: %d' % learner.best_model_index)
-print(np.mean(test_predictions == test_truth))
+logger.info('Best model: %d' % learner.best_model_index)
+logger.info(np.mean(test_predictions == test_truth))
 
 # Test loading the best performing trained model using a simple learner
 simple_learner = SimpleLearner(
@@ -113,4 +116,4 @@ simple_learner = SimpleLearner(
 simple_learner_test_predictions = simple_learner.predict(
     get_iterator(test_data, False), ckpt=-1, working_dir=working_dir,
     ckpt_file_prefix=checkpoint_file_prefix)
-print(np.mean(simple_learner_test_predictions == test_truth))
+logger.info(np.mean(simple_learner_test_predictions == test_truth))

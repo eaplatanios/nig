@@ -1,11 +1,11 @@
 from __future__ import absolute_import
 
 import gzip
+import logging
 import numpy as np
 import os
 
 from nig.data.loaders import utilities
-from nig.utilities.generic import logger
 
 __author__ = 'eaplatanios'
 
@@ -15,6 +15,8 @@ TRAIN_IMAGES = 'train-images-idx3-ubyte.gz'
 TRAIN_LABELS = 'train-labels-idx1-ubyte.gz'
 TEST_IMAGES = 't10k-images-idx3-ubyte.gz'
 TEST_LABELS = 't10k-labels-idx1-ubyte.gz'
+
+logger = logging.getLogger(__name__)
 
 
 def _read32(bytestream):

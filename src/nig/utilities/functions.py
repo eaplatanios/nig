@@ -1,13 +1,16 @@
 from __future__ import absolute_import
 
 import inspect
+import logging
 import six
 
 from functools import wraps
 
-from nig.utilities.generic import elapsed_timer, logger
+from nig.utilities.generic import elapsed_timer
 
 __author__ = 'eaplatanios'
+
+logger = logging.getLogger(__name__)
 
 
 def identity(arg):

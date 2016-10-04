@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 import abc
 import numpy as np
+
 from six import with_metaclass
 
 from nig.utilities.functions import PipelineFunction

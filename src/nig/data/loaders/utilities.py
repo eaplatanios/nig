@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 
 import csv
+import logging
 import numpy as np
 import os
 import shutil
@@ -8,9 +9,9 @@ import tempfile
 
 from six.moves import urllib
 
-from nig.utilities.generic import logger
-
 __author__ = 'eaplatanios'
+
+logger = logging.getLogger(__name__)
 
 
 def load_csv(filename, target_column=-1, has_header=True):

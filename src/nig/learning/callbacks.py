@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 
 import abc
+import logging
 import numpy as np
 import sys
 import tensorflow as tf
@@ -8,11 +9,11 @@ import os
 
 from six import with_metaclass
 
-from nig.utilities.generic import logger
-
 __author__ = 'eaplatanios'
 
 __CALLBACK_NOT_INITIALIZED_ERROR__ = 'The callback has not been initialized.'
+
+logger = logging.getLogger(__name__)
 
 
 class Callback(with_metaclass(abc.ABCMeta, object)):

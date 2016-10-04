@@ -2,6 +2,7 @@ from __future__ import absolute_import
 from __future__ import division
 
 import abc
+import logging
 import numpy as np
 import os
 import sys
@@ -14,11 +15,12 @@ from six import with_metaclass
 from nig.data.iterators import DataIterator, NPArrayIterator, ZipDataIterator
 from nig.learning.models import Model
 from nig.math.statistics.cross_validation import KFold
-from nig.utilities.generic import logger
 
 __author__ = 'eaplatanios'
 
 __LEARNER_NOT_TRAINED_ERROR__ = 'The current learner has not been trained.'
+
+logger = logging.getLogger(__name__)
 
 
 def _graph_context(func):
@@ -286,10 +288,9 @@ class SimpleLearner(Learner):
         prev_loss = sys.float_info.max
         iter_below_tol = 0
         for step in range(max_iter):
-            self.global_step += step
             data_batch = data.next()
             feed_dict = model.get_feed_dict(data_batch, is_train=True)
-            _, loss, self.global_step = self.session.run(
+            _, loss, global_step = self.session.run(
                 fetches=[model.train_op, model.loss, model.global_step],
                 feed_dict=feed_dict)
             for callback in callbacks:
@@ -302,6 +303,7 @@ class SimpleLearner(Learner):
                 logger.info('Loss value converged.')
                 break
             prev_loss = loss
+            self.global_step = global_step
         if save_trained:
             Learner._save_checkpoint(
                 session=self.session, saver=saver, working_dir=working_dir,

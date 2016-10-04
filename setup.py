@@ -15,8 +15,8 @@ setup(
     url='https://github.com/eaplatanios/nig',
     license='MIT',
     install_requires=['cython', 'numpy', 'pandas', 'six', 'tensorflow',
-                      'jnius==1.1-dev'],
+                      'yaml', 'jnius==1.1-dev'],
     package_data={
-        'nig': ['evaluation/*.jar'],
+        'nig': ['evaluation/*.jar', 'logging.yaml'],
     }
 )

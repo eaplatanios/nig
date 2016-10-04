@@ -1,8 +1,11 @@
 from __future__ import absolute_import
 
+import logging
 import six.moves.cPickle as pickle
 
-from nig.utilities.generic import logger
+__author__ = 'eaplatanios'
+
+logger = logging.getLogger(__name__)
 
 
 def serialize_data(data, path):
