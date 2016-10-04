@@ -78,13 +78,13 @@ callbacks = [
     CheckpointWriterCallback(
         frequency=checkpoint_frequency, file_prefix=checkpoint_file_prefix),
     EvaluationCallback(
-        frequency=evaluation_frequency, iterator=get_iterator(train_data),
+        frequency=evaluation_frequency, data=get_iterator(train_data),
         metrics=eval_metric, name='eval/train'),
     EvaluationCallback(
-        frequency=evaluation_frequency, iterator=get_iterator(val_data),
+        frequency=evaluation_frequency, data=get_iterator(val_data),
         metrics=eval_metric, name='eval/val'),
     EvaluationCallback(
-        frequency=evaluation_frequency, iterator=get_iterator(test_data),
+        frequency=evaluation_frequency, data=get_iterator(test_data),
         metrics=eval_metric, name='eval/test')]
 
 # learner = SimpleLearner(

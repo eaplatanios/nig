@@ -10,6 +10,41 @@ from nig.utilities.iterators import Iterator
 __author__ = 'eaplatanios'
 
 
+def get_iterator(data, batch_size=None, cycle=False, pipelines=None):
+    if isinstance(data, np.ndarray):
+        batch_size = batch_size if batch_size is not None else len(data)
+        return NPArrayIterator(
+            data, batch_size=batch_size, shuffle=False, cycle=cycle,
+            cycle_shuffle=False, keep_last=True, pipelines=pipelines)
+    if isinstance(data, tuple):
+        return ZipDataIterator(
+            iterators=[_process_data_element(data=d, batch_size=batch_size)
+                       for d in data],
+            keys=None, batch_size=batch_size, cycle=cycle, pipelines=pipelines)
+    if isinstance(data, dict):
+        if isinstance(pipelines, dict):
+            pipelines = [pipelines[k] for k in data.keys()]
+        return ZipDataIterator(
+            iterators=[_process_data_element(data=d, batch_size=batch_size)
+                       for d in data.values()],
+            keys=list(data.keys()), batch_size=batch_size, cycle=cycle,
+            pipelines=pipelines)
+    if not isinstance(data, DataIterator) \
+            and not isinstance(data, ZipDataIterator):
+        raise TypeError('Unsupported data type %s encountered.' % type(data))
+    return data.reset_copy(
+        batch_size=batch_size, cycle=cycle, pipelines=pipelines)
+
+
+def _process_data_element(data, batch_size=None):
+    if isinstance(data, np.ndarray):
+        batch_size = batch_size if batch_size is not None else len(data)
+        return NPArrayIterator(data=data, batch_size=batch_size)
+    if not isinstance(data, DataIterator):
+        raise TypeError('Unsupported data type %s encountered.' % type(data))
+    return data.reset_copy(batch_size=batch_size)
+
+
 def _process_pipelines(pipelines):
     if pipelines is None:
         return lambda x: x

@@ -5,6 +5,7 @@ import sys
 import tensorflow as tf
 import os
 
+from nig.data.iterators import get_iterator
 from six import with_metaclass
 
 __author__ = 'eaplatanios'
@@ -229,12 +230,13 @@ class CheckpointWriterCallback(Callback):
 
 
 class EvaluationCallback(Callback):
-    def __init__(self, frequency, iterator, metrics, number_of_batches=-1,
+    def __init__(self, frequency, data, metrics, number_of_batches=-1,
                  aggregating_function=np.mean, name='eval_callback',
                  log_format=None, header=None, header_frequency=sys.maxsize,
                  summary=True):
         super(EvaluationCallback, self).__init__(frequency)
-        self.iterator = iterator
+        self.data = data
+        self.iterator = get_iterator(data)
         self.metrics = metrics if isinstance(metrics, list) else [metrics]
         self.number_of_batches = number_of_batches
         self.aggregating_function = aggregating_function
@@ -253,7 +255,7 @@ class EvaluationCallback(Callback):
 
     def copy(self):
         return EvaluationCallback(
-            frequency=self.frequency, iterator=self.iterator,
+            frequency=self.frequency, data=self.data,
             metrics=self.metrics, number_of_batches=self.number_of_batches,
             aggregating_function=self.aggregating_function, name=self.name,
             log_format=self.log_format, header=self.header,
@@ -302,13 +304,12 @@ class EvaluationCallback(Callback):
                 feed_dict = self._model.get_feed_dict(data_batch, is_train=True)
                 metrics.append(session.run(eval_op, feed_dict=feed_dict))
         return self.aggregating_function(metrics)
-#
-#
+
+
 # class ExternalEvaluationCallback(Callback):
 #     def __init__(self, frequency, iterator, metrics, number_of_batches=-1,
 #                  aggregating_function=np.mean, name='eval_callback',
-#                  log_format=None, header=None, header_frequency=sys.maxsize,
-#                  summary=True):
+#                  log_format=None, header=None, header_frequency=sys.maxsize):
 #         super(ExternalEvaluationCallback, self).__init__(frequency)
 #         self.iterator = iterator
 #         self.metrics = metrics if isinstance(metrics, list) else [metrics]
@@ -322,8 +323,6 @@ class EvaluationCallback(Callback):
 #             .format(name, 'Step', *[str(metric)
 #                                     for metric in self.metrics])
 #         self.header_frequency = header_frequency
-#         self.summary = summary
-#         self._summary_writer = None
 #         self._model = None
 #         self._output_ops = None
 #
@@ -333,58 +332,38 @@ class EvaluationCallback(Callback):
 #             metrics=self.metrics, number_of_batches=self.number_of_batches,
 #             aggregating_function=self.aggregating_function, name=self.name,
 #             log_format=self.log_format, header=self.header,
-#             header_frequency=self.header_frequency, summary=self.summary)
+#             header_frequency=self.header_frequency)
 #
 #     def initialize(self, learner, working_dir, summary_writer):
-#         if self._summary_writer is None:
-#             if self.summary:
-#                 self._summary_writer = summary_writer
-#             self._model = learner.model
+#         if self._model is None:
+#             self._model = learner.combined_model
 #             self._output_ops = learner._postprocessed_output_ops
 #
 #     def execute(self, session, feed_dict=None, loss=None, global_step=None):
-#         if self._summary_writer is None:
-#             raise_error(ValueError, __NOT_INITIALIZED_ERROR__)
+#         if self._model is None:
+#             raise ValueError(__CALLBACK_NOT_INITIALIZED_ERROR__)
 #         self.iterator.reset()
 #         metrics = []
 #         for index, metric in enumerate(self.metrics):
-#             value = self._aggregate_over_iterator(
-#                 session, metric, self.iterator,
-#                 lambda data_batch: self._model.get_feed_dict(
-#                     data_batch, is_train=True),
-#                 self.number_of_batches, self.aggregating_function)
+#             value = self._aggregate_over_iterator(session, metric)
 #             metrics.append(value)
-#             if self.summary:
-#                 summary = tf.Summary()
-#                 summary_value = summary.value.add()
-#                 summary_value.tag = self.name + '/' + str(self.metrics[index])
-#                 summary_value.simple_value = float(value)
-#                 self._summary_writer.add_summary(summary, global_step)
 #         if global_step % self.header_frequency == 0:
 #             logger.info(self.header)
 #         logger.info(self.log_format.format(self.name, global_step+1, *metrics))
-#         if self.summary:
-#             self._summary_writer.flush()
 #
-#     def _aggregate_over_iterator(self, session, metric, iterator,
-#                                  data_to_feed_dict, number_of_batches=-1,
-#                                  aggregating_function=np.mean):
+#     def _aggregate_over_iterator(self, session, metric):
 #         metrics = []
-#         if number_of_batches > -1:
-#             for batch_number in range(number_of_batches):
-#                 data_batch = iterator.next()
+#         if self.number_of_batches > -1:
+#             for batch_number in range(self.number_of_batches):
+#                 data_batch = self.iterator.next()
 #                 feed_dict = self._model.get_feed_dict(data_batch, is_train=True)
 #                 outputs = session.run(
 #                     fetches=self._output_ops(), feed_dict=feed_dict)
 #                 metrics.append(metric(outputs, data_batch[1]))
 #         else:
-#             for data_batch in iterator:
-#                 metrics.append(session.run(
-#                     metric_tf_op, feed_dict=data_to_feed_dict(data_batch)))
-#         return aggregating_function(metrics)
-#
-#     def _postprocessed_output_ops(self):
-#         outputs_ops = self._output_ops()
-#         if not isinstance(outputs_ops, list):
-#             return self._predict_postprocess(outputs_ops)
-#         return list(map(lambda op: self._predict_postprocess(op), outputs_ops))
+#             for data_batch in self.iterator:
+#                 feed_dict = self._model.get_feed_dict(data_batch, is_train=True)
+#                 outputs = session.run(
+#                     fetches=self._output_ops(), feed_dict=feed_dict)
+#                 metrics.append(metric(outputs, data_batch[1]))
+#         return self.aggregating_function(metrics)
