@@ -212,8 +212,8 @@ class SimpleLearner(Learner):
                         callbacks=None, working_dir=os.getcwd(),
                         ckpt_file_prefix='ckpt', restore_sequentially=False,
                         save_trained=False):
-        supported_opts = {'batch_size', 'max_iter', 'loss_chg_tol',
-                          'loss_chg_iter_below_tol'}
+        supported_opts = {'batch_size', 'max_iter', 'abs_loss_chg_tol',
+                          'rel_loss_chg_tol', 'loss_chg_iter_below_tol'}
         provided_opts = self.models.optimizer_opts.keys()
         unsupported_opts = provided_opts - supported_opts
         if len(unsupported_opts) > 0:
@@ -221,7 +221,10 @@ class SimpleLearner(Learner):
                         'options are %s.' % (unsupported_opts, supported_opts))
         batch_size = self.models.optimizer_opts.get('batch_size', None)
         max_iter = self.models.optimizer_opts.get('max_iter', 10000)
-        loss_chg_tol = self.models.optimizer_opts.get('loss_chg_tol', 1e-3)
+        abs_loss_chg_tol = self.models.optimizer_opts.get(
+            'abs_loss_chg_tol', 1e-10)
+        rel_loss_chg_tol = self.models.optimizer_opts.get(
+            'rel_loss_chg_tol', 1e-3)
         loss_chg_iter_below_tol = self.models.optimizer_opts.get(
             'loss_chg_iter_below_tol', 5)
         data = get_iterator(
@@ -246,7 +249,8 @@ class SimpleLearner(Learner):
                 feed_dict=feed_dict)
             for callback in callbacks:
                 callback(self.session, feed_dict, loss, self.global_step)
-            if abs((prev_loss - loss) / prev_loss) < loss_chg_tol:
+            if abs(prev_loss - loss) < abs_loss_chg_tol \
+                    or abs((prev_loss - loss) / prev_loss) < rel_loss_chg_tol:
                 iter_below_tol += 1
             else:
                 iter_below_tol = 0

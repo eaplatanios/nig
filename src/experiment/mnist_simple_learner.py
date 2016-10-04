@@ -20,7 +20,8 @@ architectures = [[], [5]]
 activation = tf.nn.relu
 batch_size = 100
 max_iter = 1000
-loss_chg_tol = 1e-6
+abs_loss_chg_tol = 1e-10
+rel_loss_chg_tol = 1e-6
 loss_chg_iter_below_tol = 5
 logging_frequency = 100
 summary_frequency = 100
@@ -33,7 +34,8 @@ save_trained = True
 optimizer = gradient_descent(1e-1, decay_rate=0.99, learning_rate_summary=True)
 optimizer_opts = {'batch_size': batch_size,
                   'max_iter': max_iter,
-                  'loss_chg_tol': loss_chg_tol,
+                  'abs_loss_chg_tol': abs_loss_chg_tol,
+                  'rel_loss_chg_tol': rel_loss_chg_tol,
                   'loss_chg_iter_below_tol': loss_chg_iter_below_tol}
 # optimizer = tf.contrib.opt.ScipyOptimizerInterface
 # optimizer_opts = {'options': {'maxiter': 10000}}
