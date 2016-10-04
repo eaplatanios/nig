@@ -1,6 +1,3 @@
-from __future__ import absolute_import
-from __future__ import division
-
 import abc
 import logging
 import numpy as np
@@ -13,7 +10,7 @@ from multiprocessing.dummy import Pool as ThreadPool
 from six import with_metaclass
 
 from nig.data.iterators import DataIterator, NPArrayIterator, ZipDataIterator
-from nig.learning.models import Model
+from .models import Model
 from nig.math.statistics.cross_validation import KFold
 
 __author__ = 'eaplatanios'

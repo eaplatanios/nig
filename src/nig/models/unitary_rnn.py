@@ -1,9 +1,6 @@
-from __future__ import absolute_import
-
 import tensorflow as tf
 
-from nig.models.complex import mod_relu, matmul_parameterized_unitary, \
-    zero_complex
+from .complex import mod_relu, matmul_parameterized_unitary, zero_complex
 
 __author__ = 'eaplatanios'
 

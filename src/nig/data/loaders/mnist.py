@@ -1,11 +1,9 @@
-from __future__ import absolute_import
-
 import gzip
 import logging
 import numpy as np
 import os
 
-from nig.data.loaders import utilities
+from . import utilities
 
 __author__ = 'eaplatanios'
 

@@ -1,5 +1,3 @@
-from __future__ import absolute_import
-
 import tensorflow as tf
 
 from nig.utilities.functions import pipeline

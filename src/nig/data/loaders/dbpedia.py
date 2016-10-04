@@ -1,9 +1,7 @@
-from __future__ import absolute_import
-
 import os
 import tarfile
 
-from nig.data.loaders import utilities
+from . import utilities
 
 __author__ = 'eaplatanios'
 

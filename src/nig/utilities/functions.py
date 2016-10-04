@@ -1,12 +1,10 @@
-from __future__ import absolute_import
-
 import inspect
 import logging
 import six
 
 from functools import wraps
 
-from nig.utilities.generic import elapsed_timer
+from .generic import elapsed_timer
 
 __author__ = 'eaplatanios'
 

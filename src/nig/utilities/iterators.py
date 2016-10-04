@@ -1,5 +1,3 @@
-from __future__ import absolute_import
-
 import abc
 
 from six import with_metaclass
