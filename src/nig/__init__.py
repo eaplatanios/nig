@@ -19,4 +19,6 @@ from . import math
 from . import models
 from . import utilities
 
+__author__ = 'eaplatanios'
+
 __all__ = ['data', 'evaluation', 'learning', 'math', 'models', 'utilities']
