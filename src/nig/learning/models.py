@@ -55,6 +55,11 @@ class Model(with_metaclass(abc.ABCMeta, object)):
                 dtype=output.dtype, shape=output.get_shape(),
                 name=output.name.split(':')[0] + '/observed')
                     for output in self.outputs]
+        if isinstance(self.outputs, dict):
+            return {k: tf.placeholder(
+                dtype=v.dtype, shape=v.get_shape(),
+                name=v.name.split(':')[0] + '/observed')
+                    for k, v in self.outputs.items()}
         return tf.placeholder(
             dtype=self.outputs.dtype, shape=self.outputs.get_shape(),
             name=self.outputs.name.split(':')[0] + '/observed')
@@ -108,11 +113,19 @@ class Model(with_metaclass(abc.ABCMeta, object)):
             tensors = []
             if isinstance(self.inputs, list):
                 tensors.extend(self.inputs)
+            elif isinstance(self.inputs, dict):
+                raise TypeError('Data should be provided as dictionaries '
+                                'when model variables are represented as '
+                                'dictionaries.')
             else:
                 tensors.append(self.inputs)
             if is_train:
                 if isinstance(self.train_outputs, list):
                     tensors.extend(self.train_outputs)
+                elif isinstance(self.train_outputs, dict):
+                    raise TypeError('Data should be provided as dictionaries '
+                                    'when model variables are represented as '
+                                    'dictionaries.')
                 else:
                     tensors.append(self.train_outputs)
             return dict(zip(tensors, data))
@@ -124,7 +137,6 @@ class Model(with_metaclass(abc.ABCMeta, object)):
 
     @staticmethod
     def _get_tensor_name(tensor):
-        # TODO: Allow the user to provide a map of names in the constructor.
         if isinstance(tensor, str):
             return tensor
         return tensor.name
@@ -135,7 +147,7 @@ class Model(with_metaclass(abc.ABCMeta, object)):
             variables.append(copy_variable_to_graph(
                 org_instance=variable, to_graph=graph, scope=scope))
         inputs = self._copy_ops_to_graph(
-            ops=self.inputs, graph=graph, variables=variables, scope=scope)
+                ops=self.inputs, graph=graph, variables=variables, scope=scope)
         outputs = self._copy_ops_to_graph(
             ops=self.outputs, graph=graph, variables=variables, scope=scope)
         if self.trainable:
@@ -165,6 +177,8 @@ class Model(with_metaclass(abc.ABCMeta, object)):
             start_ops = self.loss
         elif self.trainable:
             start_ops = self.train_op
+        elif isinstance(self.outputs, dict):
+            start_ops = self.outputs.values()
         else:
             start_ops = self.outputs
         if isinstance(start_ops, list):
@@ -203,10 +217,13 @@ class Model(with_metaclass(abc.ABCMeta, object)):
             return [copy_op_to_graph(
                 org_instance=op, to_graph=graph, variables=variables,
                 copy_summaries=True, scope=scope) for op in ops]
-        else:
-            return copy_op_to_graph(
-                org_instance=ops, to_graph=graph, variables=variables,
-                copy_summaries=True, scope=scope)
+        if isinstance(ops, dict):
+            return {name: copy_op_to_graph(
+                org_instance=op, to_graph=graph, variables=variables,
+                copy_summaries=True, scope=scope) for name, op in ops.items()}
+        return copy_op_to_graph(
+            org_instance=ops, to_graph=graph, variables=variables,
+            copy_summaries=True, scope=scope)
 
 
 class MultiLayerPerceptron(Model):
