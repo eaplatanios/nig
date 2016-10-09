@@ -1,6 +1,7 @@
 """
 Utility function for saving results into a PostgreSQL database.
 """
+import time
 import numpy as np
 import psycopg2 as pg
 
@@ -14,14 +15,15 @@ def database_cursor(user='nig',
                     password='agreement332',
                     database='nig',
                     host='localhost'):
-    conn = psycopg2.connect("user='{user:s}' password='{password:s}'"
-                            "dbname='{database:s}' host='{host:s}'"
-                            .format(user=user, password=password,
-                                    database=database, host=host))
-    curs = conn.cursor()
+    db = pg.connect("user='{user:s}' password='{password:s}'"
+                    "dbname='{database:s}' host='{host:s}'"
+                    .format(user=user, password=password,
+                            database=database, host=host))
+    curs = db.cursor()
     yield curs
     curs.close()
-    conn.close()
+    db.commit()
+    db.close()
 
 
 def create_table(params, results, table,
@@ -40,17 +42,20 @@ def create_table(params, results, table,
         database : str (default: 'nig')
         host : str (default: 'localhost')
     """
-    SQL = """
-    CREATE TABLE {table:s} (
-        id serial PRIMARY KEY,
-        time timestamp NOT NULL""".format(table=table)
+    SQL_DROP = "DROP TABLE IF EXISTS {table:s};" \
+               .format(table=table)
+    SQL_CREATE = "CREATE TABLE {table:s} (" \
+                 "id serial PRIMARY KEY,"   \
+                 "time timestamp NOT NULL"  \
+                 .format(table=table)
     for pname, ptype in params.iteritems():
-        SQL += ",\n%s %s" % (pname, ptype)
+        SQL_CREATE += ",\n%s %s" % (pname, ptype)
     for rname, rtype in results.iteritems():
-        SQL += ",\n%s %s" % (rname, rtype)
-    SQL += ");"
+        SQL_CREATE += ",\n%s %s" % (rname, rtype)
+    SQL_CREATE += ");"
     with database_cursor(user, password, database, host) as curs:
-        curs.execute(SQL)
+        curs.execute(SQL_DROP)
+        curs.execute(SQL_CREATE)
 
 
 def save(params, results, table,
@@ -64,21 +69,18 @@ def save(params, results, table,
     ----------
         params : dict
         results : dict
+        table : str
         user : str (default: 'nig')
         password : str (default: 'agreement332')
         database : str (default: 'nig')
         host : str (default: 'localhost')
     """
+    timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
     SQL = "INSERT INTO {table:s} (".format(table=table)
-    for pname in params.iterkeys():
-        SQL += "%s, " % pname
-    for rname in results.iterkeys():
-        SQL += "%s, " % rname
-    SQL += "\b\b) VALUES ("
-    for pval in params.itervalues():
-        SQL += "%s, " % pval
-    for rval in results.itervalues():
-        SQL += "%s, " % rval
-    SQL += "\b\b);"
+    SQL += ', '.join(['time'] + params.keys() + results.keys())
+    SQL += ")\nVALUES ("
+    SQL += ', '.join(['%s'] * (1 + len(params) + len(results)))
+    SQL += ")"
     with database_cursor(user, password, database, host) as curs:
-        curs.execute(SQL)
+        curs.execute(SQL, [timestamp] + params.values() + results.values())
+
