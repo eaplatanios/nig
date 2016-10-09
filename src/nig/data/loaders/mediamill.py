@@ -6,11 +6,11 @@ __author__ = 'alshedivat'
 
 SOURCE_URL = 'https://dl.dropboxusercontent.com/u/17460940/data/mediamill.npz'
 
-TRAIN_SIZE = 12920
+TRAIN_SIZE = 35907
 VALIDATION_SIZE = 3000
-TEST_SIZE = 3185
-NB_FEATURES = 500
-NB_LABELS = 983
+TEST_SIZE = 5000
+NB_FEATURES = 120
+NB_LABELS = 101
 
 
 def maybe_download(working_dir):
@@ -22,11 +22,20 @@ def maybe_download(working_dir):
 
 def load(working_dir):
     data_dir = os.path.join(working_dir, 'mediamill')
+    # Load the data
     maybe_download(data_dir)
     data = np.load(os.path.join(data_dir, 'data.npz'))
-    train_data = (data['X_train'][VALIDATION_SIZE:],
-                  data['Y_train'][VALIDATION_SIZE:])
-    val_data = (data['X_train'][:VALIDATION_SIZE],
-                data['Y_train'][:VALIDATION_SIZE])
-    test_data = (data['X_test'], data['Y_test'])
-    return train_data, val_data, test_data
+    # Sanity checks
+    assert (data['X'].shape ==
+            (TRAIN_SIZE + VALIDATION_SIZE + TEST_SIZE, NB_FEATURES))
+    assert (data['Y'].shape ==
+            (TRAIN_SIZE + VALIDATION_SIZE + TEST_SIZE, NB_LABELS))
+    # Split the data
+    train_data = (data['X'][:TRAIN_SIZE],
+                  data['Y'][:TRAIN_SIZE])
+    val_data = (data['X'][TRAIN_SIZE:TRAIN_SIZE+VALIDATION_SIZE],
+                data['Y'][TRAIN_SIZE:TRAIN_SIZE+VALIDATION_SIZE])
+    test_data = (data['X'][-TEST_SIZE:],
+                 data['Y'][-TEST_SIZE:])
+    labels_order = data['labels_order']
+    return train_data, val_data, test_data, labels_order
