@@ -14,7 +14,7 @@ setup(
     long_description=read('README.md'),
     url='https://github.com/eaplatanios/nig',
     license='MIT',
-    install_requires=['cython', 'numpy', 'pandas', 'pyyaml', 'six',
+    install_requires=['cython', 'numpy', 'pandas', 'pyyaml', 'six', 'psycopg2',
                       'tensorflow', 'jnius==1.1-dev'],
     package_data={
         'nig': ['evaluation/*.jar', 'logging.yaml'],
