@@ -1,3 +1,13 @@
+from __future__ import absolute_import, division, print_function
+
+
+def graph_context(func):
+    def func_wrapper(self, *args, **kwargs):
+        with self.graph.as_default():
+            return func(self, *args, **kwargs)
+    return func_wrapper
+
+
 # TODO: Clean this up...A LOT...
 
 # Copyright 2015 The TensorFlow Authors. All Rights Reserved.
@@ -27,10 +37,6 @@ first graph inside a scope in the second graph.
 @@copy_variable_to_graph
 @@get_copied_op
 """
-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
 
 import itertools
 import tensorflow as tf

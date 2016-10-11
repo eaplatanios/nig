@@ -26,7 +26,7 @@ class ADIOS(Model):
     """
     def __init__(self, input_size, output_size, hidden_layer_sizes, activation,
                  loss=None, loss_summary=False, optimizer=None,
-                 optimizer_opts=None, grads_processor=None):
+                 optimizer_opts=None):
         assert len(output_size) == 2, "ADIOS works with exactly two outputs."
         self.input_size = input_size
         self.output_size = output_size
@@ -37,7 +37,7 @@ class ADIOS(Model):
         super(ADIOS, self).__init__(
             inputs=inputs, outputs=outputs, loss=loss,
             loss_summary=loss_summary, optimizer=optimizer,
-            optimizer_opts=optimizer_opts, grads_processor=grads_processor)
+            optimizer_opts=optimizer_opts)
 
     def _output_op(self, inputs):
         # Sanity check

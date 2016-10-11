@@ -9,7 +9,7 @@ from nig.learning.metrics import *
 from nig.learning.learners import *
 from nig.learning.optimizers import gradient_descent
 from nig.learning.processors import norm_summary, norm_clipping
-from nig.learning.models import MultiLayerPerceptron
+from nig.models.common import MultiLayerPerceptron
 
 __author__ = 'eaplatanios'
 
@@ -31,16 +31,17 @@ working_dir = os.path.join(os.getcwd(), 'run')
 checkpoint_file_prefix = 'ckpt'
 restore_sequentially = False
 save_trained = True
+gradients_processor = None #norm_clipping(clip_norm=0.1) \
+#| norm_summary(name='gradients/norm')
 optimizer = gradient_descent(1e-1, decay_rate=0.99, learning_rate_summary=True)
 optimizer_opts = {'batch_size': batch_size,
                   'max_iter': max_iter,
                   'abs_loss_chg_tol': abs_loss_chg_tol,
                   'rel_loss_chg_tol': rel_loss_chg_tol,
-                  'loss_chg_iter_below_tol': loss_chg_iter_below_tol}
+                  'loss_chg_iter_below_tol': loss_chg_iter_below_tol,
+                  'grads_processor': gradients_processor}
 # optimizer = tf.contrib.opt.ScipyOptimizerInterface
 # optimizer_opts = {'options': {'maxiter': 10000}}
-gradients_processor = None #norm_clipping(clip_norm=0.1) \
-                      #| norm_summary(name='gradients/norm')
 
 train_data, val_data, test_data = mnist.load('data', float_images=True)
 
@@ -67,8 +68,8 @@ models = [MultiLayerPerceptron(
     784, 10, architecture, activation=activation,
     softmax_output=use_one_hot_encoding, use_log=use_one_hot_encoding,
     train_outputs_one_hot=use_one_hot_encoding, loss=loss, loss_summary=True,
-    optimizer=optimizer, optimizer_opts=optimizer_opts,
-    grads_processor=gradients_processor) for architecture in architectures]
+    optimizer=optimizer, optimizer_opts=optimizer_opts)
+          for architecture in architectures]
 
 callbacks = [
     LoggerCallback(frequency=logging_frequency),

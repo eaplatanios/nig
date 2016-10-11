@@ -6,7 +6,8 @@ import tensorflow as tf
 
 from six import with_metaclass
 
-from nig.utilities.tensorflow import copy_op_to_graph, copy_variable_to_graph
+from ..utilities.tensorflow import graph_context, copy_op_to_graph, \
+    copy_variable_to_graph
 
 __author__ = 'eaplatanios'
 
@@ -14,7 +15,7 @@ __author__ = 'eaplatanios'
 class Model(with_metaclass(abc.ABCMeta, object)):
     def __init__(self, inputs, outputs, train_outputs=None, loss=None,
                  loss_summary=False, optimizer=None, optimizer_opts=None,
-                 grads_processor=None, train_op=None):
+                 train_op=None):
         if isinstance(inputs, list):
             self.graph = inputs[0].graph
         else:
@@ -28,83 +29,83 @@ class Model(with_metaclass(abc.ABCMeta, object)):
         self.trainable = (loss is not None and optimizer is not None) \
             or train_op is not None
         if self.trainable:
-            with self.graph.as_default():
-                self.train_outputs = self._process_train_outputs(train_outputs)
-                self.loss = self._process_loss(loss)
-                if loss_summary:
-                    tf.scalar_summary(self.loss.op.name, self.loss)
-                self.global_step = \
-                    tf.contrib.framework.get_or_create_global_step()
-                self.uses_external_optimizer = inspect.isclass(optimizer)
-                self.optimizer_opts = optimizer_opts
-                if self.uses_external_optimizer:
-                    self._optimizer = optimizer
-                    self.optimizer = self._process_optimizer(
-                        self._optimizer, self.optimizer_opts)
-                else:
-                    optimizer = self._process_optimizer(optimizer, None)
-                    self.train_op = self._train_op(
-                        train_op=train_op, optimizer=optimizer,
-                        grads_processor=grads_processor)
+            self._process_train_args(
+                train_outputs=train_outputs, loss=loss,
+                loss_summary=loss_summary, optimizer=optimizer,
+                optimizer_opts=optimizer_opts, train_op=train_op)
 
-    def _process_train_outputs(self, train_outputs):
+    @graph_context
+    def _process_train_args(self, train_outputs, loss, loss_summary, optimizer,
+                            optimizer_opts, train_op):
+        # Process train_outputs
         if train_outputs is not None:
-            return train_outputs
-        if isinstance(self.outputs, list):
-            return [tf.placeholder(
+            self.train_outputs = train_outputs
+        elif isinstance(self.outputs, list):
+            self.train_outputs = [tf.placeholder(
                 dtype=output.dtype, shape=output.get_shape(),
                 name=output.name.split(':')[0] + '/observed')
-                    for output in self.outputs]
-        if isinstance(self.outputs, dict):
-            return {k: tf.placeholder(
+                                  for output in self.outputs]
+        elif isinstance(self.outputs, dict):
+            self.train_outputs = {k: tf.placeholder(
                 dtype=v.dtype, shape=v.get_shape(),
                 name=v.name.split(':')[0] + '/observed')
-                    for k, v in self.outputs.items()}
-        return tf.placeholder(
-            dtype=self.outputs.dtype, shape=self.outputs.get_shape(),
-            name=self.outputs.name.split(':')[0] + '/observed')
+                                  for k, v in self.outputs.items()}
+        else:
+            self.train_outputs = tf.placeholder(
+                dtype=self.outputs.dtype, shape=self.outputs.get_shape(),
+                name=self.outputs.name.split(':')[0] + '/observed')
 
-    def _process_loss(self, loss):
+        # Process loss
         if callable(loss):
             loss = loss(self.outputs, self.train_outputs)
         if not isinstance(loss, tf.Tensor):
             raise TypeError('Unsupported loss type %s encountered.'
                             % type(loss))
-        return loss
+        self.loss = loss
+        self.loss_summary = loss_summary
+        if loss_summary:
+            tf.scalar_summary(self.loss.op.name, self.loss)
+        self.global_step = tf.contrib.framework.get_or_create_global_step()
 
-    def _process_optimizer(self, optimizer, optimizer_kwargs):
-        if optimizer is None:
-            return None
-        if self.uses_external_optimizer:
-            with tf.name_scope('external_optimizer'):
-                if 'options' in optimizer_kwargs:
-                    if 'disp' not in optimizer_kwargs['options']:
-                        optimizer_kwargs['options']['disp'] = False
-                else:
-                    optimizer_kwargs['options'] = {'disp': False}
-                return optimizer(self.loss, **optimizer_kwargs)
-        if not isinstance(optimizer, tf.train.Optimizer):
-            raise TypeError('Unsupported optimizer type %s encountered.'
-                            % type(optimizer))
-        return optimizer
-
-    def _train_op(self, train_op=None, optimizer=None, grads_processor=None):
+        # Process train_op
+        self.uses_external_optimizer = inspect.isclass(optimizer)
+        self.provided_optimizer = optimizer
+        self.optimizer_opts = optimizer_opts
         if train_op is not None:
             if callable(train_op):
-                with self.graph.as_default():
-                    return train_op()
-            if not isinstance(train_op, tf.Operation):
-                raise TypeError('Unsupported train op type %s encountered.'
-                                % type(train_op))
-            return train_op
-        if grads_processor is not None:
-            trainable_vars = tf.trainable_variables()
-            grads = tf.gradients(ys=self.loss, xs=trainable_vars)
-            grads = grads_processor(grads)
-            return optimizer.apply_gradients(
-                grads_and_vars=zip(grads, trainable_vars),
-                global_step=self.global_step)
-        return optimizer.minimize(loss=self.loss, global_step=self.global_step)
+                self.train_op = train_op()
+            elif not isinstance(train_op, tf.Operation):
+                raise TypeError('Unsupported train op type %s '
+                                'encountered,' % type(train_op))
+            else:
+                self.train_op = train_op
+            return
+
+        # Process optimizer and optimizer_opts
+        if self.uses_external_optimizer:
+            with tf.name_scope('external_optimizer'):
+                if 'options' in optimizer_opts:
+                    if 'disp' not in optimizer_opts['options']:
+                        optimizer_opts['options']['disp'] = False
+                else:
+                    optimizer_opts['options'] = {'disp': False}
+                self.optimizer = optimizer(self.loss, **optimizer_opts)
+        elif not isinstance(optimizer, tf.train.Optimizer):
+            raise TypeError('Unsupported optimizer type %s encountered.'
+                            % type(optimizer))
+        else:
+            self.optimizer = optimizer
+            grads_processor = optimizer_opts.get('grads_processor', None)
+            if grads_processor is not None:
+                trainable_vars = tf.trainable_variables()
+                grads = tf.gradients(ys=self.loss, xs=trainable_vars)
+                grads = grads_processor(grads)
+                self.train_op = optimizer.apply_gradients(
+                    grads_and_vars=zip(grads, trainable_vars),
+                    global_step=self.global_step)
+            else:
+                self.train_op = optimizer.minimize(
+                    loss=self.loss, global_step=self.global_step)
 
     def get_feed_dict(self, data, is_train=False):
         if isinstance(data, np.ndarray):
@@ -141,6 +142,12 @@ class Model(with_metaclass(abc.ABCMeta, object)):
             return tensor
         return tensor.name
 
+    def update_loss(self, loss):
+        self._process_train_args(
+            train_outputs=self.train_outputs, loss=loss,
+            loss_summary=self.loss_summary, optimizer=self.provided_optimizer,
+            optimizer_opts=self.optimizer_opts, train_op=None)
+
     def copy_to_graph(self, graph, scope=''):
         variables = []
         for variable in self._variables():
@@ -159,8 +166,9 @@ class Model(with_metaclass(abc.ABCMeta, object)):
             if self.uses_external_optimizer:
                 return Model(
                     inputs=inputs, outputs=outputs, train_outputs=train_outputs,
-                    loss=loss, optimizer=self._optimizer,
+                    loss=loss, optimizer=self.provided_optimizer,
                     optimizer_opts=self.optimizer_opts)
+
             train_op = self._copy_ops_to_graph(
                 ops=self.train_op, graph=graph, variables=variables,
                 scope=scope)

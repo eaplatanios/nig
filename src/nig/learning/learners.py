@@ -9,22 +9,16 @@ from contextlib import closing
 from multiprocessing.dummy import Pool as ThreadPool
 from six import with_metaclass
 
-from nig.data.iterators import get_iterator
 from .models import Model
-from nig.math.statistics.cross_validation import KFold
+from ..data.iterators import get_iterator
+from ..math.statistics.cross_validation import KFold
+from ..utilities.tensorflow import graph_context
 
 __author__ = 'eaplatanios'
 
 __LEARNER_NOT_TRAINED_ERROR__ = 'The current learner has not been trained.'
 
 logger = logging.getLogger(__name__)
-
-
-def _graph_context(func):
-    def func_wrapper(self, *args, **kwargs):
-        with self.graph.as_default():
-            return func(self, *args, **kwargs)
-    return func_wrapper
 
 
 def _process_callbacks(callbacks):
@@ -164,7 +158,7 @@ class SimpleLearner(Learner):
             session=self._initial_session,
             predict_postprocess=self.predict_postprocess)
 
-    @_graph_context
+    @graph_context
     def _init_session(self, option, saver, working_dir, ckpt_file_prefix):
         if option is None:
             option = False
@@ -191,7 +185,7 @@ class SimpleLearner(Learner):
             raise TypeError('Unsupported initialization type %s encountered.'
                             % type(option))
 
-    @_graph_context
+    @graph_context
     def train(self, data, pipelines=None, init_option=-1, callbacks=None,
               working_dir=os.getcwd(), ckpt_file_prefix='ckpt',
               restore_sequentially=False, save_trained=False):
@@ -333,7 +327,7 @@ class SimpleLearner(Learner):
     def _output_ops(self):
         return self.models.outputs
 
-    @_graph_context
+    @graph_context
     def predict(self, data, pipelines=None, ckpt=None, working_dir=os.getcwd(),
                 ckpt_file_prefix='ckpt', restore_sequentially=False):
         if not isinstance(data, np.ndarray):
@@ -354,7 +348,7 @@ class SimpleLearner(Learner):
             outputs_ops,
             self.combined_model.get_feed_dict(data, is_train=False))
 
-    @_graph_context
+    @graph_context
     def predict_iterator(self, data, pipelines=None, yield_input_data=False,
                          ckpt=None, working_dir=os.getcwd(),
                          ckpt_file_prefix='ckpt', restore_sequentially=False):

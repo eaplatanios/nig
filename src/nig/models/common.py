@@ -12,7 +12,7 @@ class MultiLayerPerceptron(Model):
     def __init__(self, input_size, output_size, hidden_layer_sizes, activation,
                  softmax_output=True, use_log=True, train_outputs_one_hot=False,
                  loss=None, loss_summary=False, optimizer=None,
-                 optimizer_opts=None, grads_processor=None):
+                 optimizer_opts=None):
         self.output_size = output_size
         self.hidden_layer_sizes = hidden_layer_sizes
         self.activation = activation
@@ -26,7 +26,7 @@ class MultiLayerPerceptron(Model):
         super(MultiLayerPerceptron, self).__init__(
             inputs=inputs, outputs=outputs, train_outputs=train_outputs,
             loss=loss, loss_summary=loss_summary, optimizer=optimizer,
-            optimizer_opts=optimizer_opts, grads_processor=grads_processor)
+            optimizer_opts=optimizer_opts)
 
     def __str__(self):
         return 'MultiLayerPerceptron[{}:{}:{}:{}]'.format(
