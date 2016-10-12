@@ -7,9 +7,11 @@ import tensorflow as tf
 
 from contextlib import closing
 from multiprocessing.dummy import Pool as ThreadPool
+
+from nig.utilities.functions import memoize
 from six import with_metaclass
 
-from .models import Model
+from .models import Model, CombinedModel
 from ..data.iterators import get_iterator
 from ..math.statistics.cross_validation import KFold
 from ..utilities.tensorflow import graph_context
@@ -24,7 +26,9 @@ logger = logging.getLogger(__name__)
 def _process_callbacks(callbacks):
     if callbacks is None:
         return []
-    return [callback.copy() for callback in callbacks]
+    if isinstance(callbacks, list):
+        return [callback.copy() for callback in callbacks]
+    return callbacks.copy()
 
 
 class Learner(with_metaclass(abc.ABCMeta, object)):
@@ -33,20 +37,24 @@ class Learner(with_metaclass(abc.ABCMeta, object)):
         if new_graph:
             self.graph = tf.Graph()
             if isinstance(models, list):
-                self.models = [model.copy_to_graph(self.graph)
+                self.models = [model.copy_to_graph(graph=self.graph)
                                for model in models]
+                self.trainable = all(model.trainable for model in self.models)
             else:
-                self.models = models.copy_to_graph(self.graph)
+                self.models = models.copy_to_graph(graph=self.graph)
+                self.trainable = self.models.trainable
         else:
             if isinstance(models, list):
                 self.graph = models[0].graph
                 if any(model.graph != self.graph for model in models):
                     raise ValueError('When `new_graph` is set to `False`, all '
                                      'models must lie on the same graph.')
+                self.trainable = all(model.trainable for model in models)
             else:
                 self.graph = models.graph
+                self.trainable = models.trainable
             self.models = models
-        self._initial_session = session
+        self.initial_session = session
         self.session = session
         if isinstance(models, list):
             input_shapes = self._get_shapes(models[0].inputs)
@@ -63,6 +71,10 @@ class Learner(with_metaclass(abc.ABCMeta, object)):
         self.predict_postprocess = (lambda x: x) \
             if predict_postprocess is None \
             else predict_postprocess
+        if isinstance(self.models, list):
+            self.train_iteration = [0] * len(self.models)
+        else:
+            self.train_iteration = 0
 
     @abc.abstractmethod
     def copy(self):
@@ -84,6 +96,33 @@ class Learner(with_metaclass(abc.ABCMeta, object)):
             if dim_1 != dim_2:
                 return False
         return True
+
+    def _init_session(self, option, saver, working_dir, ckpt_file_prefix):
+        if option is None:
+            option = False
+        if isinstance(option, bool):
+            if option:
+                if self.session is None:
+                    self.session = tf.Session()
+                self.session.run(tf.initialize_all_variables())
+            elif self.session is None:
+                raise ValueError('When the initialization option is a boolean '
+                                 'value set to `False`, a session needs to be '
+                                 'provided.')
+        elif saver is None:
+            raise ValueError('When the initialization option is an integer, '
+                             'indicating that a saved checkpoint should be '
+                             'loaded, a saver must also be provided.')
+        else:
+            if self.session is None:
+                self.session = tf.Session()
+            if isinstance(option, int):
+                Learner._load_checkpoint(
+                    session=self.session, saver=saver, working_dir=working_dir,
+                    file_prefix=ckpt_file_prefix, step=option)
+            else:
+                raise TypeError('Unsupported initialization type %s '
+                                'encountered.' % type(option))
 
     @staticmethod
     def _save_checkpoint(session, saver, working_dir, file_prefix, step=None):
@@ -119,213 +158,12 @@ class Learner(with_metaclass(abc.ABCMeta, object)):
     def combined_model(self):
         pass
 
-    @abc.abstractmethod
-    def _output_ops(self):
-        pass
-
     def _postprocessed_output_ops(self):
-        outputs_ops = self._output_ops()
+        # TODO: Make able to deal with all supported outputs formats.
+        outputs_ops = self.combined_model.outputs
         if not isinstance(outputs_ops, list):
             return self.predict_postprocess(outputs_ops)
         return list(map(lambda op: self.predict_postprocess(op), outputs_ops))
-
-    @abc.abstractmethod
-    def predict(self, data, pipelines=None, ckpt=None, working_dir=os.getcwd(),
-                ckpt_file_prefix='ckpt', restore_sequentially=False):
-        pass
-
-    @abc.abstractmethod
-    def predict_iterator(self, data, pipelines=None, yield_input_data=False,
-                         ckpt=None, working_dir=os.getcwd(),
-                         ckpt_file_prefix='ckpt', restore_sequentially=False):
-        pass
-
-
-class SimpleLearner(Learner):
-    """Used for training a single TensorFlow model."""
-    def __init__(self, model, new_graph=True, session=None,
-                 predict_postprocess=None):
-        if not isinstance(model, Model):
-            raise TypeError('Unsupported model type %s encountered.'
-                            % type(model))
-        super(SimpleLearner, self).__init__(
-            models=model, new_graph=new_graph, session=session,
-            predict_postprocess=predict_postprocess)
-
-    def copy(self, new_graph=True):
-        return SimpleLearner(
-            model=self.models, new_graph=new_graph,
-            session=self._initial_session,
-            predict_postprocess=self.predict_postprocess)
-
-    @graph_context
-    def _init_session(self, option, saver, working_dir, ckpt_file_prefix):
-        if option is None:
-            option = False
-        if isinstance(option, bool):
-            if option:
-                if self.session is None:
-                    self.session = tf.Session()
-                self.session.run(tf.initialize_all_variables())
-                return
-            elif self.session is None:
-                raise ValueError('When the initialization option is a boolean '
-                                 'value set to `False`, a session needs to be '
-                                 'provided.')
-        if saver is None:
-            raise ValueError('When the initialization option is an integer, '
-                             'indicating that a saved checkpoint should be '
-                             'loaded, a saver must also be provided.')
-        if self.session is None:
-            self.session = tf.Session()
-        if isinstance(option, int):
-            self._load_checkpoint(
-                self.session, saver, working_dir, ckpt_file_prefix, option)
-        else:
-            raise TypeError('Unsupported initialization type %s encountered.'
-                            % type(option))
-
-    @graph_context
-    def train(self, data, pipelines=None, init_option=-1, callbacks=None,
-              working_dir=os.getcwd(), ckpt_file_prefix='ckpt',
-              restore_sequentially=False, save_trained=False):
-        if not self.models.trainable:
-            raise ValueError('The provided model is not trainable.')
-        if self.models.uses_external_optimizer:
-            _train = self._train_external
-        else:
-            _train = self._train_internal
-        _train(
-            data=data, pipelines=pipelines, init_option=init_option,
-            callbacks=callbacks, working_dir=working_dir,
-            ckpt_file_prefix=ckpt_file_prefix,
-            restore_sequentially=restore_sequentially,
-            save_trained=save_trained)
-
-    def _train_internal(self, data, pipelines=None, init_option=-1,
-                        callbacks=None, working_dir=os.getcwd(),
-                        ckpt_file_prefix='ckpt', restore_sequentially=False,
-                        save_trained=False):
-        supported_opts = {'batch_size', 'max_iter', 'abs_loss_chg_tol',
-                          'rel_loss_chg_tol', 'loss_chg_iter_below_tol'}
-        provided_opts = self.models.optimizer_opts.keys()
-        unsupported_opts = provided_opts - supported_opts
-        if len(unsupported_opts) > 0:
-            logger.warn('Ignoring unsupported optimizer options %s. Supported '
-                        'options are %s.' % (unsupported_opts, supported_opts))
-        batch_size = self.models.optimizer_opts.get('batch_size', None)
-        max_iter = self.models.optimizer_opts.get('max_iter', 10000)
-        abs_loss_chg_tol = self.models.optimizer_opts.get(
-            'abs_loss_chg_tol', 1e-10)
-        rel_loss_chg_tol = self.models.optimizer_opts.get(
-            'rel_loss_chg_tol', 1e-3)
-        loss_chg_iter_below_tol = self.models.optimizer_opts.get(
-            'loss_chg_iter_below_tol', 5)
-        data = get_iterator(
-            data=data, batch_size=batch_size, cycle=True, pipelines=pipelines)
-        callbacks = _process_callbacks(callbacks)
-        summary_writer = tf.train.SummaryWriter(working_dir, self.graph)
-        saver = tf.train.Saver(restore_sequentially=restore_sequentially)
-        model = self.models
-        self._init_session(
-            option=init_option, saver=saver, working_dir=working_dir,
-            ckpt_file_prefix=ckpt_file_prefix)
-        self.global_step = self.session.run(model.global_step)
-        for callback in callbacks:
-            callback.initialize(self, working_dir, summary_writer)
-        prev_loss = sys.float_info.max
-        iter_below_tol = 0
-        for step in range(max_iter):
-            data_batch = data.next()
-            feed_dict = model.get_feed_dict(data_batch, is_train=True)
-            _, loss, global_step = self.session.run(
-                fetches=[model.train_op, model.loss, model.global_step],
-                feed_dict=feed_dict)
-            for callback in callbacks:
-                callback(self.session, feed_dict, loss, self.global_step)
-            if abs(prev_loss - loss) < abs_loss_chg_tol \
-                    or abs((prev_loss - loss) / prev_loss) < rel_loss_chg_tol:
-                iter_below_tol += 1
-            else:
-                iter_below_tol = 0
-            if iter_below_tol >= loss_chg_iter_below_tol:
-                logger.info('Loss value converged.')
-                break
-            prev_loss = loss
-            self.global_step = global_step
-        if save_trained:
-            Learner._save_checkpoint(
-                session=self.session, saver=saver, working_dir=working_dir,
-                file_prefix=ckpt_file_prefix, step=self.global_step)
-
-    def _train_external(self, data, pipelines=None, init_option=-1,
-                        callbacks=None, working_dir=os.getcwd(),
-                        ckpt_file_prefix='ckpt', restore_sequentially=False,
-                        save_trained=False):
-        data = get_iterator(
-            data=data, batch_size=None, cycle=True, pipelines=pipelines)
-        callbacks = _process_callbacks(callbacks)
-        summary_writer = tf.train.SummaryWriter(working_dir, self.graph)
-        saver = tf.train.Saver(restore_sequentially=restore_sequentially)
-        model = self.models
-        self._init_session(
-            option=init_option, saver=saver, working_dir=working_dir,
-            ckpt_file_prefix=ckpt_file_prefix)
-        for callback in callbacks:
-            callback.initialize(self, working_dir, summary_writer)
-        feed_dict = model.get_feed_dict(data.next(), is_train=True)
-        _incr_global_step = tf.assign_add(model.global_step, 1)
-
-        def _step_callback():
-            """Returns a step callback function for the TensorFlow external
-            optimizer interface that keeps track of the current step number
-            internally."""
-            def inner(variables):
-                inner.step += 1
-                self.global_step = self.session.run(fetches=_incr_global_step)
-            inner.step = 0
-            return inner
-        step_callback = _step_callback()
-
-        def _loss_callback():
-            """Returns a loss callback function for the TensorFlow external
-            optimizer interface that only gets evoked when the step callback
-            defined above had updated its step. In order to do that, this
-            function also keep an internal state, of the last step value of
-            the step callback function, in which it was evoked."""
-            def inner(*fetches):
-                if inner.step != step_callback.step:
-                    inner.step = step_callback.step
-                    for call in callbacks:
-                        args = fetches + (inner.step,)
-                        call(self.session, feed_dict, *args)
-            inner.step = -1
-            return inner
-        loss_callback = _loss_callback()
-
-        model.optimizer.minimize(
-            session=self.session, feed_dict=feed_dict,
-            fetches=[model.loss], loss_callback=loss_callback,
-            step_callback=step_callback)
-        if save_trained:
-            Learner._save_checkpoint(
-                session=self.session, saver=saver, working_dir=working_dir,
-                file_prefix=ckpt_file_prefix, step=self.global_step)
-
-    def loss(self, loss_op, data, pipelines=None):
-        data = get_iterator(data=data, cycle=False, pipelines=pipelines)
-        loss = 0.0
-        for data_batch in data:
-            feed_dict = self.models.get_feed_dict(data_batch, is_train=True)
-            loss += self.session.run(loss_op, feed_dict)
-        return loss / len(data)
-
-    @property
-    def combined_model(self):
-        return self.models
-
-    def _output_ops(self):
-        return self.models.outputs
 
     @graph_context
     def predict(self, data, pipelines=None, ckpt=None, working_dir=os.getcwd(),
@@ -367,6 +205,157 @@ class SimpleLearner(Learner):
                 yield data, self.session.run(outputs_ops, feed_dict)
 
 
+class SimpleLearner(Learner):
+    """Used for training a single TensorFlow model."""
+    def __init__(self, model, new_graph=True, session=None,
+                 predict_postprocess=None):
+        if not isinstance(model, Model):
+            raise TypeError('Unsupported model type %s encountered.'
+                            % type(model))
+        super(SimpleLearner, self).__init__(
+            models=model, new_graph=new_graph, session=session,
+            predict_postprocess=predict_postprocess)
+
+    def copy(self, new_graph=True):
+        return SimpleLearner(
+            model=self.models, new_graph=new_graph,
+            session=self.initial_session,
+            predict_postprocess=self.predict_postprocess)
+
+    @graph_context
+    def train(self, data, pipelines=None, init_option=-1, callbacks=None,
+              working_dir=os.getcwd(), ckpt_file_prefix='ckpt',
+              restore_sequentially=False, save_trained=False):
+        if not self.trainable:
+            raise ValueError('The model is not trainable.')
+        if self.models.uses_external_optimizer:
+            _train = self._train_external
+        else:
+            _train = self._train_internal
+        _train(
+            data=data, pipelines=pipelines, init_option=init_option,
+            callbacks=callbacks, working_dir=working_dir,
+            ckpt_file_prefix=ckpt_file_prefix,
+            restore_sequentially=restore_sequentially,
+            save_trained=save_trained)
+
+    def _train_internal(self, data, pipelines=None, init_option=-1,
+                        callbacks=None, working_dir=os.getcwd(),
+                        ckpt_file_prefix='ckpt', restore_sequentially=False,
+                        save_trained=False):
+        batch_size = self.models.optimizer_opts.get('batch_size', None)
+        max_iter = self.models.optimizer_opts.get('max_iter', 10000)
+        abs_loss_chg_tol = self.models.optimizer_opts.get(
+            'abs_loss_chg_tol', 1e-10)
+        rel_loss_chg_tol = self.models.optimizer_opts.get(
+            'rel_loss_chg_tol', 1e-3)
+        loss_chg_iter_below_tol = self.models.optimizer_opts.get(
+            'loss_chg_iter_below_tol', 5)
+        data = get_iterator(
+            data=data, batch_size=batch_size, cycle=True, pipelines=pipelines)
+        callbacks = _process_callbacks(callbacks)
+        summary_writer = tf.train.SummaryWriter(working_dir, self.graph)
+        saver = tf.train.Saver(restore_sequentially=restore_sequentially)
+        model = self.models
+        self._init_session(
+            option=init_option, saver=saver, working_dir=working_dir,
+            ckpt_file_prefix=ckpt_file_prefix)
+        for callback in callbacks:
+            callback.initialize(self, model, None, working_dir, summary_writer)
+        prev_loss = sys.float_info.max
+        iter_below_tol = 0
+        step = 0
+        while True:
+            data_batch = data.next()
+            feed_dict = model.get_feed_dict(data_batch, is_train=True)
+            _, loss = self.session.run(
+                fetches=[model.train_op, model.loss], feed_dict=feed_dict)
+            for callback in callbacks:
+                callback(self.session, feed_dict, loss, self.train_iteration)
+            loss_diff = abs(prev_loss - loss)
+            if loss_diff < abs_loss_chg_tol \
+                    or abs(loss_diff / prev_loss) < rel_loss_chg_tol:
+                iter_below_tol += 1
+            else:
+                iter_below_tol = 0
+            if iter_below_tol >= loss_chg_iter_below_tol:
+                logger.info('Loss value converged.')
+                break
+            if step >= max_iter - 1:
+                logger.info('Maximum number of iterations reached.')
+                break
+            step += 1
+            prev_loss = loss
+            self.train_iteration += 1
+        if save_trained:
+            Learner._save_checkpoint(
+                session=self.session, saver=saver, working_dir=working_dir,
+                file_prefix=ckpt_file_prefix, step=self.train_iteration)
+
+    def _train_external(self, data, pipelines=None, init_option=-1,
+                        callbacks=None, working_dir=os.getcwd(),
+                        ckpt_file_prefix='ckpt', restore_sequentially=False,
+                        save_trained=False):
+        data = get_iterator(
+            data=data, batch_size=None, cycle=True, pipelines=pipelines)
+        callbacks = _process_callbacks(callbacks)
+        summary_writer = tf.train.SummaryWriter(working_dir, self.graph)
+        saver = tf.train.Saver(restore_sequentially=restore_sequentially)
+        model = self.models
+        self._init_session(
+            option=init_option, saver=saver, working_dir=working_dir,
+            ckpt_file_prefix=ckpt_file_prefix)
+        for callback in callbacks:
+            callback.initialize(self, model, None, working_dir, summary_writer)
+        feed_dict = model.get_feed_dict(data.next(), is_train=True)
+
+        def _step_callback():
+            """Returns a step callback function for the TensorFlow external
+            optimizer interface that keeps track of the current step number
+            internally."""
+            def inner(variables):
+                self.train_iteration += 1
+            return inner
+        step_callback = _step_callback()
+
+        def _loss_callback():
+            """Returns a loss callback function for the TensorFlow external
+            optimizer interface that only gets evoked when the step callback
+            defined above had updated its step. In order to do that, this
+            function also keep an internal state, of the last step value of
+            the step callback function, in which it was evoked."""
+            def inner(*fetches):
+                if inner.step != self.train_iteration:
+                    inner.step = self.train_iteration
+                    for call in callbacks:
+                        args = fetches + (inner.step,)
+                        call(self.session, feed_dict, *args)
+            inner.step = -1
+            return inner
+        loss_callback = _loss_callback()
+
+        model.optimizer.minimize(
+            session=self.session, feed_dict=feed_dict,
+            fetches=[model.loss], loss_callback=loss_callback,
+            step_callback=step_callback)
+        if save_trained:
+            Learner._save_checkpoint(
+                session=self.session, saver=saver, working_dir=working_dir,
+                file_prefix=ckpt_file_prefix, step=self.train_iteration)
+
+    def loss(self, loss_op, data, pipelines=None):
+        data = get_iterator(data=data, cycle=False, pipelines=pipelines)
+        loss = 0.0
+        for data_batch in data:
+            feed_dict = self.models.get_feed_dict(data_batch, is_train=True)
+            loss += self.session.run(loss_op, feed_dict)
+        return loss / len(data)
+
+    @property
+    def combined_model(self):
+        return self.models
+
+
 class ValidationSetLearner(Learner):
     """Used for training multiple models that have the same input and predict
     the same quantities, using a validation data set to pick the best model."""
@@ -387,7 +376,7 @@ class ValidationSetLearner(Learner):
     def copy(self):
         return ValidationSetLearner(
             models=self.models, val_loss=self._val_loss,
-            session=self._initial_session,
+            session=self.initial_session,
             predict_postprocess=self.predict_postprocess)
 
     def _get_model_learner(self, model_index, add_val_loss_op=False):
@@ -406,6 +395,8 @@ class ValidationSetLearner(Learner):
     def train(self, data, pipelines=None, val_data=None, init_option=-1,
               callbacks=None, working_dir=os.getcwd(), ckpt_file_prefix='ckpt',
               restore_sequentially=False, save_trained=False, parallel=True):
+        if not self.trainable:
+            raise ValueError('At least one of the models is not trainable.')
         if val_data is None:
             val_data = data
         val_data = get_iterator(data=val_data, batch_size=None, cycle=False)
@@ -452,18 +443,13 @@ class ValidationSetLearner(Learner):
             Learner._save_checkpoint(
                 session=self.best_learner.session, saver=saver,
                 working_dir=working_dir, file_prefix=ckpt_file_prefix,
-                step=self.best_learner.global_step)
+                step=self.best_learner.train_iteration)
 
     @property
     def combined_model(self):
         if self.best_learner is None:
             raise ValueError(__LEARNER_NOT_TRAINED_ERROR__)
         return self.best_learner.models
-
-    def _output_ops(self):
-        if self.best_learner is None:
-            raise ValueError(__LEARNER_NOT_TRAINED_ERROR__)
-        return self.best_learner.models.outputs
 
     def predict(self, data, pipelines=None, ckpt=None, working_dir=os.getcwd(),
                 ckpt_file_prefix='ckpt', restore_sequentially=False):
@@ -507,7 +493,7 @@ class CrossValidationLearner(Learner):
     def copy(self):
         return CrossValidationLearner(
             models=self.models, val_loss=self._val_loss,
-            session=self._initial_session,
+            session=self.initial_session,
             predict_postprocess=self.predict_postprocess)
 
     def _get_model_learner(self, model_index, add_val_loss_op=False):
@@ -537,6 +523,8 @@ class CrossValidationLearner(Learner):
     def train(self, data, pipelines=None, cross_val=None, init_option=-1,
               callbacks=None, working_dir=os.getcwd(), ckpt_file_prefix='ckpt',
               restore_sequentially=False, save_trained=False, parallel=True):
+        if not self.trainable:
+            raise ValueError('At least one of the models is not trainable.')
         if cross_val is None:
             cross_val = KFold(len(data[0]), k=10)
         if parallel:
@@ -617,11 +605,6 @@ class CrossValidationLearner(Learner):
             raise ValueError(__LEARNER_NOT_TRAINED_ERROR__)
         return self.best_learner.models
 
-    def _output_ops(self):
-        if self.best_learner is None:
-            raise ValueError(__LEARNER_NOT_TRAINED_ERROR__)
-        return self.best_learner.models.outputs
-
     def predict(self, data, pipelines=None, ckpt=None, working_dir=os.getcwd(),
                 ckpt_file_prefix='ckpt', restore_sequentially=False):
         if self.best_learner is None:
@@ -643,37 +626,149 @@ class CrossValidationLearner(Learner):
             restore_sequentially=restore_sequentially)
 
 
-# class SimpleNIGLearner(Learner):
-#     # TODO: Add support for multiple combination functions.
-#     def __init__(self, symbols, loss=None, disagreement=None, optimizer=None,
-#                  loss_summary=False, grads_processor=None, session=None,
-#                  inputs_dtype=tf.float64, outputs_dtype=tf.float64,
-#                  output_shape=None, predict_postprocess=None):
-#         super(SimpleNIGLearner, self).__init__(
-#             symbols=symbols if isinstance(symbols, list) else [symbols],
-#             session=session, inputs_dtype=inputs_dtype,
-#             outputs_dtype=outputs_dtype, output_shape=output_shape,
-#             predict_postprocess=predict_postprocess)
-#         self.trainable = loss is not None and disagreement is not None \
-#             and optimizer is not None
-#         with self.graph.as_default():
-#             self.consensus_predictions_op = tf.placeholder(
-#                 outputs_dtype, [None] + self.output_shape)
-#
-#
-# class NIGLearner(Learner):
-#     def __init__(self, symbols, loss, disagreement, optimizers,
-#                  loss_summary=False, grads_processor=None, session=None,
-#                  inputs_dtype=tf.float64, outputs_dtype=tf.float64,
-#                  output_shape=None, predict_postprocess=None):
-#         super(NIGLearner, self).__init__(
-#             symbols=symbols if isinstance(symbols, list) else [symbols],
-#             session=session, inputs_dtype=inputs_dtype,
-#             outputs_dtype=outputs_dtype, output_shape=output_shape,
-#             predict_postprocess=predict_postprocess)
-#         if not isinstance(optimizers, list):
-#             optimizers = [optimizers] * len(self.symbols)
-#         self.loss = loss
-#         self.optimizers = optimizers
-#         self.loss_summary = loss_summary
-#         self.grads_processor = grads_processor
+class NIGLearner(Learner):
+    def __init__(self, models, consensus_loss_weight=1.0, new_graph=True,
+                 session=None, predict_postprocess=None):
+        if any(model.uses_external_optimizer for model in models):
+            raise ValueError('Only internal optimizers are supported for this '
+                             'learner.')
+        super(NIGLearner, self).__init__(
+            models=models, new_graph=new_graph, session=session,
+            predict_postprocess=predict_postprocess)
+        if self.trainable:
+            self.consensus_loss_weight = consensus_loss_weight
+            with self.graph.as_default():
+                self.trust = tf.Variable(
+                    initial_value=np.eye(len(self.models)), trainable=False,
+                    name='trust', dtype=tf.float32)
+                consensus_losses = NIGLearner._consensus_losses(
+                    models=self.models, trust=self.trust,
+                    consensus_loss_weight=self.consensus_loss_weight)
+                for m in range(len(self.models)):
+                    self.models[m] = self.models[m].update_loss(
+                        loss=self.models[m].loss + consensus_losses[m],
+                        graph=self.graph)
+
+    @staticmethod
+    def _consensus_losses(models, trust, consensus_loss_weight):
+        num_models = len(models)
+        # TODO: Need to deal with other model outputs formats.
+        outputs = tf.pack([model.outputs for model in models], axis=1)
+        r = tf.reduce_sum(outputs * outputs, reduction_indices=[2])
+        r = tf.reshape(r, [-1, num_models, 1])
+        D = r - 2 * tf.batch_matmul(outputs, tf.transpose(outputs, perm=[0, 2, 1])) + tf.transpose(r, perm=[0, 2, 1])
+        # D = r - 2 * tf.einsum('ijk,ilk->ijl', outputs, outputs) + tf.transpose(r, perm=[0, 2, 1])
+        loss = tf.einsum('ijk,kj->j', D, trust)
+        return tf.unpack(consensus_loss_weight * loss, axis=0)
+
+    def copy(self, new_graph=True):
+        return NIGLearner(
+            models=self.models,
+            consensus_loss_weight=self.consensus_loss_weight,
+            new_graph=new_graph, session=self.initial_session,
+            predict_postprocess=self.predict_postprocess)
+
+    def update_trust(self, trust):
+        return self.session.run(self.trust.assign(trust))
+
+    def _get_feed_dict(self, data, is_train=False):
+        feed_dict = dict()
+        for model in self.models:
+            feed_dict.update(model.get_feed_dict(data, is_train=is_train))
+        return feed_dict
+
+    @graph_context
+    def train(self, data, pipelines=None, init_option=-1,
+              per_model_callbacks=None, combined_model_callbacks=None,
+              working_dir=os.getcwd(), ckpt_file_prefix='ckpt',
+              restore_sequentially=False, save_trained=False):
+        if not self.trainable:
+            raise ValueError('At least one of the models is not trainable.')
+        models = self.models
+        batch_size = [model.optimizer_opts.get('batch_size', None)
+                      for model in models]
+        if any(size != batch_size[0] for size in batch_size):
+            raise ValueError('All batch sizes must match.')
+        batch_size = batch_size[0]
+        max_iter = [model.optimizer_opts.get('max_iter', 10000)
+                    for model in models]
+        abs_loss_chg_tol = [model.optimizer_opts.get('abs_loss_chg_tol', 1e-10)
+                            for model in models]
+        rel_loss_chg_tol = [model.optimizer_opts.get('rel_loss_chg_tol', 1e-3)
+                            for model in models]
+        loss_chg_iter_below_tol = [
+            model.optimizer_opts.get('loss_chg_iter_below_tol', 5)
+            for model in models]
+        data = get_iterator(
+            data=data, batch_size=batch_size, cycle=True, pipelines=pipelines)
+        per_model_callbacks = [_process_callbacks(per_model_callbacks)
+                               for _ in self.models]
+        combined_model_callbacks = _process_callbacks(combined_model_callbacks)
+        summary_writer = tf.train.SummaryWriter(working_dir, self.graph)
+        saver = tf.train.Saver(restore_sequentially=restore_sequentially)
+        self._init_session(
+            option=init_option, saver=saver, working_dir=working_dir,
+            ckpt_file_prefix=ckpt_file_prefix)
+        for m, callbacks in enumerate(per_model_callbacks):
+            for callback in callbacks:
+                callback.initialize(
+                    self, self.models[m], 'model_%d' % m, working_dir,
+                    summary_writer)
+        for callback in combined_model_callbacks:
+            callback.initialize(
+                self, self.combined_model, 'combined_model', working_dir,
+                summary_writer)
+        untrained_models = list(range(len(models)))
+        prev_loss = [sys.float_info.max] * len(models)
+        iter_below_tol = [0] * len(models)
+        step = 0
+        while True:
+            data_batch = data.next()
+            # TODO: Add trust estimation and update here.
+            feed_dict = self._get_feed_dict(data_batch, is_train=True)
+            fetches = [[models[m].train_op, models[m].loss]
+                       for m in untrained_models]
+            run_outputs = self.session.run(fetches=fetches, feed_dict=feed_dict)
+            losses = []
+            for i, m in enumerate(untrained_models[:]):
+                loss = run_outputs[i][1]
+                for callback in per_model_callbacks[m]:
+                    callback(
+                        self.session, feed_dict, loss, self.train_iteration[m])
+                loss_diff = abs(prev_loss[m] - loss)
+                if loss_diff < abs_loss_chg_tol[m] \
+                        or abs(loss_diff / prev_loss[m]) < rel_loss_chg_tol[m]:
+                    iter_below_tol[m] += 1
+                else:
+                    iter_below_tol[m] = 0
+                if iter_below_tol[m] >= loss_chg_iter_below_tol[m]:
+                    logger.info('Model %d finished training: Loss value '
+                                'converged.' % m)
+                    untrained_models.remove(m)
+                elif step >= max_iter[m] - 1:
+                    logger.info('Model %d finished training: Maximum number of '
+                                'iterations reached.' % m)
+                    untrained_models.remove(m)
+                prev_loss[m] = loss
+                self.train_iteration[m] += 1
+                losses.append(loss)
+            for callback in combined_model_callbacks:
+                callback(
+                    self.session, feed_dict, np.mean(losses),
+                    max(self.train_iteration))
+            if len(untrained_models) == 0:
+                logger.info('All models have finished training.')
+                break
+            step += 1
+        if save_trained:
+            Learner._save_checkpoint(
+                session=self.session, saver=saver, working_dir=working_dir,
+                file_prefix=ckpt_file_prefix, step=step)
+
+    @property
+    @memoize
+    def combined_model(self):
+        return CombinedModel(
+            models=self.models,
+            weights=tf.reduce_mean(self.trust, reduction_indices=[0]),
+            graph=self.graph)

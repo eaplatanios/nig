@@ -7,7 +7,7 @@ from nig.data.processors import *
 from nig.learning.callbacks import *
 from nig.learning.metrics import *
 from nig.learning.learners import *
-from nig.learning.optimizers import gradient_descent, adam
+from nig.learning.optimizers import gradient_descent
 from nig.learning.processors import norm_summary, norm_clipping
 from nig.models.common import MultiLayerPerceptron
 
@@ -16,7 +16,7 @@ __author__ = 'eaplatanios'
 logger = logging.getLogger(__name__)
 
 use_one_hot_encoding = False
-architectures = [[], [5]]
+architectures = [[5], [16, 32, 16]]
 activation = tf.nn.relu
 batch_size = 100
 max_iter = 1000
@@ -26,7 +26,7 @@ loss_chg_iter_below_tol = 5
 logging_frequency = 100
 summary_frequency = 100
 checkpoint_frequency = 1000
-evaluation_frequency = 1000
+evaluation_frequency = 500
 working_dir = os.path.join(os.getcwd(), 'run')
 checkpoint_file_prefix = 'ckpt'
 restore_sequentially = False
@@ -92,31 +92,17 @@ callbacks = [
 
 # learner = SimpleLearner(
 #     model=models[0], predict_postprocess=lambda l: tf.argmax(l, 1))
-learner = ValidationSetLearner(
-    models=models, val_loss=loss, predict_postprocess=lambda l: tf.argmax(l, 1))
+learner = NIGLearner(
+    models=models, predict_postprocess=lambda l: tf.argmax(l, 1))
 
 learner.train(
-    # train_data=get_iterator(train_data), val_data=get_iterator(val_data),
-    data=(inputs_pipeline(train_data), labels_pipeline(train_data)),
-    # data=train_data, pipelines=[inputs_pipeline, labels_pipeline],
-    val_data=(inputs_pipeline(val_data), labels_pipeline(val_data)),
-    # cross_val=KFold(len(train_data), 5),
-    init_option=True,
-    callbacks=callbacks, working_dir=working_dir,
+    data=train_data, pipelines=[inputs_pipeline, labels_pipeline],
+    init_option=True, per_model_callbacks=callbacks,
+    combined_model_callbacks=callbacks, working_dir=working_dir,
     ckpt_file_prefix=checkpoint_file_prefix,
-    restore_sequentially=restore_sequentially, save_trained=save_trained,
-    parallel=True)
+    restore_sequentially=restore_sequentially, save_trained=save_trained)
 test_predictions = learner.predict(
     get_iterator(test_data, False), ckpt=-1, working_dir=working_dir,
     ckpt_file_prefix=checkpoint_file_prefix)
 test_truth = test_data[:, -1]
-logger.info('Best model: %d' % learner.best_model_index)
 logger.info(np.mean(test_predictions == test_truth))
-
-# Test loading the best performing trained model using a simple learner
-simple_learner = SimpleLearner(
-    models[learner.best_model_index], predict_postprocess=lambda l: tf.argmax(l, 1))
-simple_learner_test_predictions = simple_learner.predict(
-    get_iterator(test_data, False), ckpt=-1, working_dir=working_dir,
-    ckpt_file_prefix=checkpoint_file_prefix)
-logger.info(np.mean(simple_learner_test_predictions == test_truth))

@@ -7,6 +7,11 @@ __author__ = 'eaplatanios'
 
 
 @contextmanager
+def dummy():
+    yield None
+
+
+@contextmanager
 def elapsed_timer():
     start = default_timer()
     elapsed = lambda: default_timer() - start
