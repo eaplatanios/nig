@@ -15,7 +15,10 @@ def gradient_descent(learning_rate, decay_steps=100, decay_rate=1.0,
     else:
         learning_rate_variable = learning_rate
     if learning_rate_summary:
-        tf.scalar_summary('train/learning_rate', learning_rate_variable)
+        tf.scalar_summary(
+            tf.get_default_graph().unique_name(
+                name='train/learning_rate', mark_as_used=False),
+            learning_rate_variable)
     return tf.train.GradientDescentOptimizer(
         learning_rate=learning_rate_variable, use_locking=use_locking,
         name=name)
@@ -33,7 +36,10 @@ def adam(learning_rate, decay_steps=100, decay_rate=1.0, staircase=False,
     else:
         learning_rate_variable = learning_rate
     if learning_rate_summary:
-        tf.scalar_summary('train/learning_rate', learning_rate_variable)
+        tf.scalar_summary(
+            tf.get_default_graph().unique_name(
+                name='train/learning_rate', mark_as_used=False),
+            learning_rate_variable)
     return tf.train.AdamOptimizer(
         learning_rate=learning_rate_variable, beta1=beta1, beta2=beta2,
         epsilon=epsilon, use_locking=use_locking, name=name)

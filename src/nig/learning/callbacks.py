@@ -114,11 +114,15 @@ class VariableStatisticsSummaryWriterCallback(Callback):
             for variable in self._tf_variables:
                 for name, statistic in self.statistics.items():
                     tag = scope + '/variables/' + variable.name + '/' + name
+                    tag = tf.get_default_graph().unique_name(
+                        name=tag, mark_as_used=False)
                     summaries.append(tf.scalar_summary(
                         tags=tag, values=statistic(variable),
                         name=tag.replace(':', '_')))
                 if self.histogram:
                     tag = scope + '/variables/' + variable.name + '/histogram'
+                    tag = tf.get_default_graph().unique_name(
+                        name=tag, mark_as_used=False)
                     summaries.append(tf.histogram_summary(
                         tag=tag, values=variable, name=tag.replace(':', '_')))
             return tf.merge_summary(summaries, name='variables' + self.name)
@@ -284,6 +288,8 @@ class EvaluationCallback(Callback):
                 summary = tf.Summary()
                 summary_value = summary.value.add()
                 summary_value.tag = self.name + '/' + str(self.metrics[index])
+                summary_value.tag = tf.get_default_graph().unique_name(
+                    name=summary_value.tag, mark_as_used=False)
                 summary_value.simple_value = float(value)
                 self._summary_writer.add_summary(summary, global_step)
         if global_step % self.header_frequency == 0:
