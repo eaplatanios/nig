@@ -4,12 +4,11 @@ import itertools
 import logging
 import numpy as np
 import tensorflow as tf
-from nig.utilities.generic import dummy
 
 from six import with_metaclass
 
-from ..utilities.tensorflow import graph_context, name_scope_context, \
-    copy_op_to_graph, copy_variable_to_graph
+from ..utilities.tensorflow import graph_context, copy_op_to_graph, \
+    copy_variable_to_graph
 
 __author__ = 'eaplatanios'
 
@@ -84,17 +83,17 @@ class Model(with_metaclass(abc.ABCMeta, object)):
                     raise ValueError(__TENSORS_DIFFERENT_GRAPHS_ERROR__)
             elif self.train_outputs.graph != self.graph:
                 raise ValueError(__TENSORS_DIFFERENT_GRAPHS_ERROR__)
-        elif isinstance(self.outputs, list):
+        elif isinstance(self.outputs, list) and callable(self.loss):
             self.train_outputs = [tf.placeholder(
                 dtype=output.dtype, shape=output.get_shape(),
                 name=output.name.split(':')[0] + '/observed')
                                   for output in self.outputs]
-        elif isinstance(self.outputs, dict):
+        elif isinstance(self.outputs, dict) and callable(self.loss):
             self.train_outputs = {k: tf.placeholder(
                 dtype=v.dtype, shape=v.get_shape(),
                 name=v.name.split(':')[0] + '/observed')
                                   for k, v in self.outputs.items()}
-        else:
+        elif callable(self.loss):
             self.train_outputs = tf.placeholder(
                 dtype=self.outputs.dtype, shape=self.outputs.get_shape(),
                 name=self.outputs.name.split(':')[0] + '/observed')
@@ -160,7 +159,7 @@ class Model(with_metaclass(abc.ABCMeta, object)):
                                 'dictionaries.')
             else:
                 tensors.append(self.inputs)
-            if is_train:
+            if is_train and self.train_outputs is not None:
                 if isinstance(self.train_outputs, list):
                     tensors.extend(self.train_outputs)
                 elif isinstance(self.train_outputs, dict):
@@ -172,7 +171,7 @@ class Model(with_metaclass(abc.ABCMeta, object)):
             return dict(zip(tensors, data))
         if isinstance(data, dict):
             return {Model._get_tensor_name(k): v for k, v in data.items()}
-        if not is_train:
+        if not is_train or self.train_outputs is None:
             return {self.inputs: data}
         return {self.inputs: data[0], self.train_outputs: data[1]}
 
@@ -194,9 +193,12 @@ class Model(with_metaclass(abc.ABCMeta, object)):
         outputs = self._copy_ops_to_graph(
             ops=self.outputs, graph=graph, variables=variables, scope=scope)
         if self.trainable:
-            train_outputs = self._copy_ops_to_graph(
-                ops=self.train_outputs, graph=graph, variables=variables,
-                scope=scope)
+            if self.train_outputs is not None:
+                train_outputs = self._copy_ops_to_graph(
+                    ops=self.train_outputs, graph=graph, variables=variables,
+                    scope=scope)
+            else:
+                train_outputs = None
             loss = self._copy_ops_to_graph(
                 ops=self.loss, graph=graph, variables=variables,
                 scope=scope)
