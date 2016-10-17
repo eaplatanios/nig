@@ -1,3 +1,4 @@
+import os
 import numpy as np
 
 from . import utilities
@@ -26,15 +27,15 @@ def load(working_dir):
     maybe_download(data_dir)
     data = np.load(os.path.join(data_dir, 'data.npz'))
     # Sanity checks
-    assert data['X_train'].shape == (TRAIN_SIZE + VALIDATION_SIZE, NB_FEATURES)
-    assert data['Y_train'].shape == (TRAIN_SIZE + VALIDATION_SIZE, NB_LABELS)
+    assert data['X_train'].shape == (TRAIN_SIZE, NB_FEATURES)
+    assert data['Y_train'].shape == (TRAIN_SIZE, NB_LABELS)
     assert data['X_test'].shape == (TEST_SIZE, NB_FEATURES)
     assert data['Y_test'].shape == (TEST_SIZE, NB_LABELS)
     # Split the data
-    train_data = (data['X_train'][VALIDATION_SIZE:],
-                  data['Y_train'][VALIDATION_SIZE:])
-    val_data = (data['X_train'][:VALIDATION_SIZE],
-                data['Y_train'][:VALIDATION_SIZE])
+    train_data = (data['X_train'][:-VALIDATION_SIZE],
+                  data['Y_train'][:-VALIDATION_SIZE])
+    val_data = (data['X_train'][-VALIDATION_SIZE:],
+                data['Y_train'][-VALIDATION_SIZE:])
     test_data = (data['X_test'], data['Y_test'])
     labels_order = data['labels_order']
     return train_data, val_data, test_data, labels_order
