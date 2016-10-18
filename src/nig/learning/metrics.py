@@ -26,7 +26,8 @@ class CrossEntropyOneHotEncodingMetric(Metric):
         return 'cross_entropy'
 
     def evaluate(self, prediction, truth, name='cross_entropy'):
-        metric = -tf.reduce_sum(truth * prediction, reduction_indices=[1])
+        metric = -tf.reduce_sum(truth * tf.log(prediction),
+                                reduction_indices=[1])
         metric = tf.reduce_mean(metric, name=name)
         return metric
 
