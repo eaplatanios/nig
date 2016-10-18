@@ -1,3 +1,19 @@
+# Copyright 2016, The NIG Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may not
+# use this file except in compliance with the License. You may obtain a copy of
+# the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations under
+# the License.
+
+from __future__ import absolute_import, division, print_function
+
 import abc
 import logging
 import numpy as np
@@ -5,7 +21,6 @@ import sys
 import tensorflow as tf
 import os
 
-from nig.data.iterators import get_iterator
 from six import with_metaclass
 
 __author__ = 'eaplatanios'
@@ -315,66 +330,3 @@ class EvaluationCallback(Callback):
                 feed_dict = self._model.get_feed_dict(data_batch, is_train=True)
                 metrics.append(session.run(eval_op, feed_dict=feed_dict))
         return self.aggregating_function(metrics)
-
-
-# class ExternalEvaluationCallback(Callback):
-#     def __init__(self, frequency, iterator, metrics, number_of_batches=-1,
-#                  aggregating_function=np.mean, name='eval_callback',
-#                  log_format=None, header=None, header_frequency=sys.maxsize):
-#         super(ExternalEvaluationCallback, self).__init__(frequency)
-#         self.iterator = iterator
-#         self.metrics = metrics if isinstance(metrics, list) else [metrics]
-#         self.number_of_batches = number_of_batches
-#         self.aggregating_function = aggregating_function
-#         self.name = name
-#         self.log_format = log_format if log_format is not None \
-#             else '{:>20} - | {:>10d} | {:>10.4e} |' * len(self.metrics)
-#         self.header = header if header is not None \
-#             else ('{:>20} - | {:>10} | {:>10} |' * len(self.metrics)) \
-#             .format(name, 'Step', *[str(metric)
-#                                     for metric in self.metrics])
-#         self.header_frequency = header_frequency
-#         self._model = None
-#         self._output_ops = None
-#
-#     def copy(self):
-#         return ExternalEvaluationCallback(
-#             frequency=self.frequency, iterator=self.iterator,
-#             metrics=self.metrics, number_of_batches=self.number_of_batches,
-#             aggregating_function=self.aggregating_function, name=self.name,
-#             log_format=self.log_format, header=self.header,
-#             header_frequency=self.header_frequency)
-#
-#     def initialize(self, learner, working_dir, summary_writer):
-#         if self._model is None:
-#             self._model = learner.combined_model
-#             self._output_ops = learner._postprocessed_output_ops
-#
-#     def execute(self, session, feed_dict=None, loss=None, global_step=None):
-#         if self._model is None:
-#             raise ValueError(__CALLBACK_NOT_INITIALIZED_ERROR__)
-#         self.iterator.reset()
-#         metrics = []
-#         for index, metric in enumerate(self.metrics):
-#             value = self._aggregate_over_iterator(session, metric)
-#             metrics.append(value)
-#         if global_step % self.header_frequency == 0:
-#             logger.info(self.header)
-#         logger.info(self.log_format.format(self.name, global_step+1, *metrics))
-#
-#     def _aggregate_over_iterator(self, session, metric):
-#         metrics = []
-#         if self.number_of_batches > -1:
-#             for batch_number in range(self.number_of_batches):
-#                 data_batch = self.iterator.next()
-#                 feed_dict = self._model.get_feed_dict(data_batch, is_train=True)
-#                 outputs = session.run(
-#                     fetches=self._output_ops(), feed_dict=feed_dict)
-#                 metrics.append(metric(outputs, data_batch[1]))
-#         else:
-#             for data_batch in self.iterator:
-#                 feed_dict = self._model.get_feed_dict(data_batch, is_train=True)
-#                 outputs = session.run(
-#                     fetches=self._output_ops(), feed_dict=feed_dict)
-#                 metrics.append(metric(outputs, data_batch[1]))
-#         return self.aggregating_function(metrics)
