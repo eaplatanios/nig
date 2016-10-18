@@ -23,6 +23,8 @@ import os
 
 from six import with_metaclass
 
+from ..data.iterators import get_iterator
+
 __author__ = 'eaplatanios'
 
 __CALLBACK_NOT_INITIALIZED_ERROR__ = 'The callback has not been initialized.'
