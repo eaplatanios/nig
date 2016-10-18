@@ -125,7 +125,7 @@ class Model(with_metaclass(abc.ABCMeta, object)):
         else:
             with tf.name_scope('optimizer'):
                 self.optimizer = self.provided_optimizer()
-            provided_opts = self.optimizer_opts.keys()
+            provided_opts = set(self.optimizer_opts.keys())
             unsupported = provided_opts - __SUPPORTED_INTERNAL_OPTIMIZER_OPTS__
             if len(unsupported) > 0:
                 logger.warn('Ignoring unsupported optimizer options %s. '
