@@ -26,18 +26,21 @@ from nig.utilities.iterators import Iterator
 __author__ = 'eaplatanios'
 
 
-def get_iterator(data, batch_size=None, cycle=False, pipelines=None):
+def get_iterator(data, batch_size=None, shuffle=False, cycle=False,
+                 cycle_shuffle=False, pipelines=None):
     if isinstance(data, np.ndarray):
         batch_size = batch_size if batch_size is not None else len(data)
         return NPArrayIterator(
-            data, batch_size=batch_size, shuffle=False, cycle=cycle,
-            cycle_shuffle=False, keep_last=True, pipelines=pipelines)
+            data, batch_size=batch_size, shuffle=shuffle, cycle=cycle,
+            cycle_shuffle=cycle_shuffle, keep_last=True, pipelines=pipelines)
     if isinstance(data, tuple):
+        # TODO: Add shuffling capability.
         return ZipDataIterator(
             iterators=[_process_data_element(data=d, batch_size=batch_size)
                        for d in data],
             keys=None, batch_size=batch_size, cycle=cycle, pipelines=pipelines)
     if isinstance(data, dict):
+        # TODO: Add shuffling capability.
         if isinstance(pipelines, dict):
             pipelines = [pipelines[k] for k in data.keys()]
         return ZipDataIterator(
@@ -49,7 +52,8 @@ def get_iterator(data, batch_size=None, cycle=False, pipelines=None):
             and not isinstance(data, ZipDataIterator):
         raise TypeError('Unsupported data type %s encountered.' % type(data))
     return data.reset_copy(
-        batch_size=batch_size, cycle=cycle, pipelines=pipelines)
+        batch_size=batch_size, shuffle=shuffle, cycle=cycle,
+        cycle_shuffle=cycle_shuffle, pipelines=pipelines)
 
 
 def _process_data_element(data, batch_size=None):
@@ -131,8 +135,6 @@ class DataIterator(with_metaclass(abc.ABCMeta, Iterator)):
                  seed=None):
         self.data = data
         self.batch_size = batch_size
-        if shuffle:
-            self.shuffle_data()
         self.shuffle = shuffle
         self.cycle = cycle
         self.cycle_shuffle = cycle_shuffle
@@ -142,6 +144,8 @@ class DataIterator(with_metaclass(abc.ABCMeta, Iterator)):
         self._length = len(self.data)
         self._begin_index = 0
         self._reached_end = False
+        if self.shuffle:
+            self.shuffle_data()
 
     def next(self):
         next_data = None
