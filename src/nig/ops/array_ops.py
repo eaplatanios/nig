@@ -28,7 +28,7 @@ def roll_axis(tensor, axis, target=0):
         tensor (tf.Tensor): Tensor whose axis to roll.
         axis (int): Index of the axis to roll backwards.
         target (int, optional): Optional target axis index. The axis is rolled
-            until it lies before this position. Defaults to `0`, resulting in a
+            until it lies at this position. Defaults to `0`, resulting in a
             "complete" roll.
 
     Notes:
