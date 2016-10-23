@@ -33,6 +33,9 @@ from ..utilities.tensorflow import graph_context
 
 __author__ = 'eaplatanios'
 
+__all__ = ['Learner', 'SimpleLearner', 'ValidationSetLearner',
+           'CrossValidationLearner', 'NIGLearner']
+
 __LEARNER_NOT_TRAINED_ERROR__ = 'The current learner has not been trained.'
 
 logger = logging.getLogger(__name__)

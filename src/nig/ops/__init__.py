@@ -14,12 +14,11 @@
 
 from __future__ import absolute_import, division, print_function
 
-import tensorflow as tf
+from . import array_ops
+
+from .array_ops import *
 
 __author__ = 'eaplatanios'
 
-__all__ = ['leaky_relu']
-
-
-def leaky_relu(alpha=0.01):
-    return lambda input: tf.maximum(alpha * input, input)
+__all__ = ['array_ops']
+__all__.extend(array_ops.__all__)

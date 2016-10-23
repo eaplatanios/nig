@@ -20,6 +20,8 @@ from six import with_metaclass
 
 __author__ = 'eaplatanios'
 
+__all__ = ['Constraint', 'MutualExclusionConstraint', 'SubsumptionConstraint']
+
 
 class Constraint(with_metaclass(abc.ABCMeta, object)):
     @staticmethod

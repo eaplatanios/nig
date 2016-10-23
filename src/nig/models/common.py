@@ -21,6 +21,8 @@ from ..learning.models import Model
 
 __author__ = 'eaplatanios'
 
+__all__ = ['MultiLayerPerceptron']
+
 
 class MultiLayerPerceptron(Model):
     def __init__(self, input_size, output_size, hidden_layer_sizes, activation,

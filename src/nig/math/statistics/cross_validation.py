@@ -25,6 +25,9 @@ from ...utilities.iterators import Iterator
 
 __author__ = 'eaplatanios'
 
+__all__ = ['CrossValidation', 'LeaveOneOut', 'LeavePOut', 'LeaveOneLabelOut',
+           'LeavePLabelsOut', 'KFold', 'StratifiedKFold']
+
 
 class CrossValidation(with_metaclass(abc.ABCMeta, Iterator)):
     def __init__(self, data_size, shuffle=False, seed=None):

@@ -21,8 +21,13 @@ from math import pi
 
 __author__ = 'eaplatanios'
 
+__all__ = ['complex_tensor', 'zero_complex', 'zero_complex_like',
+           'unit_complex', 'complex_magnitude', 'complex_mul_real',
+           'complex_normalize', 'complex_reflect', 'mod_relu',
+           'matmul_parameterized_unitary']
 
-def complex(name, shape, initializer=None):
+
+def complex_tensor(name, shape, initializer=None):
     """Returns a new complex variable."""
     real = tf.get_variable(name + '_real', shape=shape, initializer=initializer)
     imag = tf.get_variable(name + '_imag', shape=shape, initializer=initializer)
@@ -102,7 +107,7 @@ def matmul_parameterized_unitary(inputs, scope=None):
     inputs_depth = shape[1]
     with tf.variable_scope(scope or 'matmul_parameterized_unitary'):
         d = [unit_complex(name='D_' + i, shape=[inputs_depth]) for i in '012']
-        r = [complex_normalize(complex(
+        r = [complex_normalize(complex_tensor(
             name='R_' + i, shape=[inputs_depth],
             initializer=tf.random_uniform_initializer(-1., 1.))) for i in '01']
         perm = tf.constant(

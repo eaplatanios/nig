@@ -21,6 +21,8 @@ from ..learning.models import Model
 
 __author__ = 'alshedivat'
 
+__all__ = ['ADIOS']
+
 
 class ADIOS(Model):
     """Architecture Deep In the Output Space.

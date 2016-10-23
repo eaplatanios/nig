@@ -22,6 +22,8 @@ from timeit import default_timer
 
 __author__ = ['eaplatanios', 'alshedivat']
 
+__all__ = ['dummy', 'elapsed_timer', 'escape_glob', 'get_from_module']
+
 
 @contextmanager
 def dummy():

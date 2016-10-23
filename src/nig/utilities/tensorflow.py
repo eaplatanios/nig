@@ -16,6 +16,9 @@ from __future__ import absolute_import, division, print_function
 
 __author__ = 'eaplatanios'
 
+__all__ = ['graph_context', 'name_scope_context', 'copy_variable_to_graph',
+           'copy_op_to_graph', 'check_if_present', 'get_copied_op']
+
 
 def graph_context(func):
     def func_wrapper(self, *args, **kwargs):

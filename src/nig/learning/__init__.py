@@ -13,3 +13,24 @@
 # the License.
 
 from __future__ import absolute_import, division, print_function
+
+from . import callbacks
+from . import learners
+from . import metrics
+from . import models
+from . import optimizers
+
+from .callbacks import *
+from .learners import *
+from .metrics import *
+from .models import *
+from .optimizers import *
+
+__author__ = 'eaplatanios'
+
+__all__ = ['callbacks', 'learners', 'metrics', 'models', 'optimizers']
+__all__.extend(callbacks.__all__)
+__all__.extend(learners.__all__)
+__all__.extend(metrics.__all__)
+__all__.extend(models.__all__)
+__all__.extend(optimizers.__all__)

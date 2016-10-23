@@ -18,6 +18,8 @@ import tensorflow as tf
 
 __author__ = 'eaplatanios'
 
+__all__ = ['dynamic_hierarchical_rnn']
+
 
 def dynamic_hierarchical_rnn(cells, periods, inputs, sequence_length=None,
                              input_levels=None, inputs_reduction=None,

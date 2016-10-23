@@ -20,6 +20,8 @@ from .complex import mod_relu, matmul_parameterized_unitary, zero_complex
 
 __author__ = 'eaplatanios'
 
+__all__ = ['URNNCell']
+
 
 class URNNCell(tf.nn.rnn_cell.RNNCell):
     def __init__(self, num_units, state_is_tuple=True):

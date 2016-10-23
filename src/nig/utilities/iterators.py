@@ -20,6 +20,8 @@ from six import with_metaclass
 
 __author__ = 'eaplatanios'
 
+__all__ = ['Iterator', 'ZipIterator']
+
 
 class Iterator(with_metaclass(abc.ABCMeta, object)):
     def __iter__(self):

@@ -25,6 +25,9 @@ from nig.utilities.iterators import Iterator
 
 __author__ = 'eaplatanios'
 
+__all__ = ['get_iterator', 'DataIterator', 'ListIterator', 'NPArrayIterator',
+           'PDDataFrameIterator', 'ZipDataIterator']
+
 
 def get_iterator(data, batch_size=None, shuffle=False, cycle=False,
                  cycle_shuffle=False, pipelines=None):

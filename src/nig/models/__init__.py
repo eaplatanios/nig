@@ -13,3 +13,27 @@
 # the License.
 
 from __future__ import absolute_import, division, print_function
+
+from . import activations
+from . import adios
+from . import common
+from . import complex
+from . import rnn
+from . import unitary_rnn
+
+from .activations import *
+from .adios import *
+from .common import *
+from .complex import *
+from .rnn import *
+from .unitary_rnn import *
+
+__author__ = 'eaplatanios'
+
+__all__ = ['activations', 'adios', 'common', 'complex', 'rnn', 'unitary_rnn']
+__all__.extend(activations.__all__)
+__all__.extend(adios.__all__)
+__all__.extend(common.__all__)
+__all__.extend(complex.__all__)
+__all__.extend(rnn.__all__)
+__all__.extend(unitary_rnn.__all__)

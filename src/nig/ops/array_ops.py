@@ -18,6 +18,8 @@ import tensorflow as tf
 
 __author__ = 'eaplatanios'
 
+__all__ = ['roll_axis']
+
 
 def roll_axis(tensor, axis, target=0):
     """Rolls the specified axis backwards, until it lies in the provided

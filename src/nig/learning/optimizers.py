@@ -18,6 +18,8 @@ import tensorflow as tf
 
 __author__ = 'eaplatanios'
 
+__all__ = ['gradient_descent', 'adam']
+
 
 def gradient_descent(learning_rate, decay_steps=100, decay_rate=1.0,
                      staircase=False, learning_rate_summary=False,
