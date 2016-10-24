@@ -196,7 +196,9 @@ class Learner(with_metaclass(abc.ABCMeta, object)):
                 predictions = np.concatenate([predictions, batch], axis=0)
             return predictions
         outputs_ops = self._postprocessed_output_ops()
-        saver = tf.train.Saver(restore_sequentially=restore_sequentially)
+        saver = tf.train.Saver(
+            restore_sequentially=restore_sequentially,
+            write_version=tf.train.SaverDef.V2)
         self._init_session(
             option=ckpt, saver=saver, working_dir=working_dir,
             ckpt_file_prefix=ckpt_file_prefix)
@@ -210,7 +212,9 @@ class Learner(with_metaclass(abc.ABCMeta, object)):
                          ckpt_file_prefix='ckpt', restore_sequentially=False):
         data = get_iterator(data=data, pipelines=pipelines, cycle=False)
         outputs_ops = self._postprocessed_output_ops()
-        saver = tf.train.Saver(restore_sequentially=restore_sequentially)
+        saver = tf.train.Saver(
+            restore_sequentially=restore_sequentially,
+            write_version=tf.train.SaverDef.V2)
         self._init_session(
             option=ckpt, saver=saver, working_dir=working_dir,
             ckpt_file_prefix=ckpt_file_prefix)
@@ -273,7 +277,9 @@ class SimpleLearner(Learner):
             data=data, batch_size=batch_size, cycle=True, pipelines=pipelines)
         callbacks = _process_callbacks(callbacks)
         summary_writer = tf.train.SummaryWriter(working_dir, self.graph)
-        saver = tf.train.Saver(restore_sequentially=restore_sequentially)
+        saver = tf.train.Saver(
+            restore_sequentially=restore_sequentially,
+            write_version=tf.train.SaverDef.V2)
         model = self.models
         self._init_session(
             option=init_option, saver=saver, working_dir=working_dir,
@@ -318,7 +324,9 @@ class SimpleLearner(Learner):
             data=data, batch_size=None, cycle=True, pipelines=pipelines)
         callbacks = _process_callbacks(callbacks)
         summary_writer = tf.train.SummaryWriter(working_dir, self.graph)
-        saver = tf.train.Saver(restore_sequentially=restore_sequentially)
+        saver = tf.train.Saver(
+            restore_sequentially=restore_sequentially,
+            write_version=tf.train.SaverDef.V2)
         model = self.models
         self._init_session(
             option=init_option, saver=saver, working_dir=working_dir,
@@ -723,7 +731,9 @@ class NIGLearner(Learner):
                                for _ in self.models]
         combined_model_callbacks = _process_callbacks(combined_model_callbacks)
         summary_writer = tf.train.SummaryWriter(working_dir, self.graph)
-        saver = tf.train.Saver(restore_sequentially=restore_sequentially)
+        saver = tf.train.Saver(
+            restore_sequentially=restore_sequentially,
+            write_version=tf.train.SaverDef.V2)
         self._init_session(
             option=init_option, saver=saver, working_dir=working_dir,
             ckpt_file_prefix=ckpt_file_prefix)
