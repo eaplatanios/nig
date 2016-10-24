@@ -22,29 +22,22 @@ __all__ = ['roll_axis']
 
 
 def roll_axis(tensor, axis, target=0):
-    """Rolls the specified axis backwards, until it lies in the provided
-    position. The positions of the other axes do not change relative to one
-    another.
+    """Rolls the specified axis, until it lies in the provided position. The
+    positions of the other axes do not change relative to one another.
 
     Args:
         tensor (tf.Tensor): Tensor whose axis to roll.
-        axis (int): Index of the axis to roll backwards.
+        axis (int): Index of the axis to roll.
         target (int, optional): Optional target axis index. The axis is rolled
             until it lies at this position. Defaults to `0`, resulting in a
             "complete" roll.
 
-    Notes:
-        This method replicates the functionality of the respective method in
-        numpy. More information about that method can be found at:
-        https://docs.scipy.org/doc/numpy/reference/generated/numpy.rollaxis.html
-
     Returns:
         tf.Tensor: Tensor with rolled axes.
     """
+    if axis == target:
+        return tensor
     rank = tf.rank(tensor)
-    # ndims = tensor.get_shape().ndims
-    # if ndims is None:
-    #     raise ValueError('Could not infer the tensor rank.')
     if axis < 0:
         axis = rank + axis
     else:
@@ -53,18 +46,18 @@ def roll_axis(tensor, axis, target=0):
         target = rank + target
     else:
         target = tf.constant(target)
-    # TODO: Raise informative exception in case of invalid arguments.
-    # if not (0 <= axis < rank):
-    #     raise ValueError('roll_axis: axis (%d) must be >= 0 and < %d.'
-    #                      % (axis, rank))
-    # if not (0 <= target < rank + 1):
-    #     raise ValueError('roll_axis: start (%d) must be >= 0 and < %d.'
-    #                      % (target, rank + 1))
-    target = tf.cond(axis < target, lambda: target - 1, lambda: target)
 
-    def _roll_axis():
-        perm = [axis[None], tf.range(0, axis), tf.range(axis + 1, rank)]
-        perm = tf.concat(concat_dim=0, values=perm)
-        return tf.transpose(tensor, perm=perm)
+    def _roll_forward():
+        return tf.concat(
+            concat_dim=0, values=[tf.range(0, axis),
+                                  tf.range(axis + 1, target + 1), axis[None],
+                                  tf.range(target + 1, rank)])
 
-    return tf.cond(tf.equal(axis, target), lambda: tensor, _roll_axis)
+    def _roll_backward():
+        return tf.concat(
+            concat_dim=0, values=[tf.range(0, target), axis[None],
+                                  tf.range(target, axis),
+                                  tf.range(axis + 1, rank)])
+
+    perm = tf.cond(axis < target, _roll_forward, _roll_backward)
+    return tf.transpose(tensor, perm=perm)
