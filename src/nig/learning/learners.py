@@ -27,6 +27,8 @@ from six import with_metaclass
 
 from .models import Model, CombinedModel
 from ..data.iterators import get_iterator
+from ..evaluation.constraints import MutualExclusionConstraint
+from ..evaluation.integrators import LogicIntegrator
 from ..math.statistics.cross_validation import KFold
 from ..utilities.functions import memoize
 from ..utilities.tensorflow import graph_context
@@ -112,14 +114,21 @@ class Learner(with_metaclass(abc.ABCMeta, object)):
                 return False
         return True
 
-    def _init_session(self, option, saver, working_dir, ckpt_file_prefix):
+    def _init_session(self, option, saver, working_dir, ckpt_file_prefix,
+                      feed_dict=None):
         if option is None:
             option = False
+        if feed_dict is None:
+            feed_dict = dict()
         if isinstance(option, bool):
             if option:
                 if self.session is None:
                     self.session = tf.Session()
-                self.session.run(tf.initialize_all_variables())
+                self.session.run(
+                    fetches=tf.initialize_variables(tf.trainable_variables()),
+                    feed_dict=feed_dict)
+                self.session.run(
+                    fetches=tf.initialize_all_variables(), feed_dict=feed_dict)
             elif self.session is None:
                 raise ValueError('When the initialization option is a boolean '
                                  'value set to `False`, a session needs to be '
@@ -193,13 +202,14 @@ class Learner(with_metaclass(abc.ABCMeta, object)):
                 predictions = np.concatenate([predictions, batch], axis=0)
             return predictions
         outputs_ops = self._postprocessed_output_ops()
-        saver = tf.train.Saver(restore_sequentially=restore_sequentially)
+        saver = tf.train.Saver(
+            restore_sequentially=restore_sequentially,
+            write_version=tf.train.SaverDef.V2)
+        feed_dict = self.combined_model.get_feed_dict(data, is_train=False)
         self._init_session(
             option=ckpt, saver=saver, working_dir=working_dir,
-            ckpt_file_prefix=ckpt_file_prefix)
-        return self.session.run(
-            outputs_ops,
-            self.combined_model.get_feed_dict(data, is_train=False))
+            ckpt_file_prefix=ckpt_file_prefix, feed_dict=feed_dict)
+        return self.session.run(fetches=outputs_ops, feed_dict=feed_dict)
 
     @graph_context
     def predict_iterator(self, data, pipelines=None, yield_input_data=False,
@@ -207,13 +217,18 @@ class Learner(with_metaclass(abc.ABCMeta, object)):
                          ckpt_file_prefix='ckpt', restore_sequentially=False):
         data = get_iterator(data=data, pipelines=pipelines, cycle=False)
         outputs_ops = self._postprocessed_output_ops()
-        saver = tf.train.Saver(restore_sequentially=restore_sequentially)
-        self._init_session(
-            option=ckpt, saver=saver, working_dir=working_dir,
-            ckpt_file_prefix=ckpt_file_prefix)
+        saver = tf.train.Saver(
+            restore_sequentially=restore_sequentially,
+            write_version=tf.train.SaverDef.V2)
+        is_first_batch = True
         for data_batch in data:
             feed_dict = self.combined_model.get_feed_dict(
                 data_batch, is_train=False)
+            if is_first_batch:
+                self._init_session(
+                    option=ckpt, saver=saver, working_dir=working_dir,
+                    ckpt_file_prefix=ckpt_file_prefix, feed_dict=feed_dict)
+            is_first_batch = False
             if not yield_input_data:
                 yield self.session.run(outputs_ops, feed_dict)
             else:
@@ -270,19 +285,21 @@ class SimpleLearner(Learner):
             data=data, batch_size=batch_size, cycle=True, pipelines=pipelines)
         callbacks = _process_callbacks(callbacks)
         summary_writer = tf.train.SummaryWriter(working_dir, self.graph)
-        saver = tf.train.Saver(restore_sequentially=restore_sequentially)
+        saver = tf.train.Saver(
+            restore_sequentially=restore_sequentially,
+            write_version=tf.train.SaverDef.V2)
         model = self.models
+        data_batch = data.next()
+        feed_dict = model.get_feed_dict(data_batch, is_train=True)
         self._init_session(
             option=init_option, saver=saver, working_dir=working_dir,
-            ckpt_file_prefix=ckpt_file_prefix)
+            ckpt_file_prefix=ckpt_file_prefix, feed_dict=feed_dict)
         for callback in callbacks:
             callback.initialize(self, model, None, working_dir, summary_writer)
         prev_loss = sys.float_info.max
         iter_below_tol = 0
         step = 0
         while True:
-            data_batch = data.next()
-            feed_dict = model.get_feed_dict(data_batch, is_train=True)
             _, loss = self.session.run(
                 fetches=[model.train_op, model.loss], feed_dict=feed_dict)
             for callback in callbacks:
@@ -299,6 +316,8 @@ class SimpleLearner(Learner):
             if step >= max_iter - 1:
                 logger.info('Maximum number of iterations reached.')
                 break
+            data_batch = data.next()
+            feed_dict = model.get_feed_dict(data_batch, is_train=True)
             step += 1
             prev_loss = loss
             self.train_iteration += 1
@@ -315,14 +334,16 @@ class SimpleLearner(Learner):
             data=data, batch_size=None, cycle=True, pipelines=pipelines)
         callbacks = _process_callbacks(callbacks)
         summary_writer = tf.train.SummaryWriter(working_dir, self.graph)
-        saver = tf.train.Saver(restore_sequentially=restore_sequentially)
+        saver = tf.train.Saver(
+            restore_sequentially=restore_sequentially,
+            write_version=tf.train.SaverDef.V2)
         model = self.models
+        feed_dict = model.get_feed_dict(data.next(), is_train=True)
         self._init_session(
             option=init_option, saver=saver, working_dir=working_dir,
-            ckpt_file_prefix=ckpt_file_prefix)
+            ckpt_file_prefix=ckpt_file_prefix, feed_dict=feed_dict)
         for callback in callbacks:
             callback.initialize(self, model, None, working_dir, summary_writer)
-        feed_dict = model.get_feed_dict(data.next(), is_train=True)
 
         def _step_callback():
             """Returns a step callback function for the TensorFlow external
@@ -454,7 +475,8 @@ class ValidationSetLearner(Learner):
         if save_trained:
             with self.best_learner.graph.as_default():
                 saver = tf.train.Saver(
-                    restore_sequentially=restore_sequentially)
+                    restore_sequentially=restore_sequentially,
+                    write_version=tf.train.SaverDef.V2)
             Learner._save_checkpoint(
                 session=self.best_learner.session, saver=saver,
                 working_dir=working_dir, file_prefix=ckpt_file_prefix,
@@ -652,29 +674,39 @@ class NIGLearner(Learner):
             predict_postprocess=predict_postprocess)
         if self.trainable:
             self.consensus_loss_weight = consensus_loss_weight
-            with self.graph.as_default():
+            with self.graph.as_default(), tf.name_scope('nig_learner'):
+                self.num_models = len(self.models)
+                num_outputs = tf.shape(self.models[0].outputs)[1]
+                initial_trust = tf.constant(
+                    value=np.eye(self.num_models), name='initial_trust',
+                    dtype=tf.float32)
+                initial_trust = tf.reshape(
+                    initial_trust, shape=[1, self.num_models, self.num_models])
+                initial_trust = tf.tile(
+                    initial_trust, multiples=[num_outputs, 1, 1])
                 self.trust = tf.Variable(
-                    initial_value=np.eye(len(self.models)), trainable=False,
-                    name='trust', dtype=tf.float32)
-                consensus_losses = NIGLearner._consensus_losses(
-                    models=self.models, trust=self.trust,
-                    consensus_loss_weight=self.consensus_loss_weight)
+                    initial_value=initial_trust, trainable=False,
+                    validate_shape=False, name='trust', dtype=tf.float32)
+                consensus_losses = self._consensus_losses()
                 for m in range(len(self.models)):
                     self.models[m] = self.models[m].update_loss(
                         loss=self.models[m].loss + consensus_losses[m],
                         graph=self.graph)
 
-    @staticmethod
-    def _consensus_losses(models, trust, consensus_loss_weight):
-        num_models = len(models)
+    def _consensus_losses(self):
+        num_models = len(self.models)
         # TODO: Need to deal with other model outputs formats.
-        outputs = tf.pack([model.outputs for model in models], axis=1)
-        r = tf.reduce_sum(outputs * outputs, reduction_indices=[2])
-        r = tf.reshape(r, [-1, num_models, 1])
-        D = r - 2 * tf.batch_matmul(outputs, tf.transpose(outputs, perm=[0, 2, 1])) + tf.transpose(r, perm=[0, 2, 1])
-        # D = r - 2 * tf.einsum('ijk,ilk->ijl', outputs, outputs) + tf.transpose(r, perm=[0, 2, 1])
-        loss = tf.einsum('ijk,kj->j', D, trust)
-        return tf.unpack(consensus_loss_weight * loss, axis=0)
+        outputs = tf.pack([model.outputs for model in self.models], axis=-1)
+        outputs = tf.expand_dims(outputs, dim=-1)
+        outputs = tf.tile(outputs, multiples=[1, 1, 1, num_models])
+        disagreement = outputs - tf.transpose(outputs, perm=[0, 1, 3, 2])
+        disagreement = tf.square(disagreement)
+        trust = tf.reshape(self.trust, [-1, num_models, num_models])
+        loss = tf.einsum('ijkl,jlk->k', disagreement, trust)
+        loss /= tf.reduce_prod(
+            tf.cast(tf.shape(disagreement), dtype=tf.float32)[:-1])
+        loss = tf.reshape(loss, [num_models])
+        return tf.unpack(self.consensus_loss_weight * loss, axis=0)
 
     def copy(self, new_graph=True):
         return NIGLearner(
@@ -696,7 +728,8 @@ class NIGLearner(Learner):
     def train(self, data, pipelines=None, init_option=-1,
               per_model_callbacks=None, combined_model_callbacks=None,
               working_dir=os.getcwd(), ckpt_file_prefix='ckpt',
-              restore_sequentially=False, save_trained=False):
+              restore_sequentially=False, save_trained=False,
+              labeled_data=None, unlabeled_data=None, unlabeled_pipelines=None):
         if not self.trainable:
             raise ValueError('At least one of the models is not trainable.')
         models = self.models
@@ -716,14 +749,29 @@ class NIGLearner(Learner):
             for model in models]
         data = get_iterator(
             data=data, batch_size=batch_size, cycle=True, pipelines=pipelines)
+        if labeled_data is None:
+            labeled_data = get_iterator(
+                data=data, cycle=True, pipelines=pipelines)
+        else:
+            labeled_data = get_iterator(
+                data=labeled_data, cycle=True, pipelines=pipelines)
+        if unlabeled_data is not None:
+            if unlabeled_pipelines is None:
+                unlabeled_pipelines = pipelines
+            unlabeled_data = get_iterator(
+                data=unlabeled_data, cycle=True, pipelines=unlabeled_pipelines)
         per_model_callbacks = [_process_callbacks(per_model_callbacks)
                                for _ in self.models]
         combined_model_callbacks = _process_callbacks(combined_model_callbacks)
         summary_writer = tf.train.SummaryWriter(working_dir, self.graph)
-        saver = tf.train.Saver(restore_sequentially=restore_sequentially)
+        saver = tf.train.Saver(
+            restore_sequentially=restore_sequentially,
+            write_version=tf.train.SaverDef.V2)
+        data_batch = data.next()
+        feed_dict = self._get_feed_dict(data_batch, is_train=True)
         self._init_session(
             option=init_option, saver=saver, working_dir=working_dir,
-            ckpt_file_prefix=ckpt_file_prefix)
+            ckpt_file_prefix=ckpt_file_prefix, feed_dict=feed_dict)
         for m, callbacks in enumerate(per_model_callbacks):
             for callback in callbacks:
                 callback.initialize(
@@ -738,9 +786,10 @@ class NIGLearner(Learner):
         iter_below_tol = [0] * len(models)
         step = 0
         while True:
-            data_batch = data.next()
             # TODO: Add trust estimation and update here.
-            feed_dict = self._get_feed_dict(data_batch, is_train=True)
+            if step >= 100 and (step - 100) % 100 == 0:
+                self.update_trust(self._estimate_trust(
+                    labeled_data=labeled_data, unlabeled_data=unlabeled_data))
             fetches = [[models[m].train_op, models[m].loss]
                        for m in untrained_models]
             run_outputs = self.session.run(fetches=fetches, feed_dict=feed_dict)
@@ -774,16 +823,113 @@ class NIGLearner(Learner):
             if len(untrained_models) == 0:
                 logger.info('All models have finished training.')
                 break
+            data_batch = data.next()
+            feed_dict = self._get_feed_dict(data_batch, is_train=True)
             step += 1
         if save_trained:
             Learner._save_checkpoint(
                 session=self.session, saver=saver, working_dir=working_dir,
                 file_prefix=ckpt_file_prefix, step=step)
 
+    def _estimate_error_rates(self, labeled_data=None, unlabeled_data=None,
+                              integrate_data=True, integrator=None,
+                              jvm_options=None, return_predictions=False):
+        if integrator is None:
+            integrator = LogicIntegrator()
+        if jvm_options is None:
+            jvm_options = ['-Xmx12G']
+        predicted_instances = []
+        observed_instances = []
+        model_predictions = []
+        if labeled_data is not None:
+            labeled_fetches = [[model.outputs, model.train_outputs]
+                               for model in self.models]
+            labeled_feed_dict = self._get_feed_dict(
+                data=labeled_data.next(), is_train=True)
+            outputs = self.session.run(
+                fetches=labeled_fetches, feed_dict=labeled_feed_dict)
+            for m, output in enumerate(outputs):
+                if return_predictions:
+                    model_predictions.append(output[0])
+                for index, p in np.ndenumerate(output[0]):
+                    predicted_instances.append(
+                        (index[0], index[1], m, np.exp(p)))
+                if m == 0:
+                    if len(output[1].shape) > 1 and output[1].shape[1] > 1:
+                        for index, l in np.ndenumerate(output[1]):
+                            observed_instances.append((index[0], index[1], l))
+                    else:
+                        for index, l in np.ndenumerate(output[1]):
+                            for label_id in range(output[0].shape[1]):
+                                observed_instances.append(
+                                    (index[0], label_id, l))
+        index_offset = max(p[0] for p in predicted_instances) + 1
+        if unlabeled_data is not None:
+            unlabeled_fetches = [model.outputs for model in self.models]
+            unlabeled_feed_dict = self._get_feed_dict(
+                data=unlabeled_data.next(), is_train=False)
+            outputs = self.session.run(
+                fetches=unlabeled_fetches, feed_dict=unlabeled_feed_dict)
+            for m, output in enumerate(outputs):
+                if return_predictions:
+                    model_predictions[m] = np.concatenate(
+                        [model_predictions[m], output], axis=0)
+                for index, p in np.ndenumerate(output):
+                    predicted_instances.append(
+                        (index[0] + index_offset, index[1], m, np.exp(p)))
+        # TODO: Fix this hack.
+        constraints = MutualExclusionConstraint([str(l) for l in range(10)])
+        results = integrator.run(
+            predicted=predicted_instances, observed=observed_instances,
+            constraints=constraints, integrate_data=integrate_data,
+            use_cli=False, jvm_options=jvm_options)
+        predictions = np.stack(model_predictions, axis=0)
+        if return_predictions and integrate_data:
+            error_rates, integrated_data = results
+            consensus = np.zeros(predictions.shape[1:])
+            for instance in integrated_data:
+                consensus[instance[0], int(instance[1])] = instance[2]
+            results = error_rates, integrate_data, predictions, consensus
+        elif return_predictions and not integrate_data:
+            results = results, predictions
+        return results
+
+    def _estimate_trust(self, labeled_data=None, unlabeled_data=None,
+                        integrator=None, jvm_options=None):
+        error_rates, integrate_data, predictions, consensus = \
+            self._estimate_error_rates(
+                labeled_data=labeled_data, unlabeled_data=unlabeled_data,
+                integrate_data=True, integrator=integrator,
+                jvm_options=jvm_options, return_predictions=True)
+        trust_shape = self.session.run(tf.shape(self.trust))
+        trust = np.zeros(shape=trust_shape)
+        method = 'consensus_biased'
+        if method == 'uniform':
+            for error_rate in error_rates:
+                label = int(error_rate[0])
+                trust[label, :, error_rate[1]] = error_rate[2]
+            trust = -np.log(trust)
+            trust -= np.min(trust, axis=2, keepdims=True)
+            trust /= np.max(trust, axis=2, keepdims=True)
+            # trust = 1 - trust
+        elif method == 'consensus_biased':
+            bias = 0.5
+            consensus = np.tile(consensus[None], reps=[self.num_models, 1, 1])
+            consensus = bias * predictions + (1 - bias) * consensus
+            consensus = np.transpose(consensus, [2, 0, 1])[:, None, :, :]
+            predictions = np.transpose(predictions, [2, 0, 1])[:, :, None, :]
+            consensus = np.tile(consensus, [1, self.num_models, 1, 1])
+            predictions = np.tile(predictions, [1, 1, self.num_models, 1])
+            agreement = np.square(predictions - consensus)
+            agreement = 1 - np.sum(agreement, axis=-1)
+            trust = agreement
+        logger.info(np.mean(trust, axis=1))
+        return trust
+
     @property
     @memoize
     def combined_model(self):
         return CombinedModel(
             models=self.models,
-            weights=tf.reduce_mean(self.trust, reduction_indices=[0]),
+            weights=tf.reduce_mean(self.trust, reduction_indices=[1]),
             graph=self.graph)
