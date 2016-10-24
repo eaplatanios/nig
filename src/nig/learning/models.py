@@ -28,6 +28,8 @@ from ..utilities.tensorflow import graph_context, copy_op_to_graph, \
 
 __author__ = 'eaplatanios'
 
+__all__ = ['Model', 'CombinedModel']
+
 __TENSORS_DIFFERENT_GRAPHS_ERROR__ = 'All tensors should be in the same graph.'
 __SUPPORTED_INTERNAL_OPTIMIZER_OPTS__ = {
     'batch_size', 'max_iter', 'abs_loss_chg_tol', 'rel_loss_chg_tol',

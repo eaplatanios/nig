@@ -23,6 +23,9 @@ from nig.utilities.functions import PipelineFunction
 
 __author__ = 'eaplatanios'
 
+__all__ = ['Converter', 'TupleToDictConverter', 'ListToNPArrayConverter',
+           'PDSeriesToNPConverter', 'PDDataFrameToNPConverter']
+
 
 class Converter(with_metaclass(abc.ABCMeta, PipelineFunction)):
     """A :class:`Converter` receives some data as input and provides a function

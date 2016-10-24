@@ -15,18 +15,20 @@ __author__ = 'eaplatanios'
 
 logger = logging.getLogger(__name__)
 
-use_one_hot_encoding = False
-architectures = [[5], [16, 32, 16]]
+use_one_hot_encoding = True
+architectures = [[5], [16, 32, 16], [128, 64, 32], [256, 128, 64, 32]]
 activation = tf.nn.relu
 batch_size = 100
-max_iter = 1000
+labeled_batch_size = 1000
+unlabeled_batch_size = 1000
+max_iter = 10000
 abs_loss_chg_tol = 1e-10
 rel_loss_chg_tol = 1e-6
 loss_chg_iter_below_tol = 5
-logging_frequency = 100
+logging_frequency = 10
 summary_frequency = 100
 checkpoint_frequency = 1000
-evaluation_frequency = 500
+evaluation_frequency = 100
 working_dir = os.path.join(os.getcwd(), 'run')
 checkpoint_file_prefix = 'ckpt'
 restore_sequentially = False
@@ -51,7 +53,7 @@ if use_one_hot_encoding:
     labels_pipeline = labels_pipeline | DataTypeEncoder(np.int8) | OneHotEncoder(10)
 
 
-def get_iterator(mnist_data, include_labels=True):
+def _get_iterator(mnist_data, include_labels=True):
     pipelines = [inputs_pipeline]
     if include_labels:
         pipelines.append(labels_pipeline)
@@ -81,13 +83,13 @@ callbacks = [
     CheckpointWriterCallback(
         frequency=checkpoint_frequency, file_prefix=checkpoint_file_prefix),
     EvaluationCallback(
-        frequency=evaluation_frequency, data=get_iterator(train_data),
+        frequency=evaluation_frequency, data=_get_iterator(train_data),
         metrics=eval_metric, name='eval/train'),
     EvaluationCallback(
-        frequency=evaluation_frequency, data=get_iterator(val_data),
+        frequency=evaluation_frequency, data=_get_iterator(val_data),
         metrics=eval_metric, name='eval/val'),
     EvaluationCallback(
-        frequency=evaluation_frequency, data=get_iterator(test_data),
+        frequency=evaluation_frequency, data=_get_iterator(test_data),
         metrics=eval_metric, name='eval/test')]
 
 # learner = SimpleLearner(
@@ -95,14 +97,23 @@ callbacks = [
 learner = NIGLearner(
     models=models, predict_postprocess=lambda l: tf.argmax(l, 1))
 
+labeled_data = get_iterator(
+    data=np.concatenate([train_data, val_data], axis=0),
+    batch_size=labeled_batch_size, shuffle=True, cycle=True, cycle_shuffle=True,
+    pipelines=[inputs_pipeline, labels_pipeline])
+unlabeled_data = get_iterator(
+    data=test_data, batch_size=unlabeled_batch_size, shuffle=True, cycle=True,
+    cycle_shuffle=True, pipelines=[inputs_pipeline])
+
 learner.train(
     data=train_data, pipelines=[inputs_pipeline, labels_pipeline],
-    init_option=True, per_model_callbacks=callbacks,
+    init_option=True, per_model_callbacks=None,
     combined_model_callbacks=callbacks, working_dir=working_dir,
     ckpt_file_prefix=checkpoint_file_prefix,
-    restore_sequentially=restore_sequentially, save_trained=save_trained)
+    restore_sequentially=restore_sequentially, save_trained=save_trained,
+    labeled_data=labeled_data, unlabeled_data=unlabeled_data)
 test_predictions = learner.predict(
-    get_iterator(test_data, False), ckpt=-1, working_dir=working_dir,
+    _get_iterator(test_data, False), ckpt=-1, working_dir=working_dir,
     ckpt_file_prefix=checkpoint_file_prefix)
 test_truth = test_data[:, -1]
 logger.info(np.mean(test_predictions == test_truth))

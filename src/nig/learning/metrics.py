@@ -21,6 +21,10 @@ from six import with_metaclass
 
 __author__ = 'eaplatanios'
 
+__all__ = ['Metric', 'CrossEntropyOneHotEncodingMetric',
+           'CrossEntropyIntegerEncodingMetric', 'AccuracyOneHotEncodingMetric',
+           'AccuracyIntegerEncodingMetric']
+
 
 class Metric(with_metaclass(abc.ABCMeta, object)):
     @abc.abstractmethod

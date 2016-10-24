@@ -24,6 +24,9 @@ from .generic import elapsed_timer
 
 __author__ = 'eaplatanios'
 
+__all__ = ['identity', 'compose', 'pipe', 'memoize', 'time', 'pipeline',
+           'PipelineFunction']
+
 logger = logging.getLogger(__name__)
 
 

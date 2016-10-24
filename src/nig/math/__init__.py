@@ -13,3 +13,12 @@
 # the License.
 
 from __future__ import absolute_import, division, print_function
+
+from . import statistics
+
+from .statistics import *
+
+__author__ = 'eaplatanios'
+
+__all__ = ['statistics']
+__all__.extend(statistics.__all__)

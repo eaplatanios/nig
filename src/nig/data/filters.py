@@ -23,6 +23,9 @@ from nig.utilities.functions import PipelineFunction
 
 __author__ = 'eaplatanios'
 
+__all__ = ['Filter', 'NPFilter', 'TFFilterMixin', 'NPAnyNaNFilter', 'PDFilter',
+           'PDDataFrameAnyNaNFilter']
+
 
 class Filter(with_metaclass(abc.ABCMeta, PipelineFunction)):
     """A :class:`Filter` receives some data as input and provides a function

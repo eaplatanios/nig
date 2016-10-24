@@ -18,6 +18,34 @@ import logging.config
 import os
 import yaml
 
+from . import data
+from . import evaluation
+from . import learning
+from . import math
+from . import models
+from . import ops
+from . import utilities
+
+from .data import *
+from .evaluation import *
+from .learning import *
+from .math import *
+from .models import *
+from .ops import *
+from .utilities import *
+
+__author__ = 'eaplatanios'
+
+__all__ = ['data', 'evaluation', 'learning', 'math', 'models', 'ops',
+           'utilities']
+__all__.extend(data.__all__)
+__all__.extend(evaluation.__all__)
+__all__.extend(learning.__all__)
+__all__.extend(math.__all__)
+__all__.extend(models.__all__)
+__all__.extend(ops.__all__)
+__all__.extend(utilities.__all__)
+
 __logging_config_path = os.path.join(os.path.dirname(__file__), 'logging.yaml')
 if os.path.exists(__logging_config_path):
     with open(__logging_config_path, 'rt') as f:
@@ -25,14 +53,3 @@ if os.path.exists(__logging_config_path):
     logging.config.dictConfig(config)
 else:
     logging.getLogger('').addHandler(logging.NullHandler())
-
-from . import data
-from . import evaluation
-from . import learning
-from . import math
-from . import models
-from . import utilities
-
-__author__ = 'eaplatanios'
-
-__all__ = ['data', 'evaluation', 'learning', 'math', 'models', 'utilities']

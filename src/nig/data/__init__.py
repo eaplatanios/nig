@@ -14,4 +14,25 @@
 
 from __future__ import absolute_import, division, print_function
 
-__all__ = ['converters', 'filters', 'iterators', 'processors']
+from . import loaders
+from . import converters
+from . import filters
+from . import iterators
+from . import processors
+from . import utilities
+
+from .converters import *
+from .filters import *
+from .iterators import *
+from .processors import *
+from .utilities import *
+
+__author__ = 'eaplatanios'
+
+__all__ = ['loaders', 'converters', 'filters', 'iterators', 'processors',
+           'utilities']
+__all__.extend(converters.__all__)
+__all__.extend(filters.__all__)
+__all__.extend(iterators.__all__)
+__all__.extend(processors.__all__)
+__all__.extend(utilities.__all__)

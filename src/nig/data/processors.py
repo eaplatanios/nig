@@ -24,6 +24,9 @@ from nig.utilities.functions import PipelineFunction
 
 __author__ = 'eaplatanios'
 
+__all__ = ['Processor', 'ColumnsExtractor', 'DataTypeEncoder', 'ReshapeEncoder',
+           'OneHotEncoder', 'OneHotDecoder']
+
 __UNSUPPORTED_DATA_TYPE_ERROR__ = 'Unsupported data type %s for processor.'
 
 

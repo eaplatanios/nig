@@ -13,3 +13,21 @@
 # the License.
 
 from __future__ import absolute_import, division, print_function
+
+from . import functions
+from . import generic
+from . import iterators
+from . import tensorflow
+
+from .functions import *
+from .generic import *
+from .iterators import *
+from .tensorflow import *
+
+__author__ = 'eaplatanios'
+
+__all__ = ['functions', 'generic', 'iterators', 'tensorflow']
+__all__.extend(functions.__all__)
+__all__.extend(generic.__all__)
+__all__.extend(iterators.__all__)
+__all__.extend(tensorflow.__all__)

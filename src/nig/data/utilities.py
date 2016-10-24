@@ -19,6 +19,8 @@ import six.moves.cPickle as pickle
 
 __author__ = 'eaplatanios'
 
+__all__ = ['serialize_data', 'deserialize_data']
+
 logger = logging.getLogger(__name__)
 
 

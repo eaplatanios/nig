@@ -27,9 +27,25 @@ from .constraints import Constraint
 
 __author__ = 'eaplatanios'
 
-logger = logging.getLogger(__name__)
+__all__ = ['silently_remove', 'Integrator', 'MajorityVoteIntegrator',
+           'AgreementIntegrator', 'BayesianIntegrator',
+           'CoupledBayesianIntegrator', 'HierarchicalCoupledBayesianIntegrator',
+           'LogicIntegrator', 'save_error_rates', 'load_error_rates',
+           'save_error_rates_to_protobin', 'load_error_rates_from_protobin',
+           'save_error_rates_to_csv', 'load_error_rates_from_csv',
+           'save_predicted_instances', 'load_predicted_instances',
+           'save_predicted_instances_to_protobin',
+           'load_predicted_instances_from_protobin',
+           'save_predicted_instances_to_csv',
+           'load_predicted_instances_from_csv', 'save_observed_instances',
+           'load_observed_instances', 'save_observed_instances_to_protobin',
+           'load_observed_instances_from_protobin',
+           'save_observed_instances_to_csv', 'load_observed_instances_from_csv',
+           'get_filename_extension', 'save_constraints', 'load_constraints']
 
 _builder_format = 'makina.learn.classification.reflection.{}$Builder'.format
+
+logger = logging.getLogger(__name__)
 
 
 def silently_remove(filename):

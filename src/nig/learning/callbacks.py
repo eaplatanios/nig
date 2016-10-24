@@ -27,6 +27,11 @@ from ..data.iterators import get_iterator
 
 __author__ = 'eaplatanios'
 
+__all__ = ['Callback', 'LoggerCallback', 'SummaryWriterCallback',
+           'VariableStatisticsSummaryWriterCallback',
+           'RunMetaDataSummaryWriterCallback', 'CheckpointWriterCallback',
+           'EvaluationCallback']
+
 __CALLBACK_NOT_INITIALIZED_ERROR__ = 'The callback has not been initialized.'
 
 logger = logging.getLogger(__name__)
@@ -173,7 +178,7 @@ class VariableStatisticsSummaryWriterCallback(Callback):
         self._summary_writer.flush()
 
 
-class RunMetaDataSummaryWriter(Callback):
+class RunMetaDataSummaryWriterCallback(Callback):
     def __init__(self, frequency=1000, trace_level=tf.RunOptions.FULL_TRACE):
         """
 
@@ -188,14 +193,14 @@ class RunMetaDataSummaryWriter(Callback):
             only account for the computation required for the loss function and
             not the whole training update (i.e., the TensorFlow training op).
         """
-        super(RunMetaDataSummaryWriter, self).__init__(frequency)
+        super(RunMetaDataSummaryWriterCallback, self).__init__(frequency)
         self.trace_level = trace_level
         self._summary_writer = None
         self._model = None
         self._model_name = None
 
     def copy(self):
-        return RunMetaDataSummaryWriter(
+        return RunMetaDataSummaryWriterCallback(
             frequency=self.frequency, trace_level=self.trace_level)
 
     def initialize(self, learner, model, model_name, working_dir,
@@ -243,7 +248,8 @@ class CheckpointWriterCallback(Callback):
         if self._saver is None:
             self._saver = tf.train.Saver(
                 var_list=self.variable_list, max_to_keep=self.max_to_keep,
-                keep_checkpoint_every_n_hours=self.keep_ckpt_every_n_hours)
+                keep_checkpoint_every_n_hours=self.keep_ckpt_every_n_hours,
+                write_version=tf.train.SaverDef.V2)
             if self.working_dir is None:
                 self.working_dir = working_dir
 

@@ -60,7 +60,7 @@ def train(models, data, learner='SimpleLearner',
     callbacks += [
         LoggerCallback(frequency=logging_frequency),
         SummaryWriterCallback(frequency=summary_frequency),
-        RunMetaDataSummaryWriter(
+        RunMetaDataSummaryWriterCallback(
             frequency=metadata_frequency,
             trace_level=tf.RunOptions.FULL_TRACE),
         VariableStatisticsSummaryWriterCallback(
