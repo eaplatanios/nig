@@ -74,8 +74,6 @@ from tensorflow.python.ops.variables import Variable
 from tensorflow.python.client.session import Session
 from tensorflow.python.framework import ops
 
-__all__ = ["copy_op_to_graph", "copy_variable_to_graph", "get_copied_op"]
-
 
 def copy_variable_to_graph(org_instance, to_graph, scope=None):
     """Given a `Variable` instance from one `Graph`, initializes and returns
