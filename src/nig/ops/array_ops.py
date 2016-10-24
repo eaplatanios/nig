@@ -40,29 +40,31 @@ def roll_axis(tensor, axis, target=0):
 
     Returns:
         tf.Tensor: Tensor with rolled axes.
-
-    Raises:
-        ValueError: If the provided axis index or the provided target index is
-            outside the boundaries of the tensor dimensionality.
     """
-    ndims = tensor.get_shape().ndims
-    if ndims is None:
-        raise ValueError('Could not infer the tensor rank.')
+    rank = tf.rank(tensor)
+    # ndims = tensor.get_shape().ndims
+    # if ndims is None:
+    #     raise ValueError('Could not infer the tensor rank.')
     if axis < 0:
-        axis += ndims
+        axis = rank + axis
+    else:
+        axis = tf.constant(axis)
     if target < 0:
-        target += ndims
-    if not (0 <= axis < ndims):
-        raise ValueError('roll_axis: axis (%d) must be >= 0 and < %d.'
-                         % (axis, ndims))
-    if not (0 <= target < ndims + 1):
-        raise ValueError('roll_axis: start (%d) must be >= 0 and < %d.'
-                         % (target, ndims + 1))
-    if axis < target:
-        target -= 1
-    if axis == target:
-        return tensor
-    perm = list(range(0, ndims))
-    perm.remove(axis)
-    perm.insert(target, axis)
-    return tf.transpose(tensor, perm=perm)
+        target = rank + target
+    else:
+        target = tf.constant(target)
+    # TODO: Raise informative exception in case of invalid arguments.
+    # if not (0 <= axis < rank):
+    #     raise ValueError('roll_axis: axis (%d) must be >= 0 and < %d.'
+    #                      % (axis, rank))
+    # if not (0 <= target < rank + 1):
+    #     raise ValueError('roll_axis: start (%d) must be >= 0 and < %d.'
+    #                      % (target, rank + 1))
+    target = tf.cond(axis < target, lambda: target - 1, lambda: target)
+
+    def _roll_axis():
+        perm = [axis[None], tf.range(0, axis), tf.range(axis + 1, rank)]
+        perm = tf.concat(concat_dim=0, values=perm)
+        return tf.transpose(tensor, perm=perm)
+
+    return tf.cond(tf.equal(axis, target), lambda: tensor, _roll_axis)
