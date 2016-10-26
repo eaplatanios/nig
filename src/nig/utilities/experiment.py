@@ -15,6 +15,9 @@
 """Utility functions for running experiments efficiently."""
 from __future__ import absolute_import, division, print_function
 
+import tensorflow as tf
+
+from ..data.iterators import NPArrayIterator
 from ..learning.callbacks import *
 from ..learning.metrics import *
 from ..learning.learners import *
@@ -22,6 +25,16 @@ from ..learning.optimizers import *
 from ..utilities.generic import get_from_module
 
 __author__ = ['alshedivat']
+
+
+def get_iterator(data,
+                 batch_size=128,
+                 shuffle=False,
+                 cycle=False,
+                 cycle_shuffle=False,
+                 keep_last=True):
+    return NPArrayIterator(data, batch_size, shuffle=shuffle, cycle=cycle,
+                           cycle_shuffle=cycle_shuffle, keep_last=keep_last)
 
 
 def train(models, data, learner='SimpleLearner',
@@ -69,11 +82,11 @@ def train(models, data, learner='SimpleLearner',
             frequency=checkpoint_frequency, file_prefix=checkpoint_file_prefix),
         EvaluationCallback(
             frequency=evaluation_frequency,
-            data=get_iterator(data, pipelines=pipelines),
+            data=get_iterator(data),
             metrics=eval_metric, name='eval/train'),
         EvaluationCallback(
             frequency=evaluation_frequency,
-            data=get_iterator(validation_data, pipelines=pipelines),
+            data=get_iterator(validation_data),
             metrics=eval_metric, name='eval/valid')
     ]
 
@@ -82,9 +95,8 @@ def train(models, data, learner='SimpleLearner',
 
     # Train the learner
     learner.train(
-        data=data, pipelines=pipelines,
-        per_model_callbacks=callbacks,
-        combined_model_callbacks=callbacks,
+        data=data,
+        callbacks=callbacks,
         working_dir=working_dir,
         ckpt_file_prefix=checkpoint_file_prefix,
         restore_sequentially=restore_sequentially,

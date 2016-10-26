@@ -207,7 +207,7 @@ class Learner(with_metaclass(abc.ABCMeta, object)):
         outputs_ops = self._postprocessed_output_ops()
         saver = tf.train.Saver(
             restore_sequentially=restore_sequentially,
-            write_version=tf.train.SaverDef.V2)
+            write_version=tf.train.SaverDef.V1)
         feed_dict = self.combined_model.get_feed_dict(data, is_train=False)
         self._init_session(
             option=ckpt, saver=saver, working_dir=working_dir,
@@ -222,7 +222,7 @@ class Learner(with_metaclass(abc.ABCMeta, object)):
         outputs_ops = self._postprocessed_output_ops()
         saver = tf.train.Saver(
             restore_sequentially=restore_sequentially,
-            write_version=tf.train.SaverDef.V2)
+            write_version=tf.train.SaverDef.V1)
         is_first_batch = True
         for data_batch in data:
             feed_dict = self.combined_model.get_feed_dict(
@@ -290,7 +290,7 @@ class SimpleLearner(Learner):
         summary_writer = tf.train.SummaryWriter(working_dir, self.graph)
         saver = tf.train.Saver(
             restore_sequentially=restore_sequentially,
-            write_version=tf.train.SaverDef.V2)
+            write_version=tf.train.SaverDef.V1)
         model = self.models
         data_batch = data.next()
         feed_dict = model.get_feed_dict(data_batch, is_train=True)
@@ -339,7 +339,7 @@ class SimpleLearner(Learner):
         summary_writer = tf.train.SummaryWriter(working_dir, self.graph)
         saver = tf.train.Saver(
             restore_sequentially=restore_sequentially,
-            write_version=tf.train.SaverDef.V2)
+            write_version=tf.train.SaverDef.V1)
         model = self.models
         feed_dict = model.get_feed_dict(data.next(), is_train=True)
         self._init_session(
@@ -398,7 +398,7 @@ class SimpleLearner(Learner):
 class ValidationSetLearner(Learner):
     """Used for training multiple models that have the same input and predict
     the same quantities, using a validation data set to pick the best model."""
-    def __init__(self, models, val_loss, session=None,
+    def __init__(self, models, val_loss=None, session=None,
                  predict_postprocess=None):
         super(ValidationSetLearner, self).__init__(
             models=models if isinstance(models, list) else [models],
@@ -427,8 +427,7 @@ class ValidationSetLearner(Learner):
             return learner
         with learner.graph.as_default():
             with tf.name_scope('val_loss'):
-                val_loss_op = self._val_loss[model_index](
-                    learner.models.outputs, learner.models.train_outputs)
+                val_loss_op = self._val_loss[model_index]
         return learner, val_loss_op
 
     def train(self, data, pipelines=None, val_data=None, init_option=-1,
@@ -479,7 +478,7 @@ class ValidationSetLearner(Learner):
             with self.best_learner.graph.as_default():
                 saver = tf.train.Saver(
                     restore_sequentially=restore_sequentially,
-                    write_version=tf.train.SaverDef.V2)
+                    write_version=tf.train.SaverDef.V1)
             Learner._save_checkpoint(
                 session=self.best_learner.session, saver=saver,
                 working_dir=working_dir, file_prefix=ckpt_file_prefix,
@@ -515,7 +514,7 @@ class ValidationSetLearner(Learner):
 class CrossValidationLearner(Learner):
     """Used for training multiple symbols that have the same input and predict
     the same quantities, using cross-validation to pick the best model."""
-    def __init__(self, models, val_loss, session=None,
+    def __init__(self, models, val_loss=None, session=None,
                  predict_postprocess=None):
         super(CrossValidationLearner, self).__init__(
             models=models if isinstance(models, list) else [models],
@@ -769,7 +768,7 @@ class NIGLearner(Learner):
         summary_writer = tf.train.SummaryWriter(working_dir, self.graph)
         saver = tf.train.Saver(
             restore_sequentially=restore_sequentially,
-            write_version=tf.train.SaverDef.V2)
+            write_version=tf.train.SaverDef.V1)
         data_batch = data.next()
         feed_dict = self._get_feed_dict(data_batch, is_train=True)
         self._init_session(

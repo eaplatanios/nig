@@ -249,7 +249,7 @@ class CheckpointWriterCallback(Callback):
             self._saver = tf.train.Saver(
                 var_list=self.variable_list, max_to_keep=self.max_to_keep,
                 keep_checkpoint_every_n_hours=self.keep_ckpt_every_n_hours,
-                write_version=tf.train.SaverDef.V2)
+                write_version=tf.train.SaverDef.V1)
             if self.working_dir is None:
                 self.working_dir = working_dir
 
