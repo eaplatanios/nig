@@ -404,10 +404,6 @@ class ValidationSetLearner(Learner):
             models=models if isinstance(models, list) else [models],
             new_graph=False, session=session,
             predict_postprocess=predict_postprocess)
-        if val_loss is None:
-            val_loss = [model.loss for model in self.models]
-        elif not isinstance(val_loss, list):
-            val_loss = [val_loss] * len(self.models)
         self._val_loss = val_loss
         self.best_model_index = 0
         self.best_learner = None
@@ -425,8 +421,10 @@ class ValidationSetLearner(Learner):
             predict_postprocess=self.predict_postprocess)
         if not add_val_loss_op:
             return learner
-        with learner.graph.as_default():
-            with tf.name_scope('val_loss'):
+        if self._val_loss is None:
+            val_loss_op = learner.models.loss
+        else:
+            with learner.graph.as_default(), tf.name_scope('val_loss'):
                 val_loss_op = self._val_loss[model_index](
                     learner.models.outputs, learner.models.train_outputs)
         return learner, val_loss_op
@@ -521,10 +519,6 @@ class CrossValidationLearner(Learner):
             models=models if isinstance(models, list) else [models],
             new_graph=False, session=session,
             predict_postprocess=predict_postprocess)
-        if val_loss is None:
-            val_loss = [model.loss for model in self.models]
-        elif not isinstance(val_loss, list):
-            val_loss = [val_loss] * len(self.models)
         self._val_loss = val_loss
         self.best_model_index = 0
         self.best_learner = None
@@ -543,8 +537,10 @@ class CrossValidationLearner(Learner):
             predict_postprocess=self.predict_postprocess)
         if not add_val_loss_op:
             return learner
-        with learner.graph.as_default():
-            with tf.name_scope('val_loss'):
+        if self._val_loss is None:
+            val_loss_op = learner.models.loss
+        else:
+            with learner.graph.as_default(), tf.name_scope('val_loss'):
                 val_loss_op = self._val_loss[model_index](
                     learner.models.outputs, learner.models.train_outputs)
         return learner, val_loss_op
