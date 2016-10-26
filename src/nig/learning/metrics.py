@@ -23,7 +23,7 @@ __author__ = 'eaplatanios'
 
 __all__ = ['Metric', 'CrossEntropyOneHotEncodingMetric',
            'CrossEntropyIntegerEncodingMetric', 'AccuracyOneHotEncodingMetric',
-           'AccuracyIntegerEncodingMetric']
+           'AccuracyIntegerEncodingMetric', 'HammingLossMetric']
 
 
 class Metric(with_metaclass(abc.ABCMeta, object)):
@@ -85,5 +85,18 @@ class AccuracyIntegerEncodingMetric(Metric):
     def evaluate(self, prediction, truth, name='accuracy'):
         metric = tf.nn.in_top_k(
             prediction, tf.to_int64(tf.squeeze(truth)), 1)
+        metric = tf.reduce_mean(tf.cast(metric, tf.float32), name=name)
+        return metric
+
+
+class HammingLossMetric(Metric):
+    """Standard Hamming loss."""
+    def __str__(self):
+        return 'hamming_loss'
+
+    def evaluate(self, prediction, truth, name='accuracy'):
+        preds = tf.nn.relu(tf.sign(prediction - tf.log(0.5)))
+        metric = tf.reduce_sum(tf.cast(tf.not_equal(preds, truth), tf.float32),
+                               reduction_indices=[1])
         metric = tf.reduce_mean(tf.cast(metric, tf.float32), name=name)
         return metric

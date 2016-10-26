@@ -32,7 +32,7 @@ def main():
                       'grads_processor': None}
 
     loss = CrossEntropyOneHotEncodingMetric()
-    eval_metric = AccuracyOneHotEncodingMetric()
+    eval_metric = HammingLossMetric()
 
     models = [MultiLabelMLP(
         train_data[0].shape[1], train_data[1].shape[1], architecture,
