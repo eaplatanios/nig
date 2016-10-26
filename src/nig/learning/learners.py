@@ -427,7 +427,8 @@ class ValidationSetLearner(Learner):
             return learner
         with learner.graph.as_default():
             with tf.name_scope('val_loss'):
-                val_loss_op = self._val_loss[model_index]
+                val_loss_op = self._val_loss[model_index](
+                    learner.models.outputs, learner.models.train_outputs)
         return learner, val_loss_op
 
     def train(self, data, pipelines=None, val_data=None, init_option=-1,
