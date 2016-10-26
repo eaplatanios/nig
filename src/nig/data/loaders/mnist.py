@@ -1,13 +1,25 @@
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+# Copyright 2016, The NIG Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may not
+# use this file except in compliance with the License. You may obtain a copy of
+# the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations under
+# the License.
+
+from __future__ import absolute_import, division, print_function
 
 import gzip
+import logging
 import numpy as np
 import os
 
-from nig.data.loaders import utilities
-from nig.utilities.generic import logger, raise_error
+from . import utilities
 
 __author__ = 'eaplatanios'
 
@@ -17,6 +29,8 @@ TRAIN_IMAGES = 'train-images-idx3-ubyte.gz'
 TRAIN_LABELS = 'train-labels-idx1-ubyte.gz'
 TEST_IMAGES = 't10k-images-idx3-ubyte.gz'
 TEST_LABELS = 't10k-labels-idx1-ubyte.gz'
+
+logger = logging.getLogger(__name__)
 
 
 def _read32(bytestream):
@@ -29,9 +43,8 @@ def extract_images(filename):
     with open(filename, 'rb') as f, gzip.GzipFile(fileobj=f) as bytestream:
         magic = _read32(bytestream)
         if magic != 2051:
-            raise_error(
-                ValueError, 'Invalid magic number %d in MNIST image file: %s' %
-                            (magic, filename))
+            raise ValueError('Invalid magic number %d in MNIST image file: %s.'
+                             % (magic, filename))
         num_images = _read32(bytestream)
         num_rows = _read32(bytestream)
         num_cols = _read32(bytestream)
@@ -46,9 +59,8 @@ def extract_labels(filename):
     with open(filename, 'rb') as f, gzip.GzipFile(fileobj=f) as bytestream:
         magic = _read32(bytestream)
         if magic != 2049:
-            raise_error(
-                ValueError, 'Invalid magic number %d in MNIST label file: %s' %
-                            (magic, filename))
+            raise ValueError('Invalid magic number %d in MNIST label file: %s.'
+                             % (magic, filename))
         num_items = _read32(bytestream)
         buffer = bytestream.read(num_items)
         labels = np.frombuffer(buffer, dtype=np.uint8)

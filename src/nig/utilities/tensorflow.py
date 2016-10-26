@@ -1,3 +1,41 @@
+# Copyright 2016, The NIG Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may not
+# use this file except in compliance with the License. You may obtain a copy of
+# the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations under
+# the License.
+
+from __future__ import absolute_import, division, print_function
+
+__author__ = 'eaplatanios'
+
+__all__ = ['graph_context', 'name_scope_context', 'copy_variable_to_graph',
+           'copy_op_to_graph', 'check_if_present', 'get_copied_op']
+
+
+def graph_context(func):
+    def func_wrapper(self, *args, **kwargs):
+        with self.graph.as_default():
+            return func(self, *args, **kwargs)
+    return func_wrapper
+
+
+def name_scope_context(func):
+    def func_wrapper(self, *args, **kwargs):
+        if self.name_scope is not None:
+            with tf.name_scope(self.name_scope):
+                return func(self, *args, **kwargs)
+        return func(self, *args, **kwargs)
+    return func_wrapper
+
+
 # TODO: Clean this up...A LOT...
 
 # Copyright 2015 The TensorFlow Authors. All Rights Reserved.
@@ -28,10 +66,6 @@ first graph inside a scope in the second graph.
 @@get_copied_op
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import itertools
 import tensorflow as tf
 
@@ -40,10 +74,8 @@ from tensorflow.python.ops.variables import Variable
 from tensorflow.python.client.session import Session
 from tensorflow.python.framework import ops
 
-__all__ = ["copy_op_to_graph", "copy_variable_to_graph", "get_copied_op"]
 
-
-def copy_variable_to_graph(org_instance, to_graph, scope=""):
+def copy_variable_to_graph(org_instance, to_graph, scope=None):
     """Given a `Variable` instance from one `Graph`, initializes and returns
     a copy of it from another `Graph`, under the specified scope
     (default `""`).
@@ -64,7 +96,7 @@ def copy_variable_to_graph(org_instance, to_graph, scope=""):
         raise TypeError(str(org_instance) + " is not a Variable")
 
     #The name of the new variable
-    if scope != "":
+    if scope is not None:
         new_name = (scope + '/' +
                     org_instance.name[:org_instance.name.index(':')])
     else:
@@ -79,7 +111,7 @@ def copy_variable_to_graph(org_instance, to_graph, scope=""):
         if org_instance in collection:
             if (name == ops.GraphKeys.VARIABLES or
                         name == ops.GraphKeys.TRAINABLE_VARIABLES or
-                        scope == ''):
+                        scope is None):
                 collections.append(name)
             else:
                 collections.append(scope + '/' + name)
@@ -104,7 +136,7 @@ def copy_variable_to_graph(org_instance, to_graph, scope=""):
 
 
 def copy_op_to_graph(org_instance, to_graph, variables, copy_summaries=False,
-                     scope=''):
+                     scope=None):
     """Given an `Operation` 'org_instance` from one `Graph`,
     initializes and returns a copy of it from another `Graph`,
     under the specified scope (default `""`).
@@ -130,7 +162,7 @@ def copy_op_to_graph(org_instance, to_graph, variables, copy_summaries=False,
         TypeError: If `org_instance` is not an `Operation` or `Tensor`.
     """
     #The name of the new instance
-    if scope != '':
+    if scope is not None:
         new_name = scope + '/' + org_instance.name
     else:
         new_name = org_instance.name
@@ -162,7 +194,7 @@ def copy_op_to_graph(org_instance, to_graph, variables, copy_summaries=False,
     collections = []
     for name, collection in org_instance.graph._collections.items():
         if org_instance in collection:
-            if scope == '':
+            if scope is None:
                 collections.append(name)
             else:
                 collections.append(scope + '/' + name)
@@ -279,7 +311,7 @@ def _copy_summaries(op, to_graph, variables, scope):
                         variables=variables, copy_summaries=True, scope=scope)
 
 
-def get_copied_op(org_instance, graph, scope=""):
+def get_copied_op(org_instance, graph, scope=None):
     """Given an `Operation` instance from some `Graph`, returns
     its namesake from `graph`, under the specified scope
     (default `""`).
@@ -297,7 +329,7 @@ def get_copied_op(org_instance, graph, scope=""):
     """
 
     #The name of the copied instance
-    if scope != '':
+    if scope is not None:
         new_name = scope + '/' + org_instance.name
     else:
         new_name = org_instance.name

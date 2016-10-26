@@ -1,6 +1,7 @@
 cython
 numpy
 pandas
+pyyaml
 six
 tensorflow
 -e git+https://github.com/kivy/pyjnius.git#egg=jnius-1.1-dev

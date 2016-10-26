@@ -1,9 +1,33 @@
+# Copyright 2016, The NIG Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may not
+# use this file except in compliance with the License. You may obtain a copy of
+# the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations under
+# the License.
+
+from __future__ import absolute_import, division, print_function
+
 import numpy as np
 import tensorflow as tf
+
 from math import pi
 
+__author__ = 'eaplatanios'
 
-def complex(name, shape, initializer=None):
+__all__ = ['complex_tensor', 'zero_complex', 'zero_complex_like',
+           'unit_complex', 'complex_magnitude', 'complex_mul_real',
+           'complex_normalize', 'complex_reflect', 'mod_relu',
+           'matmul_parameterized_unitary']
+
+
+def complex_tensor(name, shape, initializer=None):
     """Returns a new complex variable."""
     real = tf.get_variable(name + '_real', shape=shape, initializer=initializer)
     imag = tf.get_variable(name + '_imag', shape=shape, initializer=initializer)
@@ -83,7 +107,7 @@ def matmul_parameterized_unitary(inputs, scope=None):
     inputs_depth = shape[1]
     with tf.variable_scope(scope or 'matmul_parameterized_unitary'):
         d = [unit_complex(name='D_' + i, shape=[inputs_depth]) for i in '012']
-        r = [complex_normalize(complex(
+        r = [complex_normalize(complex_tensor(
             name='R_' + i, shape=[inputs_depth],
             initializer=tf.random_uniform_initializer(-1., 1.))) for i in '01']
         perm = tf.constant(

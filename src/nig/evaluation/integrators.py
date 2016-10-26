@@ -1,16 +1,51 @@
+# Copyright 2016, The NIG Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may not
+# use this file except in compliance with the License. You may obtain a copy of
+# the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations under
+# the License.
+
+from __future__ import absolute_import, division, print_function
+
 import abc
 import errno
+import logging
 import os
 import subprocess
+
 from six import with_metaclass
 
-from nig.evaluation.constraints import Constraint
-from nig.evaluation import integrator_pb2
-from nig.utilities.generic import logger
+from . import integrator_pb2
+from .constraints import Constraint
 
 __author__ = 'eaplatanios'
 
+__all__ = ['silently_remove', 'Integrator', 'MajorityVoteIntegrator',
+           'AgreementIntegrator', 'BayesianIntegrator',
+           'CoupledBayesianIntegrator', 'HierarchicalCoupledBayesianIntegrator',
+           'LogicIntegrator', 'save_error_rates', 'load_error_rates',
+           'save_error_rates_to_protobin', 'load_error_rates_from_protobin',
+           'save_error_rates_to_csv', 'load_error_rates_from_csv',
+           'save_predicted_instances', 'load_predicted_instances',
+           'save_predicted_instances_to_protobin',
+           'load_predicted_instances_from_protobin',
+           'save_predicted_instances_to_csv',
+           'load_predicted_instances_from_csv', 'save_observed_instances',
+           'load_observed_instances', 'save_observed_instances_to_protobin',
+           'load_observed_instances_from_protobin',
+           'save_observed_instances_to_csv', 'load_observed_instances_from_csv',
+           'get_filename_extension', 'save_constraints', 'load_constraints']
+
 _builder_format = 'makina.learn.classification.reflection.{}$Builder'.format
+
+logger = logging.getLogger(__name__)
 
 
 def silently_remove(filename):
@@ -37,6 +72,8 @@ class Integrator(with_metaclass(abc.ABCMeta, object)):
     def run(self, predicted, observed=None, constraints=None,
             integrate_data=False, seed=None, use_cli=False, working_dir='.',
             makina_jar=None, use_csv=False, clean_up=True, jvm_options=None):
+        if not isinstance(constraints, list):
+            constraints = [constraints]
         if makina_jar is None:
             evaluation_dir = os.path.dirname(__file__)
             makina_jar = os.path.join(evaluation_dir, 'makina.jar')
@@ -90,6 +127,8 @@ class Integrator(with_metaclass(abc.ABCMeta, object)):
              '-d', files['predicted'],
              '-e', files['error_rates'],
              '-m', self.name()])
+        if observed is not None:
+            cli_options.extend(['-od', files['observed']])
         if self.options():
             cli_options.extend(['-o', ':'.join(self.options())])
         if constraints is not None:
@@ -109,7 +148,7 @@ class Integrator(with_metaclass(abc.ABCMeta, object)):
             integrated = load_predicted_instances([], files['integrated'])
             result = (result, integrated)
         if clean_up:
-            for name in files.iterkeys():
+            for name in files.keys():
                 silently_remove(files[name])
         return result
 
@@ -264,8 +303,7 @@ class HierarchicalCoupledBayesianIntegrator(Integrator):
     def java_obj(self, predicted, observed=None, constraints=None, seed=None):
         from jnius import autoclass
         builder = autoclass(
-            _builder_format('HierarchicalCoupledBayesianIntegrator')
-        )
+            _builder_format('HierarchicalCoupledBayesianIntegrator'))
         return builder(predicted) \
             .numberOfBurnInSamples(self.number_of_burn_in_samples) \
             .numberOfThinningSamples(self.number_of_thinning_samples) \
@@ -311,10 +349,10 @@ def _predicted_to_java(predicted_instances):
                                          '.reflection'
                                          '.Integrator$Data$PredictedInstance')
     for instance in predicted_instances:
-        instances.add(predicted_instance_class(instance[0],
-                                               label_class(instance[1]),
-                                               instance[2],
-                                               instance[3]))
+        instances.add(predicted_instance_class(int(instance[0]),
+                                               label_class(str(instance[1])),
+                                               int(instance[2]),
+                                               float(instance[3])))
     data_class = autoclass('makina.learn.classification'
                            '.reflection.Integrator$Data')
     return data_class(instances)
@@ -331,9 +369,9 @@ def _observed_to_java(observed_instances):
                                         '.reflection'
                                         '.Integrator$Data$ObservedInstance')
     for instance in observed_instances:
-        instances.add(observed_instance_class(instance[0],
-                                              label_class(instance[1]),
-                                              instance[2]))
+        instances.add(observed_instance_class(int(instance[0]),
+                                              label_class(str(instance[1])),
+                                              int(instance[2])))
     data_class = autoclass('makina.learn.classification'
                            '.reflection.Integrator$Data')
     return data_class(instances)
@@ -396,9 +434,9 @@ def save_error_rates_to_protobin(error_rates, filename):
     proto_error_rates = integrator_pb2.ErrorRates()
     for error_rate in error_rates:
         proto_error_rate = proto_error_rates.errorRate.add()
-        proto_error_rate.label = error_rate[0]
-        proto_error_rate.functionId = error_rate[1]
-        proto_error_rate.value = error_rate[2]
+        proto_error_rate.label = str(error_rate[0])
+        proto_error_rate.functionId = int(error_rate[1])
+        proto_error_rate.value = float(error_rate[2])
     f = open(filename, 'wb')
     f.write(proto_error_rates.SerializeToString())
     f.close()
@@ -462,10 +500,10 @@ def save_predicted_instances_to_protobin(predicted_instances, filename):
     proto_instances = integrator_pb2.PredictedInstances()
     for predicted_instance in predicted_instances:
         proto_predicted_instance = proto_instances.predictedInstance.add()
-        proto_predicted_instance.id = predicted_instance[0]
-        proto_predicted_instance.label = predicted_instance[1]
-        proto_predicted_instance.functionId = predicted_instance[2]
-        proto_predicted_instance.value = predicted_instance[3]
+        proto_predicted_instance.id = int(predicted_instance[0])
+        proto_predicted_instance.label = str(predicted_instance[1])
+        proto_predicted_instance.functionId = int(predicted_instance[2])
+        proto_predicted_instance.value = float(predicted_instance[3])
     f = open(filename, 'wb')
     f.write(proto_instances.SerializeToString())
     f.close()
@@ -531,9 +569,9 @@ def save_observed_instances_to_protobin(observed_instances, filename):
     proto_instances = integrator_pb2.ObservedInstances()
     for observed_instance in observed_instances:
         proto_observed_instance = proto_instances.observedInstance.add()
-        proto_observed_instance.id = observed_instance[0]
-        proto_observed_instance.label = observed_instance[1]
-        proto_observed_instance.value = observed_instance[2]
+        proto_observed_instance.id = int(observed_instance[0])
+        proto_observed_instance.label = str(observed_instance[1])
+        proto_observed_instance.value = int(observed_instance[2])  # TODO: Shouldn't this be float?
     f = open(filename, 'wb')
     f.write(proto_instances.SerializeToString())
     f.close()

@@ -1,9 +1,26 @@
+# Copyright 2016, The NIG Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may not
+# use this file except in compliance with the License. You may obtain a copy of
+# the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations under
+# the License.
+
+from __future__ import absolute_import, division, print_function
+
 import abc
+
 from six import with_metaclass
 
-from nig.utilities.generic import raise_error
-
 __author__ = 'eaplatanios'
+
+__all__ = ['Iterator', 'ZipIterator']
 
 
 class Iterator(with_metaclass(abc.ABCMeta, object)):
@@ -37,14 +54,14 @@ class Iterator(with_metaclass(abc.ABCMeta, object)):
 class ZipIterator(Iterator):
     def __init__(self, iterators, keys=None):
         if any(len(iterator) != len(iterators[0]) for iterator in iterators):
-            raise_error(ValueError, 'The iterators being zipped must all have '
-                                    'equal length.')
+            raise ValueError('The iterators being zipped must all have equal '
+                             'length.')
         self._iterators = iterators
         if keys is not None:
             if len(iterators) != len(keys):
-                raise_error(ValueError, 'The number of iterators %d does not '
-                                        'match the number of keys %d.'
-                            % (len(iterators), len(keys)))
+                raise ValueError('The number of iterators %d does not match '
+                                 'the number of keys %d.'
+                                 % (len(iterators), len(keys)))
         self._keys = keys
 
     def next(self):
@@ -56,6 +73,7 @@ class ZipIterator(Iterator):
     def reset(self):
         for iterator in self._iterators:
             iterator.reset()
+        return self
 
     def reset_copy(self):
         return ZipIterator([iterator.reset_copy()

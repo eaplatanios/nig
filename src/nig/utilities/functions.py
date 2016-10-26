@@ -1,10 +1,33 @@
+# Copyright 2016, The NIG Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may not
+# use this file except in compliance with the License. You may obtain a copy of
+# the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations under
+# the License.
+
+from __future__ import absolute_import, division, print_function
+
 import inspect
+import logging
 import six
+
 from functools import wraps
 
-from nig.utilities.generic import elapsed_timer, logger, raise_error
+from .generic import elapsed_timer
 
 __author__ = 'eaplatanios'
+
+__all__ = ['identity', 'compose', 'pipe', 'memoize', 'time', 'pipeline',
+           'PipelineFunction']
+
+logger = logging.getLogger(__name__)
 
 
 def identity(arg):
@@ -122,8 +145,8 @@ class PipelineFunction(object):
             new_kwargs = dict.copy(self.__kwargs)
             # If unique_keys is True, we don't want repeated keyword arguments
             if self.__unique_keys and any(k in new_kwargs for k in kwargs):
-                raise_error(ValueError, 'Provided repeated named argument '
-                                        'while unique is set to `True`.')
+                raise ValueError('Provided repeated named argument while '
+                                 'unique is set to `True`.')
             new_kwargs.update(kwargs)
 
             # Check whether it's time to evaluate the underlying function
@@ -144,8 +167,8 @@ class PipelineFunction(object):
     def __or__(self, other):
         """Composes the pipeline function with another pipeline function."""
         if not isinstance(other, PipelineFunction):
-            raise_error(TypeError, 'A PipelineFunction can only be composed '
-                                   'with another PipelineFunction.')
+            raise TypeError('A PipelineFunction can only be composed with '
+                            'another PipelineFunction.')
 
         def composed_function(*args, **kwargs):
             result = self.__func(*args, **kwargs)

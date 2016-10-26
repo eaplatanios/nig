@@ -1,15 +1,32 @@
-from __future__ import division
+# Copyright 2016, The NIG Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may not
+# use this file except in compliance with the License. You may obtain a copy of
+# the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations under
+# the License.
+
+from __future__ import absolute_import, division, print_function
 
 import abc
 import numpy as np
+
 from itertools import combinations
 from math import factorial
 from six import with_metaclass
 
-from nig.utilities.generic import raise_error
-from nig.utilities.iterators import Iterator
+from ...utilities.iterators import Iterator
 
 __author__ = 'eaplatanios'
+
+__all__ = ['CrossValidation', 'LeaveOneOut', 'LeavePOut', 'LeaveOneLabelOut',
+           'LeavePLabelsOut', 'KFold', 'StratifiedKFold']
 
 
 class CrossValidation(with_metaclass(abc.ABCMeta, Iterator)):
@@ -214,13 +231,13 @@ class LeavePLabelsOut(_Base):
 class _KFoldBase(with_metaclass(abc.ABCMeta, _Base)):
     def __init__(self, data_size, k, shuffle=False, seed=None):
         if k <= 1:
-            raise_error(ValueError, 'The number of folds, k, needs to be > 1. '
-                                    'Provided value is %d' % k)
+            raise ValueError('The number of folds, k, needs to be > 1. '
+                             'Provided value is %d.' % k)
         if k > data_size:
-            raise_error(ValueError, 'The number of folds, k, cannot be larger '
-                                    'than the number of data instances. '
-                                    'Provided k is %d and the number of data '
-                                    'instances is %d.' % (k, data_size))
+            raise ValueError('The number of folds, k, cannot be larger than '
+                             'the number of data instances. Provided k is %d '
+                             'and the number of data instances is %d.'
+                             % (k, data_size))
         super(_KFoldBase, self).__init__(data_size, shuffle, seed)
         self.k = k
 
@@ -305,11 +322,10 @@ class StratifiedKFold(_KFoldBase):
         label_counts = np.bincount(indices)
         min_label_count = np.min(label_counts)
         if self.k > min_label_count:
-            raise_error(ValueError, 'The least frequent label appears only %d '
-                                    'times, which is lower than the number of '
-                                    'folds %d. Stratified k-fold '
-                                    'cross-validation is thus not possible.'
-                        % (min_label_count, self.k))
+            raise ValueError('The least frequent label appears only %d times, '
+                             'which is lower than the number of folds %d. '
+                             'Stratified k-fold cross-validation is thus not '
+                             'possible.' % (min_label_count, self.k))
         # We use individual KFold cross-validation strategies for each label in
         # order to respect the balance of the labels.
         per_label_k_folds = [KFold(

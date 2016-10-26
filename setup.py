@@ -8,15 +8,15 @@ def read(filename):
 setup(
     name='nig',
     version='0.1dev',
+    license='Apache License 2.0',
     packages=find_packages('src'),
     package_dir={'': 'src'},
     description='Nature\'s Imitation Game',
     long_description=read('README.md'),
     url='https://github.com/eaplatanios/nig',
-    license='MIT',
-    install_requires=['cython', 'numpy', 'pandas', 'six', 'tensorflow',
-                      'jnius==1.1-dev'],
+    install_requires=['cython', 'numpy', 'pandas', 'pyyaml', 'six', 'psycopg2',
+                      'tensorflow', 'jnius==1.1-dev'],
     package_data={
-        'nig': ['evaluation/*.jar'],
+        'nig': ['evaluation/*.jar', 'logging.yaml'],
     }
 )
