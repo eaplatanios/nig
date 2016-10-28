@@ -1,15 +1,9 @@
 import logging
-import tensorflow as tf
+import nig
 
 from nig.data.loaders import delicious
-from nig.data.processors import *
-from nig.learning.callbacks import *
-from nig.learning.metrics import *
-from nig.learning.learners import *
-from nig.learning.optimizers import *
-from nig.learning.processors import norm_summary, norm_clipping
-from nig.models.adios import MultiLabelMLP
-from nig.utilities.experiment import *
+
+from experiment.simple_experiment import *
 
 __author__ = 'alshedivat'
 
@@ -22,8 +16,8 @@ def main():
 
     # Construct the model
     architectures = [[5], [16, 32, 16]]
-    optimizer = lambda: gradient_descent(1e-1, decay_rate=0.99,
-                                         learning_rate_summary=True)
+    optimizer = lambda: nig.gradient_descent(1e-1, decay_rate=0.99,
+                                             learning_rate_summary=True)
     optimizer_opts = {'batch_size': 100,
                       'max_iter': 1000,
                       'abs_loss_chg_tol': 1e-10,
@@ -31,17 +25,17 @@ def main():
                       'loss_chg_iter_below_tol': 5,
                       'grads_processor': None}
 
-    loss = CrossEntropyOneHotEncodingMetric()
-    eval_metric = HammingLossMetric()
+    loss = nig.CrossEntropyOneHotEncodingMetric()
+    eval_metric = nig.HammingLossMetric()
 
-    models = [MultiLabelMLP(
+    models = [nig.MultiLabelMLP(
         train_data[0].shape[1], train_data[1].shape[1], architecture,
         activation=tf.nn.relu, loss=loss, loss_summary=True,
         optimizer=optimizer, optimizer_opts=optimizer_opts)
               for architecture in architectures]
 
     # Fit the model
-    learner = train(models, train_data, learner='ValidationSetLearner',
+    learner = train(models, train_data, learner=nig.ValidationSetLearner,
                     validation_data=val_data, eval_metric=eval_metric)
 
     # Test the model

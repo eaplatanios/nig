@@ -15,14 +15,8 @@
 """Utility functions for running experiments efficiently."""
 from __future__ import absolute_import, division, print_function
 
+import nig
 import tensorflow as tf
-
-from ..data.iterators import NPArrayIterator
-from ..learning.callbacks import *
-from ..learning.metrics import *
-from ..learning.learners import *
-from ..learning.optimizers import *
-from ..utilities.generic import get_from_module
 
 __author__ = ['alshedivat']
 
@@ -33,12 +27,12 @@ def get_iterator(data,
                  cycle=False,
                  cycle_shuffle=False,
                  keep_last=True):
-    return NPArrayIterator(data, batch_size, shuffle=shuffle, cycle=cycle,
-                           cycle_shuffle=cycle_shuffle, keep_last=keep_last)
+    return nig.NPArrayIterator(data, batch_size, shuffle=shuffle, cycle=cycle,
+                               cycle_shuffle=cycle_shuffle, keep_last=keep_last)
 
 
-def train(models, data, learner='SimpleLearner',
-          callbacks=[],
+def train(models, data, learner=nig.SimpleLearner,
+          callbacks=None,
           pipelines=None,
           eval_metric=None,
           working_dir='run',
@@ -69,38 +63,34 @@ def train(models, data, learner='SimpleLearner',
     # TODO: Run various sanity checks to ensure compatibility between
     #       the models, the data and the learner.
 
+    if callbacks is None:
+        callbacks = []
+
     # Set up training
     callbacks += [
-        LoggerCallback(frequency=logging_frequency),
-        SummaryWriterCallback(frequency=summary_frequency),
-        RunMetaDataSummaryWriterCallback(
+        nig.LoggerCallback(frequency=logging_frequency),
+        nig.SummaryWriterCallback(frequency=summary_frequency),
+        nig.RunMetaDataSummaryWriterCallback(
             frequency=metadata_frequency,
             trace_level=tf.RunOptions.FULL_TRACE),
-        VariableStatisticsSummaryWriterCallback(
+        nig.VariableStatisticsSummaryWriterCallback(
             frequency=variable_stats_frequency, variables='trainable'),
-        CheckpointWriterCallback(
+        nig.CheckpointWriterCallback(
             frequency=checkpoint_frequency, file_prefix=checkpoint_file_prefix),
-        EvaluationCallback(
-            frequency=evaluation_frequency,
-            data=get_iterator(data),
+        nig.EvaluationCallback(
+            frequency=evaluation_frequency, data=get_iterator(data),
             metrics=eval_metric, name='eval/train'),
-        EvaluationCallback(
-            frequency=evaluation_frequency,
-            data=get_iterator(validation_data),
-            metrics=eval_metric, name='eval/valid')
-    ]
+        nig.EvaluationCallback(
+            frequency=evaluation_frequency, data=get_iterator(validation_data),
+            metrics=eval_metric, name='eval/val')]
 
-    Learner = get_from_module(learner, globals(), 'experiment')
-    learner = Learner(models=models, predict_postprocess=predict_postprocess)
+    learner = learner(models=models, predict_postprocess=predict_postprocess)
 
     # Train the learner
     learner.train(
-        data=data,
-        callbacks=callbacks,
-        working_dir=working_dir,
-        ckpt_file_prefix=checkpoint_file_prefix,
-        restore_sequentially=restore_sequentially,
-        save_trained=save_trained)
+        data=data, pipelines=pipelines, callbacks=callbacks,
+        working_dir=working_dir, ckpt_file_prefix=checkpoint_file_prefix,
+        restore_sequentially=restore_sequentially, save_trained=save_trained)
 
     return learner
 

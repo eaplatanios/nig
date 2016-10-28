@@ -21,7 +21,7 @@ from ..learning.models import Model
 
 __author__ = 'alshedivat'
 
-__all__ = ['ADIOS']
+__all__ = ['MultiLabelMLP', 'ADIOS']
 
 
 class MultiLabelMLP(Model):
