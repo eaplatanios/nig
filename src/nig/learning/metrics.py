@@ -21,9 +21,15 @@ from six import with_metaclass
 
 __author__ = 'eaplatanios'
 
-__all__ = ['Metric', 'CrossEntropyOneHotEncodingMetric',
-           'CrossEntropyIntegerEncodingMetric', 'AccuracyOneHotEncodingMetric',
-           'AccuracyIntegerEncodingMetric', 'HammingLossMetric']
+__all__ = [
+    'Metric',
+    'CrossEntropyOneHotEncodingMetric',
+    'CrossEntropyOneHotEncodingLogitsMetric',
+    'CrossEntropyIntegerEncodingMetric',
+    'AccuracyOneHotEncodingMetric',
+    'AccuracyIntegerEncodingMetric',
+    'HammingLossMetric',
+]
 
 
 class Metric(with_metaclass(abc.ABCMeta, object)):
@@ -48,6 +54,17 @@ class CrossEntropyOneHotEncodingMetric(Metric):
     def evaluate(self, prediction, truth, name='cross_entropy'):
         metric = -tf.reduce_sum(truth * prediction, reduction_indices=[1])
         metric = tf.reduce_mean(metric, name=name)
+        return metric
+
+
+class CrossEntropyOneHotEncodingLogitsMetric(Metric):
+    """Note that this needs logits as predictions."""
+    def __str__(self):
+        return 'cross_entropy'
+
+    def evaluate(self, prediction, truth, name='cross_entropy'):
+        metric = tf.nn.sigmoid_cross_entropy_with_logits(prediction, truth)
+        metric = tf.reduce_mean(metric)
         return metric
 
 
@@ -94,9 +111,11 @@ class HammingLossMetric(Metric):
     def __str__(self):
         return 'hamming_loss'
 
-    def evaluate(self, prediction, truth, name='accuracy'):
-        preds = tf.nn.relu(tf.sign(prediction - tf.log(0.5)))
-        metric = tf.reduce_sum(tf.cast(tf.not_equal(preds, truth), tf.float32),
-                               reduction_indices=[1])
-        metric = tf.reduce_mean(tf.cast(metric, tf.float32), name=name)
+    def evaluate(self, prediction, truth,
+                 use_logits=True, name='hamming_loss'):
+        preds = tf.nn.relu(tf.sign(prediction)) if use_logits \
+                else tf.nn.relu(tf.sign(prediction - tf.log(0.5)))
+        mispreds = tf.cast(tf.not_equal(preds, truth), tf.float32)
+        hl = tf.reduce_sum(mispreds, reduction_indices=[1])
+        metric = tf.reduce_mean(hl, name=name)
         return metric

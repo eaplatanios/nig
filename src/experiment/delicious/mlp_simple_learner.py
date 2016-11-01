@@ -15,17 +15,17 @@ def main():
     train_data, val_data, test_data, _ = delicious.load('data')
 
     # Construct the model
-    architectures = [[5], [16, 32, 16]]
+    architectures = [[1024]]
     optimizer = lambda: nig.gradient_descent(1e-1, decay_rate=0.99,
                                              learning_rate_summary=True)
-    optimizer_opts = {'batch_size': 100,
-                      'max_iter': 1000,
+    optimizer_opts = {'batch_size': 2**7,  # good to have powers of 2
+                      'max_iter': 2000,
                       'abs_loss_chg_tol': 1e-10,
                       'rel_loss_chg_tol': 1e-6,
                       'loss_chg_iter_below_tol': 5,
                       'grads_processor': None}
 
-    loss = nig.CrossEntropyOneHotEncodingMetric()
+    loss = nig.CrossEntropyOneHotEncodingLogitsMetric()
     eval_metric = nig.HammingLossMetric()
 
     models = [nig.MultiLabelMLP(

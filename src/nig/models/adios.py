@@ -28,11 +28,12 @@ class MultiLabelMLP(Model):
     """Multi Layer Perceptron for multi-label classification.
     """
     def __init__(self, input_size, output_size, hidden_layer_sizes, activation,
-                 loss=None, loss_summary=False, optimizer=None,
-                 optimizer_opts=None):
+                 loss=None, loss_summary=False, use_logits=True,
+                 optimizer=None, optimizer_opts=None):
         self.output_size = output_size
         self.hidden_layer_sizes = hidden_layer_sizes
         self.activation = activation
+        self.use_logits = use_logits
         inputs = tf.placeholder(tf.float32, shape=[None, input_size])
         outputs = self._output_op(inputs)
         train_outputs = tf.placeholder(tf.float32, shape=[None, output_size])
@@ -59,7 +60,9 @@ class MultiLabelMLP(Model):
                 [input_size, self.output_size],
                 stddev=1.0 / np.math.sqrt(float(input_size))), name='W')
             biases = tf.Variable(tf.zeros([self.output_size]), name='b')
-            outputs = tf.log(tf.sigmoid(tf.matmul(hidden, weights) + biases))
+            outputs = tf.matmul(hidden, weights) + biases
+            if not self.use_logits:
+                outputs = tf.log(tf.sigmoid(outputs))
 
         return outputs
 
