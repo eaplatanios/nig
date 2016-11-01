@@ -86,11 +86,22 @@ def train(models, data, learner=nig.SimpleLearner,
 
     learner = learner(models=models, predict_postprocess=predict_postprocess)
 
+    training_opts = {
+        'data': data,
+        'pipelines': pipelines,
+        'working_dir': working_dir,
+        'ckpt_file_prefix': checkpoint_file_prefix,
+        'restore_sequentially': restore_sequentially,
+        'save_trained': save_trained,
+    }
+
+    if type(learner) == nig.NIGLearner:
+        training_opts['per_model_callbacks'] = callbacks
+    else:
+        training_opts['callbacks'] = callbacks
+
     # Train the learner
-    learner.train(
-        data=data, pipelines=pipelines, callbacks=callbacks,
-        working_dir=working_dir, ckpt_file_prefix=checkpoint_file_prefix,
-        restore_sequentially=restore_sequentially, save_trained=save_trained)
+    learner.train(**training_opts)
 
     return learner
 

@@ -19,7 +19,7 @@ def main():
     optimizer = lambda: nig.gradient_descent(1e-1, decay_rate=0.99,
                                              learning_rate_summary=True)
     optimizer_opts = {'batch_size': 2**7,  # good to have powers of 2
-                      'max_iter': 2000,
+                      'max_iter': 1000,
                       'abs_loss_chg_tol': 1e-10,
                       'rel_loss_chg_tol': 1e-6,
                       'loss_chg_iter_below_tol': 5,
@@ -35,7 +35,7 @@ def main():
               for architecture in architectures]
 
     # Fit the model
-    learner = train(models, train_data, learner=nig.ValidationSetLearner,
+    learner = train(models, train_data, learner=nig.NIGLearner,
                     validation_data=val_data, eval_metric=eval_metric)
 
     # Test the model
