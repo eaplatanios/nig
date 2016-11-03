@@ -22,7 +22,8 @@ from timeit import default_timer
 
 __author__ = ['eaplatanios', 'alshedivat']
 
-__all__ = ['dummy', 'elapsed_timer', 'escape_glob', 'get_from_module']
+__all__ = ['dummy', 'elapsed_timer', 'unique_list', 'escape_glob',
+           'get_from_module']
 
 
 @contextmanager
@@ -37,6 +38,11 @@ def elapsed_timer():
     yield lambda: elapsed()
     end = default_timer()
     elapsed = lambda: end - start
+
+
+def unique_list(l):
+    seen = set()
+    return [x for x in l if x not in seen and not seen.add(x)]
 
 
 def escape_glob(path):
