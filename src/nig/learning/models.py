@@ -40,8 +40,24 @@ logger = logging.getLogger(__name__)
 
 class Model(with_metaclass(abc.ABCMeta, object)):
     def __init__(self, inputs, outputs, train_outputs=None, loss=None,
-                 loss_summary=False, optimizer=None, optimizer_opts=None,
-                 graph=None):
+                 loss_summary=False, gradients=None, optimizer=None,
+                 optimizer_opts=None, graph=None):
+        """
+
+        If `loss` is `None` and `gradients` is provided, then `loss` is set to
+        the sum of the norms of the gradients.
+
+        Args:
+            inputs:
+            outputs:
+            train_outputs:
+            loss:
+            loss_summary:
+            gradients:
+            optimizer:
+            optimizer_opts:
+            graph:
+        """
         if graph is not None:
             self.graph = graph
         if isinstance(inputs, list):
@@ -76,11 +92,16 @@ class Model(with_metaclass(abc.ABCMeta, object)):
             if len(outputs) != len(loss):
                 raise ValueError('The number of provided output ops must match '
                                  'the number of provided loss ops.')
-        self.trainable = loss is not None and optimizer is not None
+        self.trainable = (loss is not None or gradients is not None) \
+            and optimizer is not None
         self.train_outputs = train_outputs
         self.loss = loss
         self.loss_summary = loss_summary
+        self._gradients = gradients
         self.uses_external_optimizer = inspect.isclass(optimizer)
+        if self.uses_external_optimizer and gradients is not None:
+            raise ValueError('Cannot use an external optimizer with the '
+                             'gradients being provided.')
         self.provided_optimizer = optimizer
         self.optimizer = None
         self.optimizer_opts = optimizer_opts
@@ -151,12 +172,20 @@ class Model(with_metaclass(abc.ABCMeta, object)):
                             % (unsupported,
                                __SUPPORTED_INTERNAL_OPTIMIZER_OPTS__))
             grads_processor = self.optimizer_opts.get('grads_processor', None)
-            if grads_processor is not None:
+            if isinstance(self._gradients, dict):
+                self._gradients = [(v, k) for k, v in self._gradients.items()]
+            if grads_processor is not None and self._gradients is None:
                 trainable_vars = tf.trainable_variables()
                 grads = tf.gradients(ys=self.loss, xs=trainable_vars)
                 grads = grads_processor(grads)
                 self.train_op = self.optimizer.apply_gradients(
                     grads_and_vars=zip(grads, trainable_vars))
+            elif self._gradients is not None:
+                if grads_processor is not None:
+                    self._gradients = [(grads_processor(g), v)
+                                       for g, v in self._gradients]
+                self.train_op = self.optimizer.apply_gradients(
+                    grads_and_vars=self._gradients)
             else:
                 self.train_op = self.optimizer.minimize(loss=self.loss)
 

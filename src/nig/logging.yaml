@@ -3,7 +3,7 @@ disable_existing_loggers: False
 
 formatters:
     simple:
-        format: '%(asctime)-15s - %(levelname)-7s - %(name)-30s - %(message)s'
+        format: '%(asctime)-15s - PID: %(process)-4d - Thread: %(thread)-15d - %(levelname)-7s - %(name)-30s - %(message)s'
 
 handlers:
     console:

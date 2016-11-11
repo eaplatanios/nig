@@ -61,8 +61,8 @@ class Callback(with_metaclass(abc.ABCMeta, object)):
 
 class LoggerCallback(Callback):
     def __init__(self, frequency=100, name='logger_callback',
-                 log_format='{:>20} - | {:>10d} | {:>10.4e} |',
-                 header='{:>20} - | {:>10} | {:>10} |'
+                 log_format='{:>20} - | {:>10d} | {:>11.4e} |',
+                 header='{:>20} - | {:>10} | {:>11} |'
                         .format('logger_callback', 'Step', 'Loss'),
                  header_frequency=sys.maxsize):
         super(LoggerCallback, self).__init__(frequency)
@@ -249,7 +249,7 @@ class CheckpointWriterCallback(Callback):
             self._saver = tf.train.Saver(
                 var_list=self.variable_list, max_to_keep=self.max_to_keep,
                 keep_checkpoint_every_n_hours=self.keep_ckpt_every_n_hours,
-                write_version=tf.train.SaverDef.V2)
+                write_version=tf.train.SaverDef.V1)
             if self.working_dir is None:
                 self.working_dir = working_dir
 
@@ -274,9 +274,9 @@ class EvaluationCallback(Callback):
         self.aggregating_function = aggregating_function
         self.name = name
         self.log_format = log_format if log_format is not None \
-            else '{:>20} - | {:>10d} | {:>10.4e} |' * len(self.metrics)
+            else '{:>20} - | {:>10d} | {:>11.4e} |' * len(self.metrics)
         self.header = header if header is not None \
-            else ('{:>20} - | {:>10} | {:>10} |' * len(self.metrics)) \
+            else ('{:>20} - | {:>10} | {:>11} |' * len(self.metrics)) \
             .format(name, 'Step', *[str(metric)
                                     for metric in self.metrics])
         self.header_frequency = header_frequency

@@ -137,3 +137,56 @@ def dynamic_hierarchical_rnn(cells, periods, inputs, sequence_length=None,
         level_outputs.append(tf.unpack(output, axis=time_axis))
         level_states.append(state)
     return [tf.pack(o, axis=time_axis) for o in level_outputs], level_states
+
+
+def rolling_window_rnn(cells, window_length, window_offset, inputs,
+                       sequence_length=None, initial_states=None,
+                       dtype=None, parallel_iterations=None, swap_memory=False,
+                       time_major=False, scope=None):
+    # Check validity of provided cells, the window length and offset.
+    if not isinstance(cells, list):
+        raise TypeError('cells must be a list of tf.nn.rnn_cell.RNNCells.')
+    if not isinstance(window_length, int):
+        raise TypeError('window length must be an int.')
+    if not isinstance(window_offset, int):
+        raise TypeError('window offset must be an int.')
+    #if window_length > sequence_length:
+    #    raise TypeError('window length must be at most sequence length.')
+    num_windows = (inputs.get_shape().as_list()[1] - window_length) // \
+                  window_offset + 1
+    if len(cells) != num_windows:
+        raise ValueError('The number of cells must match sequence_length // '
+                         '\window_length.')
+    if initial_states is not None:
+        if len(cells) != len(initial_states):
+            raise ValueError('The number of cells must match that of '
+                             'initial states.')
+    else:
+        initial_states = [None] * len(cells)
+
+    # Determine the time axis in the input tensors
+    if not time_major:
+        time_axis = 1
+    else:
+        time_axis = 0
+
+    unpacked_inputs = tf.unpack(inputs, axis=time_axis)
+    window_outputs = []
+    window_states = []
+    for window_index in range(num_windows):
+        # Obtain the inputs for the current cell
+        time_first_index = window_index * window_offset
+        time_first_index_next = time_first_index + window_length
+        cell_input = tf.pack(unpacked_inputs[
+                             time_first_index:time_first_index_next], axis=time_axis)
+        output, state = tf.nn.dynamic_rnn(
+            cell=cells[window_index], inputs=cell_input,
+            sequence_length=tf.ones_like(sequence_length) *
+                            tf.constant(window_length),
+            initial_state=initial_states[window_index], dtype=dtype,
+            parallel_iterations=parallel_iterations, swap_memory=swap_memory,
+            time_major=time_major, scope=scope + '/window_%d' % window_index)
+        window_outputs.append(tf.unpack(output, axis=time_axis))
+        window_states.append(state)
+
+    return [tf.pack(o, axis=time_axis) for o in window_outputs], window_states
