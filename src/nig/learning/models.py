@@ -28,7 +28,7 @@ from ..utilities.tensorflow import graph_context, copy_op_to_graph, \
 
 __author__ = 'eaplatanios'
 
-__all__ = ['Model', 'CombinedModel']
+__all__ = ['Model', 'CombinedModel', 'LinearCombinationModel']
 
 __TENSORS_DIFFERENT_GRAPHS_ERROR__ = 'All tensors should be in the same graph.'
 __SUPPORTED_INTERNAL_OPTIMIZER_OPTS__ = {
@@ -312,8 +312,8 @@ class Model(with_metaclass(abc.ABCMeta, object)):
 
 
 class CombinedModel(Model):
-    def __init__(self, models, weights=None, loss_summary=False, graph=None,
-                 copy_models=True):
+    def __init__(self, models, combined_outputs=None, graph=None,
+                 copy_models=False):
         if graph is None and copy_models:
             self.graph = tf.Graph()
         elif graph is None:
@@ -330,8 +330,58 @@ class CombinedModel(Model):
         else:
             self.models = models
         inputs = CombinedModel._combine_model_variables(self.models, 'inputs')
-        outputs = CombinedModel._combine_model_variables(self.models, 'outputs')
         super(CombinedModel, self).__init__(
+            inputs=inputs, outputs=combined_outputs,
+            train_outputs=self.models[0].train_outputs, loss=None,
+            loss_summary=False, optimizer=None, optimizer_opts=None,
+            graph=self.graph)
+
+    @staticmethod
+    def _combine_model_variables(models, variables_name):
+        variables = [getattr(model, variables_name) for model in models]
+        if isinstance(variables[0], list):
+            return [v for model_vars in variables for v in model_vars]
+        if isinstance(variables[0], dict):
+            return {'model_%d/%s' % (m, n): v
+                    for m, model_vars in enumerate(variables)
+                    for n, v in model_vars.items()}
+        return variables
+
+    def get_feed_dict(self, data, is_train=False):
+        feed_dict = dict()
+        for m, model in enumerate(self.models):
+            model_data = data
+            if isinstance(model_data, dict):
+                model_data = {n if not isinstance(n, str)
+                              else 'model_%d/%s' % (m, n): t
+                              for n, t in model_data.items()}
+            feed_dict.update(model.get_feed_dict(model_data, is_train=is_train))
+        return feed_dict
+
+
+class LinearCombinationModel(Model):
+    def __init__(self, models, weights=None, loss_summary=False, graph=None,
+                 copy_models=False):
+        if graph is None and copy_models:
+            self.graph = tf.Graph()
+        elif graph is None:
+            self.graph = models[0].graph
+        else:
+            self.graph = graph
+        if graph is None and not copy_models \
+                and any(model.graph != self.graph for model in models):
+            raise ValueError('All models are required to lie in the same '
+                             'graph, when "copy_models" is set to "False".')
+        if copy_models:
+            self.models = [model.copy_to_graph(graph=self.graph)
+                           for model in models]
+        else:
+            self.models = models
+        inputs = LinearCombinationModel._combine_model_variables(
+            self.models, 'inputs')
+        outputs = LinearCombinationModel._combine_model_variables(
+            self.models, 'outputs')
+        super(LinearCombinationModel, self).__init__(
             inputs=inputs, outputs=outputs,  train_outputs=None, loss=None,
             loss_summary=False, optimizer=None, optimizer_opts=None,
             graph=self.graph)
@@ -399,7 +449,7 @@ class CombinedModel(Model):
         models = [model.copy_to_graph(
             graph=graph, variables=variables, scope=scope)
                   for model in self.models]
-        return CombinedModel(
+        return LinearCombinationModel(
             models=models, weights=weights, graph=graph, copy_models=False)
 
     def _copy_op_to_graph(self, op, graph, variables=None, scope=None):
