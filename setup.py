@@ -14,7 +14,7 @@ setup(
     description='Nature\'s Imitation Game',
     long_description=read('README.md'),
     url='https://github.com/eaplatanios/nig',
-    install_requires=['cython', 'numpy', 'pandas', 'pyyaml', 'six', 'psycopg2',
+    install_requires=['cython', 'numpy', 'pandas', 'pyyaml', 'six',
                       'tensorflow', 'jnius==1.1-dev'],
     package_data={
         'nig': ['evaluation/*.jar', 'logging.yaml'],
