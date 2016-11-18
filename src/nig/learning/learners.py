@@ -207,8 +207,7 @@ class Learner(with_metaclass(abc.ABCMeta, object)):
             for batch in iterator:
                 predictions = np.concatenate([predictions, batch], axis=0)
             return predictions
-        saver = tf.train.Saver(
-            restore_sequentially=restore_sequentially, write_version=2)
+        saver = tf.train.Saver(restore_sequentially=restore_sequentially)
         feed_dict = self.combined_model.get_feed_dict(data, is_train=False)
         self._init_session(
             option=ckpt, saver=saver, working_dir=working_dir,
@@ -221,8 +220,7 @@ class Learner(with_metaclass(abc.ABCMeta, object)):
                          ckpt=None, working_dir=os.getcwd(),
                          ckpt_file_prefix='ckpt', restore_sequentially=False):
         data = get_iterator(data=data, pipelines=pipelines, cycle=False)
-        saver = tf.train.Saver(
-            restore_sequentially=restore_sequentially, write_version=2)
+        saver = tf.train.Saver(restore_sequentially=restore_sequentially)
         is_first_batch = True
         for data_batch in data:
             feed_dict = self.combined_model.get_feed_dict(
@@ -292,8 +290,7 @@ class SimpleLearner(Learner):
             data=data, batch_size=batch_size, cycle=True, pipelines=pipelines)
         callbacks = _process_callbacks(callbacks)
         summary_writer = tf.train.SummaryWriter(working_dir, self.graph)
-        saver = tf.train.Saver(
-            restore_sequentially=restore_sequentially, write_version=2)
+        saver = tf.train.Saver(restore_sequentially=restore_sequentially)
         model = self.models
         data_batch = data.next()
         feed_dict = model.get_feed_dict(data_batch, is_train=True)
@@ -342,8 +339,7 @@ class SimpleLearner(Learner):
             data=data, batch_size=None, cycle=True, pipelines=pipelines)
         callbacks = _process_callbacks(callbacks)
         summary_writer = tf.train.SummaryWriter(working_dir, self.graph)
-        saver = tf.train.Saver(
-            restore_sequentially=restore_sequentially, write_version=2)
+        saver = tf.train.Saver(restore_sequentially=restore_sequentially)
         model = self.models
         feed_dict = model.get_feed_dict(data.next(), is_train=True)
         self._init_session(
@@ -482,7 +478,7 @@ class ValidationSetLearner(Learner):
         if save_trained:
             with self.best_learner.graph.as_default():
                 saver = tf.train.Saver(
-                    restore_sequentially=restore_sequentially, write_version=2)
+                    restore_sequentially=restore_sequentially)
             Learner._save_checkpoint(
                 session=self.best_learner.session, saver=saver,
                 working_dir=working_dir, file_prefix=ckpt_file_prefix,
@@ -771,9 +767,7 @@ class CrossValidationLearner(Learner):
 #                                for _ in self.models]
 #         combined_model_callbacks = _process_callbacks(combined_model_callbacks)
 #         summary_writer = tf.train.SummaryWriter(working_dir, self.graph)
-#         saver = tf.train.Saver(
-#             restore_sequentially=restore_sequentially,
-#             write_version=tf.train.SaverDef.V1)
+#         saver = tf.train.Saver(restore_sequentially=restore_sequentially)
 #         data_batch = data.next()
 #         feed_dict = self._get_feed_dict(data_batch, is_train=True)
 #         self._init_session(
@@ -1050,8 +1044,7 @@ class TrustBasedLearner(Learner):
                                for _ in self.models]
         combined_model_callbacks = _process_callbacks(combined_model_callbacks)
         summary_writer = tf.train.SummaryWriter(working_dir, self.graph)
-        saver = tf.train.Saver(
-            restore_sequentially=restore_sequentially, write_version=2)
+        saver = tf.train.Saver(restore_sequentially=restore_sequentially)
         data_batch = data.next()
         feed_dict = self._get_feed_dict(data_batch, is_train=True)
         self._init_session(
@@ -1295,8 +1288,7 @@ class ConsensusLearner(Learner):
                                for _ in self.models]
         combined_model_callbacks = _process_callbacks(combined_model_callbacks)
         summary_writer = tf.train.SummaryWriter(working_dir, self.graph)
-        saver = tf.train.Saver(
-            restore_sequentially=restore_sequentially, write_version=2)
+        saver = tf.train.Saver(restore_sequentially=restore_sequentially)
         data_batch = data.next()
         feed_dict = self._get_feed_dict(data_batch, is_train=True)
         self._init_session(
