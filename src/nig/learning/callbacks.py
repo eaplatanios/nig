@@ -290,7 +290,8 @@ class EvaluationCallback(Callback):
     def copy(self):
         return EvaluationCallback(
             frequency=self.frequency, data=self.data,
-            metrics=self.metrics, number_of_batches=self.number_of_batches,
+            metrics=self.metrics, predict_postprocess=self.predict_postprocess,
+            number_of_batches=self.number_of_batches,
             aggregating_function=self.aggregating_function, name=self.name,
             log_format=self.log_format, header=self.header,
             header_frequency=self.header_frequency, summary=self.summary)
