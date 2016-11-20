@@ -1,15 +1,10 @@
 import logging
+import nig
+import numpy as np
+import os
 import tensorflow as tf
 
-from nig.data.iterators import NPArrayIterator
 from nig.data.loaders import mnist
-from nig.data.processors import *
-from nig.learning.callbacks import *
-from nig.learning.metrics import *
-from nig.learning.learners import *
-from nig.learning.optimizers import gradient_descent, adam
-from nig.learning.processors import norm_summary, norm_clipping
-from nig.models.common import MultiLayerPerceptron
 
 __author__ = 'eaplatanios'
 
@@ -33,7 +28,7 @@ restore_sequentially = False
 save_trained = True
 gradients_processor = None #norm_clipping(clip_norm=0.1) \
 #| norm_summary(name='gradients/norm')
-optimizer = lambda: gradient_descent(1e-1, decay_rate=0.99, learning_rate_summary=True)
+optimizer = lambda: nig.gradient_descent(1e-1, decay_rate=0.99, learning_rate_summary=True)
 optimizer_opts = {'batch_size': batch_size,
                   'max_iter': max_iter,
                   'abs_loss_chg_tol': abs_loss_chg_tol,
@@ -45,26 +40,28 @@ optimizer_opts = {'batch_size': batch_size,
 
 train_data, val_data, test_data = mnist.load('data', float_images=True)
 
-inputs_pipeline = ColumnsExtractor(list(range(784)))
-labels_pipeline = ColumnsExtractor(784)
+inputs_pipeline = nig.ColumnsExtractor(list(range(784)))
+labels_pipeline = nig.ColumnsExtractor(784)
 if use_one_hot_encoding:
-    labels_pipeline = labels_pipeline | DataTypeEncoder(np.int8) | OneHotEncoder(10)
+    labels_pipeline = labels_pipeline | \
+                      nig.DataTypeEncoder(np.int8) | \
+                      nig.OneHotEncoder(10)
 
 
-def get_iterator(mnist_data, include_labels=True):
+def _get_iterator(mnist_data, include_labels=True):
     pipelines = [inputs_pipeline]
     if include_labels:
         pipelines.append(labels_pipeline)
-    return NPArrayIterator(mnist_data, batch_size, shuffle=False, cycle=False,
-                           cycle_shuffle=False, keep_last=True,
-                           pipelines=pipelines)
+    return nig.NPArrayIterator(
+        mnist_data, batch_size, shuffle=False, cycle=False, cycle_shuffle=False,
+        keep_last=True, pipelines=pipelines)
 
-loss = CrossEntropyOneHotEncodingMetric() if use_one_hot_encoding \
-    else CrossEntropyIntegerEncodingMetric()
-eval_metric = AccuracyOneHotEncodingMetric() if use_one_hot_encoding \
-    else AccuracyIntegerEncodingMetric()
+loss = nig.CrossEntropyOneHotEncodingMetric() if use_one_hot_encoding \
+    else nig.CrossEntropyIntegerEncodingMetric()
+eval_metric = nig.AccuracyOneHotEncodingMetric() if use_one_hot_encoding \
+    else nig.AccuracyIntegerEncodingMetric()
 
-models = [MultiLayerPerceptron(
+models = [nig.MultiLayerPerceptron(
     784, 10, architecture, activation=activation,
     softmax_output=use_one_hot_encoding, use_log=use_one_hot_encoding,
     train_outputs_one_hot=use_one_hot_encoding, loss=loss, loss_summary=True,
@@ -72,27 +69,29 @@ models = [MultiLayerPerceptron(
           for architecture in architectures]
 
 callbacks = [
-    LoggerCallback(frequency=logging_frequency),
-    SummaryWriterCallback(frequency=summary_frequency),
-    RunMetaDataSummaryWriter(
-        frequency=1000, trace_level=tf.RunOptions.FULL_TRACE),
-    VariableStatisticsSummaryWriterCallback(
-        frequency=200, variables='trainable'),
-    CheckpointWriterCallback(
-        frequency=checkpoint_frequency, file_prefix=checkpoint_file_prefix),
-    EvaluationCallback(
-        frequency=evaluation_frequency, data=get_iterator(train_data),
-        metrics=eval_metric, name='eval/train'),
-    EvaluationCallback(
-        frequency=evaluation_frequency, data=get_iterator(val_data),
-        metrics=eval_metric, name='eval/val'),
-    EvaluationCallback(
-        frequency=evaluation_frequency, data=get_iterator(test_data),
-        metrics=eval_metric, name='eval/test')]
+    nig.LoggerCallback(frequency=logging_frequency),
+    # nig.SummaryWriterCallback(frequency=summary_frequency),
+    # nig.RunMetaDataSummaryWriterCallback(
+    #     frequency=1000, trace_level=tf.RunOptions.FULL_TRACE),
+    # nig.VariableStatisticsSummaryWriterCallback(
+    #     frequency=200, variables='trainable'),
+    # nig.CheckpointWriterCallback(
+    #     frequency=checkpoint_frequency, file_prefix=checkpoint_file_prefix),
+    # nig.EvaluationCallback(
+    #     frequency=evaluation_frequency, data=_get_iterator(train_data),
+    #     metrics=eval_metric, name='eval/train'),
+    # nig.EvaluationCallback(
+    #     frequency=evaluation_frequency, data=_get_iterator(val_data),
+    #     metrics=eval_metric, name='eval/val'),
+    # nig.EvaluationCallback(
+    #     frequency=evaluation_frequency, data=_get_iterator(test_data),
+    #     metrics=eval_metric, name='eval/test'),
+]
 
-# learner = SimpleLearner(
+# learner = nig.SimpleLearner(
 #     model=models[0], predict_postprocess=lambda l: tf.argmax(l, 1))
-learner = ValidationSetLearner(
+# learner.best_model_index = 0
+learner = nig.ValidationSetLearner(
     models=models, val_loss=loss, predict_postprocess=lambda l: tf.argmax(l, 1))
 
 learner.train(
@@ -107,16 +106,16 @@ learner.train(
     restore_sequentially=restore_sequentially, save_trained=save_trained,
     parallel=True)
 test_predictions = learner.predict(
-    get_iterator(test_data, False), ckpt=-1, working_dir=working_dir,
+    _get_iterator(test_data, False), ckpt=-1, working_dir=working_dir,
     ckpt_file_prefix=checkpoint_file_prefix)
 test_truth = test_data[:, -1]
 logger.info('Best model: %d' % learner.best_model_index)
 logger.info(np.mean(test_predictions == test_truth))
 
 # Test loading the best performing trained model using a simple learner
-simple_learner = SimpleLearner(
-    models[learner.best_model_index], predict_postprocess=lambda l: tf.argmax(l, 1))
+simple_learner = nig.SimpleLearner(
+    learner.best_learner.models, predict_postprocess=lambda l: tf.argmax(l, 1))
 simple_learner_test_predictions = simple_learner.predict(
-    get_iterator(test_data, False), ckpt=-1, working_dir=working_dir,
+    _get_iterator(test_data, False), ckpt=-1, working_dir=working_dir,
     ckpt_file_prefix=checkpoint_file_prefix)
 logger.info(np.mean(simple_learner_test_predictions == test_truth))
