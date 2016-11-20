@@ -305,7 +305,7 @@ class EvaluationCallback(Callback):
                 self._eval_ops = [metric(outputs, train_outputs)
                                   for metric in self.metrics]
             if self.summary:
-                self._ummary_writer = summary_writer
+                self._summary_writer = summary_writer
 
     def execute(self, session, feed_dict=None, loss=None, global_step=None):
         if self._eval_ops is None:
