@@ -261,14 +261,17 @@ class CheckpointWriterCallback(Callback):
 
 
 class EvaluationCallback(Callback):
-    def __init__(self, frequency, data, metrics, number_of_batches=-1,
-                 aggregating_function=np.mean, name='eval_callback',
-                 log_format=None, header=None, header_frequency=sys.maxsize,
-                 summary=True):
+    def __init__(self, frequency, data, metrics, predict_postprocess=None,
+                 number_of_batches=-1, aggregating_function=np.mean,
+                 name='eval_callback', log_format=None, header=None,
+                 header_frequency=sys.maxsize, summary=True):
         super(EvaluationCallback, self).__init__(frequency)
         self.data = data
         self.iterator = get_iterator(data)
         self.metrics = metrics if isinstance(metrics, list) else [metrics]
+        self.predict_postprocess = (lambda x: x) \
+            if predict_postprocess is None \
+            else predict_postprocess
         self.number_of_batches = number_of_batches
         self.aggregating_function = aggregating_function
         self.name = name
@@ -297,11 +300,12 @@ class EvaluationCallback(Callback):
         if self._eval_ops is None:
             self._model = model
             with tf.name_scope(self.name):
-                self._eval_ops = [
-                    metric(self._model.outputs, self._model.train_outputs)
-                    for metric in self.metrics]
+                outputs = self.predict_postprocess(self._model.oututs)
+                train_outputs = self._model.train_outputs
+                self._eval_ops = [metric(outputs, train_outputs)
+                                  for metric in self.metrics]
             if self.summary:
-                self._summary_writer = summary_writer
+                self._ummary_writer = summary_writer
 
     def execute(self, session, feed_dict=None, loss=None, global_step=None):
         if self._eval_ops is None:
