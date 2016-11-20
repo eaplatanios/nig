@@ -300,7 +300,7 @@ class EvaluationCallback(Callback):
         if self._eval_ops is None:
             self._model = model
             with tf.name_scope(self.name):
-                outputs = self.predict_postprocess(self._model.oututs)
+                outputs = self.predict_postprocess(self._model.outputs)
                 train_outputs = self._model.train_outputs
                 self._eval_ops = [metric(outputs, train_outputs)
                                   for metric in self.metrics]
