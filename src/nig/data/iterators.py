@@ -257,7 +257,7 @@ class NPArrayIterator(DataIterator):
         return self.data[from_index:to_index]
 
     def concatenate_data(self, data_batch_1, data_batch_2):
-        return np.vstack([data_batch_1, data_batch_2])
+        return np.concatenate([data_batch_1, data_batch_2], axis=0)
 
 
 class PDDataFrameIterator(DataIterator):
