@@ -104,7 +104,8 @@ class Model(with_metaclass(abc.ABCMeta, object)):
                              'gradients being provided.')
         self.provided_optimizer = optimizer
         self.optimizer = None
-        self.optimizer_opts = optimizer_opts
+        self.optimizer_opts = dict() if optimizer_opts is None \
+            else optimizer_opts
         self.train_op = None
         if self.trainable:
             self._process_train_args()
