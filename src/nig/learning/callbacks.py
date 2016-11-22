@@ -248,8 +248,7 @@ class CheckpointWriterCallback(Callback):
         if self._saver is None:
             self._saver = tf.train.Saver(
                 var_list=self.variable_list, max_to_keep=self.max_to_keep,
-                keep_checkpoint_every_n_hours=self.keep_ckpt_every_n_hours,
-                write_version=tf.train.SaverDef.V1)
+                keep_checkpoint_every_n_hours=self.keep_ckpt_every_n_hours)
             if self.working_dir is None:
                 self.working_dir = working_dir
 
@@ -262,14 +261,17 @@ class CheckpointWriterCallback(Callback):
 
 
 class EvaluationCallback(Callback):
-    def __init__(self, frequency, data, metrics, number_of_batches=-1,
-                 aggregating_function=np.mean, name='eval_callback',
-                 log_format=None, header=None, header_frequency=sys.maxsize,
-                 summary=True):
+    def __init__(self, frequency, data, metrics, predict_postprocess=None,
+                 number_of_batches=-1, aggregating_function=np.mean,
+                 name='eval_callback', log_format=None, header=None,
+                 header_frequency=sys.maxsize, summary=True):
         super(EvaluationCallback, self).__init__(frequency)
         self.data = data
         self.iterator = get_iterator(data)
         self.metrics = metrics if isinstance(metrics, list) else [metrics]
+        self.predict_postprocess = (lambda x: x) \
+            if predict_postprocess is None \
+            else predict_postprocess
         self.number_of_batches = number_of_batches
         self.aggregating_function = aggregating_function
         self.name = name
@@ -288,7 +290,8 @@ class EvaluationCallback(Callback):
     def copy(self):
         return EvaluationCallback(
             frequency=self.frequency, data=self.data,
-            metrics=self.metrics, number_of_batches=self.number_of_batches,
+            metrics=self.metrics, predict_postprocess=self.predict_postprocess,
+            number_of_batches=self.number_of_batches,
             aggregating_function=self.aggregating_function, name=self.name,
             log_format=self.log_format, header=self.header,
             header_frequency=self.header_frequency, summary=self.summary)
@@ -298,9 +301,10 @@ class EvaluationCallback(Callback):
         if self._eval_ops is None:
             self._model = model
             with tf.name_scope(self.name):
-                self._eval_ops = [
-                    metric(self._model.outputs, self._model.train_outputs)
-                    for metric in self.metrics]
+                outputs = self.predict_postprocess(self._model.outputs)
+                train_outputs = self._model.train_outputs
+                self._eval_ops = [metric(outputs, train_outputs)
+                                  for metric in self.metrics]
             if self.summary:
                 self._summary_writer = summary_writer
 

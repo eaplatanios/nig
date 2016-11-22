@@ -32,7 +32,7 @@ __all__ = ['get_iterator', 'DataIterator', 'ListIterator', 'NPArrayIterator',
 def get_iterator(data, batch_size=None, shuffle=False, cycle=False,
                  cycle_shuffle=False, pipelines=None):
     if isinstance(data, np.ndarray):
-        batch_size = batch_size if batch_size is not None else len(data)
+        batch_size = batch_size if batch_size is not None else data.shape[0]
         return NPArrayIterator(
             data, batch_size=batch_size, shuffle=shuffle, cycle=cycle,
             cycle_shuffle=cycle_shuffle, keep_last=True, pipelines=pipelines)
@@ -61,7 +61,7 @@ def get_iterator(data, batch_size=None, shuffle=False, cycle=False,
 
 def _process_data_element(data, batch_size=None):
     if isinstance(data, np.ndarray):
-        batch_size = batch_size if batch_size is not None else len(data)
+        batch_size = batch_size if batch_size is not None else data.shape[0]
         return NPArrayIterator(data=data, batch_size=batch_size)
     if not isinstance(data, DataIterator):
         raise TypeError('Unsupported data type %s encountered.' % type(data))
@@ -136,15 +136,16 @@ class DataIterator(with_metaclass(abc.ABCMeta, Iterator)):
     def __init__(self, data, batch_size=128, shuffle=False, cycle=False,
                  cycle_shuffle=False, keep_last=True, pipelines=None,
                  seed=None):
+        self._length = len(data)
         self.data = data
-        self.batch_size = batch_size
+        batch_size = batch_size if batch_size is not None else self._length
+        self.batch_size = min(batch_size, self._length)
         self.shuffle = shuffle
         self.cycle = cycle
         self.cycle_shuffle = cycle_shuffle
         self.keep_last = keep_last
         self.pipelines = _process_pipelines(pipelines)
         self.rng = np.random.RandomState(seed)
-        self._length = len(self.data)
         self._begin_index = 0
         self._reached_end = False
         if self.shuffle:
@@ -160,15 +161,18 @@ class DataIterator(with_metaclass(abc.ABCMeta, Iterator)):
             if not self._reached_end:
                 next_data = self.get_data(begin_index, self._begin_index)
             elif self.cycle:
-                if self.cycle_shuffle:
-                    self.shuffle_data()
-                self._reached_end = False
                 if begin_index < self._length:
+                    data_batch_1 = self.get_data(begin_index, None)
+                    if self.cycle_shuffle:
+                        self.shuffle_data()
                     next_data = self.concatenate_data(
-                        self.get_data(begin_index, -1),
+                        data_batch_1,
                         self.get_data(0, self._begin_index - self._length))
                 else:
+                    if self.cycle_shuffle:
+                        self.shuffle_data()
                     next_data = self.get_data(0, self.batch_size)
+                self._reached_end = False
                 self._begin_index %= self._length
             elif self.keep_last and begin_index != self._length:
                 next_data = self.get_data(begin_index, None)
@@ -191,7 +195,7 @@ class DataIterator(with_metaclass(abc.ABCMeta, Iterator)):
     def reset(self, batch_size=None, shuffle=None, cycle=None,
               cycle_shuffle=None, keep_last=None, pipelines=None):
         if batch_size is not None:
-            self.batch_size = batch_size
+            self.batch_size = min(batch_size, self._length)
         if shuffle is not None:
             self.shuffle = shuffle
         if cycle is not None:
@@ -211,6 +215,7 @@ class DataIterator(with_metaclass(abc.ABCMeta, Iterator)):
     def reset_copy(self, batch_size=None, shuffle=None, cycle=None,
                    cycle_shuffle=None, keep_last=None, pipelines=None):
         batch_size = batch_size if batch_size is not None else self.batch_size
+        batch_size = min(batch_size, self._length)
         shuffle = shuffle if shuffle is not None else self.shuffle
         cycle = cycle if cycle is not None else self.cycle
         cycle_shuffle = cycle_shuffle if cycle_shuffle is not None \
@@ -252,7 +257,7 @@ class NPArrayIterator(DataIterator):
         return self.data[from_index:to_index]
 
     def concatenate_data(self, data_batch_1, data_batch_2):
-        return np.vstack([data_batch_1, data_batch_2])
+        return np.concatenate([data_batch_1, data_batch_2], axis=0)
 
 
 class PDDataFrameIterator(DataIterator):
@@ -293,7 +298,8 @@ class ZipDataIterator(Iterator):
         if shuffle or cycle_shuffle:
             raise NotImplementedError('Shuffling is not currently supported '
                                       'for zip iterators.')
-        self.batch_size = batch_size
+        batch_size = batch_size if batch_size is not None else self._length
+        self.batch_size = min(batch_size, self._length)
         self.shuffle = shuffle
         self.cycle = cycle
         self.cycle_shuffle = cycle_shuffle
@@ -320,7 +326,7 @@ class ZipDataIterator(Iterator):
     def reset(self, batch_size=None, shuffle=None, cycle=None,
               cycle_shuffle=None, keep_last=None, pipelines=None):
         if batch_size is not None:
-            self.batch_size = batch_size
+            self.batch_size = min(batch_size, self._length)
         if shuffle is not None:
             self.shuffle = shuffle
         if cycle is not None:
@@ -340,6 +346,7 @@ class ZipDataIterator(Iterator):
     def reset_copy(self, batch_size=None, shuffle=None, cycle=None,
                    cycle_shuffle=None, keep_last=None, pipelines=None):
         batch_size = batch_size if batch_size is not None else self.batch_size
+        batch_size = min(batch_size, self._length)
         shuffle = shuffle if shuffle is not None else self.shuffle
         cycle = cycle if cycle is not None else self.cycle
         cycle_shuffle = cycle_shuffle if cycle_shuffle is not None \
