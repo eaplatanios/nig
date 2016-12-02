@@ -64,7 +64,7 @@ class LoggerCallback(Callback):
                  log_format='{:>20} - | {:>10d} | {:>11.4e} |',
                  header='{:>20} - | {:>10} | {:>11} |'
                         .format('logger_callback', 'Step', 'Loss'),
-                 header_frequency=sys.maxsize, store_values=False):
+                 header_frequency=sys.maxsize, stored_values=None):
         """
 
         Args:
@@ -85,13 +85,19 @@ class LoggerCallback(Callback):
                              'than the overall callback frequency (%d).'
                              % (header_frequency, frequency))
         self.header_frequency = header_frequency
-        self.store_values = store_values
-        if store_values:
-            self.stored_values = []
+        if stored_values is not None and not isinstance(stored_values, list):
+            raise TypeError('stored_values (currently a %s) must be a list or '
+                            'None.' % type(stored_values))
+        self.stored_values = stored_values
+        if self.stored_values is not None:
+            self.stored_values[:] = []  # Empty the list
 
     def copy(self):
-        return LoggerCallback(self.frequency, self.name, self.log_format,
-                              self.header, self.header_frequency)
+        return LoggerCallback(
+            frequency=self.frequency, name=self.name,
+            log_format=self.log_format, header=self.header,
+            header_frequency=self.header_frequency,
+            stored_values=self.stored_values)
 
     def initialize(self, learner, model, model_name, working_dir,
                    summary_writer):
@@ -100,7 +106,7 @@ class LoggerCallback(Callback):
     def execute(self, session, feed_dict, loss, global_step):
         if global_step % self.header_frequency == 0:
             logger.info(self.header)
-        if self.store_values:
+        if self.stored_values is not None:
             self.stored_values.append((global_step + 1, loss))
         logger.info(self.log_format.format(self.name, global_step+1, loss))
 
@@ -285,7 +291,7 @@ class EvaluationCallback(Callback):
                  number_of_batches=-1, aggregating_function=np.mean,
                  name='eval_callback', log_format=None, header=None,
                  header_frequency=sys.maxsize, summary=False,
-                 store_values=False):
+                 stored_values=None):
         super(EvaluationCallback, self).__init__(frequency)
         self.data = data
         self.iterator = get_iterator(data)
@@ -304,9 +310,23 @@ class EvaluationCallback(Callback):
                                     for metric in self.metrics])
         self.header_frequency = header_frequency
         self.summary = summary
-        self.store_values = store_values
-        if store_values:
-            self.stored_values = {str(m): [] for m in self.metrics}
+        if stored_values is not None:
+            if len(metrics) > 1 and not isinstance(stored_values, dict):
+                raise TypeError('stored_values (currently a %s) must be a dict '
+                                'or None, when more than 1 metrics are '
+                                'provided.' % type(stored_values))
+            elif len(metrics) == 1 and not (isinstance(stored_values, dict)
+                                            or isinstance(stored_values, list)):
+                raise TypeError('stored_values (currently a %s) must be a '
+                                'dict, a list, or None, when only 1 metric is '
+                                'provided.' % type(stored_values))
+        self.stored_values = stored_values
+        if self.stored_values is not None:
+            if isinstance(self.stored_values, list):
+                self.stored_values[:] = []
+            else:
+                for metric in self.metrics:
+                        self.stored_values[metric] = []
         self._summary_writer = None
         self._model = None
         self._eval_ops = None
@@ -318,7 +338,8 @@ class EvaluationCallback(Callback):
             number_of_batches=self.number_of_batches,
             aggregating_function=self.aggregating_function, name=self.name,
             log_format=self.log_format, header=self.header,
-            header_frequency=self.header_frequency, summary=self.summary)
+            header_frequency=self.header_frequency, summary=self.summary,
+            stored_values=self.stored_values)
 
     def initialize(self, learner, model, model_name, working_dir,
                    summary_writer):
@@ -348,9 +369,12 @@ class EvaluationCallback(Callback):
                     name=summary_value.tag, mark_as_used=False)
                 summary_value.simple_value = float(value)
                 self._summary_writer.add_summary(summary, global_step)
-            if self.store_values:
-                self.stored_values[str(self.metrics[index])].append(
-                    (global_step + 1, value))
+            if self.stored_values is not None:
+                if isinstance(self.stored_values, list):
+                    self.stored_values.append((global_step + 1, value))
+                else:
+                    self.stored_values[str(self.metrics[index])].append(
+                        (global_step + 1, value))
         if global_step % self.header_frequency == 0:
             logger.info(self.header)
         logger.info(self.log_format.format(self.name, global_step+1, *metrics))
