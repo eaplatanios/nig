@@ -24,6 +24,7 @@ from . import learning
 from . import math
 from . import models
 from . import ops
+from . import plotting
 from . import utilities
 
 from .data import *
@@ -32,18 +33,20 @@ from .learning import *
 from .math import *
 from .models import *
 from .ops import *
+from .plotting import *
 from .utilities import *
 
 __author__ = 'eaplatanios'
 
 __all__ = ['data', 'evaluation', 'learning', 'math', 'models', 'ops',
-           'utilities']
+           'plotting', 'utilities']
 __all__.extend(data.__all__)
 __all__.extend(evaluation.__all__)
 __all__.extend(learning.__all__)
 __all__.extend(math.__all__)
 __all__.extend(models.__all__)
 __all__.extend(ops.__all__)
+__all__.extend(plotting.__all__)
 __all__.extend(utilities.__all__)
 
 __logging_config_path = os.path.join(os.path.dirname(__file__), 'logging.yaml')
