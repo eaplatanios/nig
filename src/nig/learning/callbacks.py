@@ -64,12 +64,30 @@ class LoggerCallback(Callback):
                  log_format='{:>20} - | {:>10d} | {:>11.4e} |',
                  header='{:>20} - | {:>10} | {:>11} |'
                         .format('logger_callback', 'Step', 'Loss'),
-                 header_frequency=sys.maxsize):
+                 header_frequency=sys.maxsize, store_values=False):
+        """
+
+        Args:
+            frequency:
+            name:
+            log_format:
+            header:
+            header_frequency (int): Needs to be less frequent than the overall
+                callback frequency.
+            store_values:
+        """
         super(LoggerCallback, self).__init__(frequency)
         self.name = name
         self.log_format = log_format
         self.header = header
+        if header_frequency < frequency:
+            raise ValueError('header_frequency (%d) must have a larger value '
+                             'than the overall callback frequency (%d).'
+                             % (header_frequency, frequency))
         self.header_frequency = header_frequency
+        self.store_values = store_values
+        if store_values:
+            self.stored_values = []
 
     def copy(self):
         return LoggerCallback(self.frequency, self.name, self.log_format,
@@ -82,6 +100,8 @@ class LoggerCallback(Callback):
     def execute(self, session, feed_dict, loss, global_step):
         if global_step % self.header_frequency == 0:
             logger.info(self.header)
+        if self.store_values:
+            self.stored_values.append((global_step + 1, loss))
         logger.info(self.log_format.format(self.name, global_step+1, loss))
 
 
@@ -264,7 +284,8 @@ class EvaluationCallback(Callback):
     def __init__(self, frequency, data, metrics, predict_postprocess=None,
                  number_of_batches=-1, aggregating_function=np.mean,
                  name='eval_callback', log_format=None, header=None,
-                 header_frequency=sys.maxsize, summary=True):
+                 header_frequency=sys.maxsize, summary=False,
+                 store_values=False):
         super(EvaluationCallback, self).__init__(frequency)
         self.data = data
         self.iterator = get_iterator(data)
@@ -283,6 +304,9 @@ class EvaluationCallback(Callback):
                                     for metric in self.metrics])
         self.header_frequency = header_frequency
         self.summary = summary
+        self.store_values = store_values
+        if store_values:
+            self.stored_values = {str(m): [] for m in self.metrics}
         self._summary_writer = None
         self._model = None
         self._eval_ops = None
@@ -324,6 +348,9 @@ class EvaluationCallback(Callback):
                     name=summary_value.tag, mark_as_used=False)
                 summary_value.simple_value = float(value)
                 self._summary_writer.add_summary(summary, global_step)
+            if self.store_values:
+                self.stored_values[str(self.metrics[index])].append(
+                    (global_step + 1, value))
         if global_step % self.header_frequency == 0:
             logger.info(self.header)
         logger.info(self.log_format.format(self.name, global_step+1, *metrics))
