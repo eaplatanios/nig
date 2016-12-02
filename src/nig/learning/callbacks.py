@@ -311,12 +311,13 @@ class EvaluationCallback(Callback):
         self.header_frequency = header_frequency
         self.summary = summary
         if stored_values is not None:
-            if len(metrics) > 1 and not isinstance(stored_values, dict):
+            if len(self.metrics) > 1 and not isinstance(stored_values, dict):
                 raise TypeError('stored_values (currently a %s) must be a dict '
                                 'or None, when more than 1 metrics are '
                                 'provided.' % type(stored_values))
-            elif len(metrics) == 1 and not (isinstance(stored_values, dict)
-                                            or isinstance(stored_values, list)):
+            elif len(self.metrics) == 1 and not (
+                        isinstance(stored_values, dict) or
+                        isinstance(stored_values, list)):
                 raise TypeError('stored_values (currently a %s) must be a '
                                 'dict, a list, or None, when only 1 metric is '
                                 'provided.' % type(stored_values))

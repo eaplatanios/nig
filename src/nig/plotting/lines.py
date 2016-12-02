@@ -18,8 +18,6 @@ import numpy as np
 
 from matplotlib import pyplot as plt
 
-from . import apply_style_sheet
-
 __author__ = 'eaplatanios'
 
 __all__ = ['plot_lines']
@@ -43,7 +41,7 @@ def plot_lines(lines, names=None, style_sheet='ggplot', colormap='viridis',
         lines = [lines[name] for name in names]
     if save_filename is None and not show_plot:
         show_plot = True
-    apply_style_sheet(style_sheet=style_sheet)
+    plt.style.use(style_sheet)
     colormap = plt.get_cmap(colormap)
     colors = colormap(np.linspace(0, 1, len(lines)))
     plt.figure()
