@@ -25,7 +25,7 @@ __all__ = ['plot_lines']
 
 def plot_lines(lines, names=None, style_sheet='ggplot', colormap='viridis',
                xscale='linear', xlabel=None, yscale='linear', ylabel=None,
-               title=None, alpha=1.0, linestyle='-', linewidth=1.0, marker=None,
+               title=None, alpha=1.0, linestyle='-', linewidth=2.0, marker=None,
                markersize=0.0, include_legend=True, show_plot=False,
                save_filename=None, dpi=None, facecolor=None, edgecolor=None,
                orientation='portrait', papertype=None, format=None,

@@ -949,11 +949,15 @@ class CrossValidationLearner(Learner):
 
 
 class TrustBasedLearner(Learner):
-    def __init__(self, models, consensus_loss_weight=1.0, new_graph=False,
-                 session=None, predict_postprocess=None, logging_level=0):
+    def __init__(self, models, consensus_loss_weight=1.0,
+                 first_trust_update=10, trust_update_frequency=10,
+                 new_graph=False, session=None, predict_postprocess=None,
+                 logging_level=0):
         if any(model.uses_external_optimizer for model in models):
             raise ValueError('Only internal optimizers are supported for this '
                              'learner.')
+        self.first_trust_update = first_trust_update
+        self.trust_update_frequency = trust_update_frequency
         super(TrustBasedLearner, self).__init__(
             models=models, new_graph=new_graph, session=session,
             predict_postprocess=predict_postprocess,
@@ -1073,7 +1077,9 @@ class TrustBasedLearner(Learner):
         iter_below_tol = [0] * len(models)
         step = 0
         while True:
-            if step >= 10 and (step - 10) % 10 == 0:
+            if step >= self.first_trust_update \
+                    and (step - self.first_trust_update) \
+                            % self.trust_update_frequency == 0:
                 self.update_trust(self._estimate_trust(
                     labeled_data=labeled_data, unlabeled_data=unlabeled_data))
             fetches = [[models[m].train_op, models[m].loss]
