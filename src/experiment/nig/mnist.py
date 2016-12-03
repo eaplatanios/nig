@@ -16,7 +16,7 @@ __all__ = ['MNISTExperiment']
 
 class MNISTExperiment(base.Experiment):
     def __init__(self, architectures, use_one_hot_encoding=True,
-                 activation=tf.nn.relu, batch_size=100, labeled_batch_size=100,
+                 activation=tf.nn.relu, batch_size=128, labeled_batch_size=100,
                  unlabeled_batch_size=100, max_iter=1000, abs_loss_chg_tol=1e-6,
                  rel_loss_chg_tol=1e-6, loss_chg_iter_below_tol=5,
                  logging_frequency=10, summary_frequency=100,

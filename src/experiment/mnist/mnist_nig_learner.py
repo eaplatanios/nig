@@ -57,7 +57,7 @@ trust_based_learner = partial(
     nig.TrustBasedLearner, first_trust_update=10, trust_update_frequency=10)
 
 learners = [maj_learner, nig.ConsensusLearner]
-experiment.run(learners, show_plots=True)
+experiment.run(learners, show_plots=True, plots_folder=working_dir)
 
 # test_predictions = learner.predict(
 #     _get_iterator(test_data, False), ckpt=False, working_dir=working_dir,
