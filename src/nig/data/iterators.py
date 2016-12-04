@@ -40,19 +40,20 @@ def get_iterator(data, batch_size=None, shuffle=False, cycle=False,
     if isinstance(data, tuple):
         # TODO: Add shuffling capability.
         return ZipDataIterator(
-            iterators=[_process_data_element(data=d, batch_size=batch_size)
+            iterators=[_process_data_element(
+                data=d, batch_size=batch_size, keep_last=keep_last)
                        for d in data],
-            keys=None, batch_size=batch_size, cycle=cycle, keep_last=keep_last,
-            pipelines=pipelines)
+            keys=None, batch_size=batch_size, cycle=cycle, pipelines=pipelines)
     if isinstance(data, dict):
         # TODO: Add shuffling capability.
         if isinstance(pipelines, dict):
             pipelines = [pipelines[k] for k in data.keys()]
         return ZipDataIterator(
-            iterators=[_process_data_element(data=d, batch_size=batch_size)
+            iterators=[_process_data_element(
+                data=d, batch_size=batch_size, keep_last=keep_last)
                        for d in data.values()],
             keys=list(data.keys()), batch_size=batch_size, cycle=cycle,
-            keep_last=keep_last, pipelines=pipelines)
+            pipelines=pipelines)
     if not isinstance(data, DataIterator) \
             and not isinstance(data, ZipDataIterator):
         raise TypeError('Unsupported data type %s encountered.' % type(data))
