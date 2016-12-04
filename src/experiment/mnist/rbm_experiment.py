@@ -11,26 +11,26 @@ __author__ = 'eaplatanios'
 
 logger = logging.getLogger(__name__)
 
-architectures = [[5], [1024, 512]]
+architectures = [[5], [16, 32, 16], [128, 64, 32], [256, 128, 64, 32]]
 use_one_hot_encoding = True
-activation = nig.leaky_relu(0.01)
+activation = tf.nn.relu
 batch_size = 128
-labeled_batch_size = 512
-unlabeled_batch_size = 512
-max_iter = 300
+labeled_batch_size = 256
+unlabeled_batch_size = 256
+max_iter = 1000
 abs_loss_chg_tol = 1e-6
 rel_loss_chg_tol = 1e-6
 loss_chg_iter_below_tol = 5
 logging_frequency = 10
 summary_frequency = 100
-checkpoint_frequency = 10000
+checkpoint_frequency = 1000
 evaluation_frequency = 10
 variable_statistics_frequency = -1
 run_meta_data_frequency = -1
 working_dir = os.path.join(os.getcwd(), 'working')
 checkpoint_file_prefix = 'ckpt'
 restore_sequentially = False
-save_trained = False
+save_trained = True
 optimizer = lambda: tf.train.AdamOptimizer()
 gradients_processor = None  # norm_clipping(clip_norm=0.1)
 
@@ -52,17 +52,10 @@ experiment = mnist.MNISTExperiment(
     checkpoint_file_prefix=checkpoint_file_prefix,
     restore_sequentially=restore_sequentially, save_trained=save_trained,
     optimizer=optimizer, gradients_processor=gradients_processor)
-# maj_trust_based_learner = partial(nig.TrustBasedLearner, first_trust_update=max_iter + 1)
-# trust_based_learner = partial(
-#     nig.TrustBasedLearner, first_trust_update=10, trust_update_frequency=10)
-maj_consensus_learner = partial(
-    nig.ConsensusLearner, consensus_loss_weight=0.0, consensus_method='MAJ')
-consensus_learner = partial(
-    nig.ConsensusLearner, consensus_method='RBM', first_consensus=10,
-    first_consensus_max_iter=5000, consensus_update_frequency=10,
-    consensus_update_max_iter=500)
+trust_based_learner = partial(
+    nig.TrustBasedLearner, first_trust_update=10, trust_update_frequency=10)
 
-learners = [maj_consensus_learner, consensus_learner]
+learners = [trust_based_learner]
 experiment.run(learners, show_plots=True, plots_folder=working_dir)
 
 # test_predictions = learner.predict(
