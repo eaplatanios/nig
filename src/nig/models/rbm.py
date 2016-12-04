@@ -134,13 +134,15 @@ class RBM(Model):
 
 
 class SemiSupervisedRBM(Model):
-    def __init__(self, inputs, num_hidden, mean_field=True, num_samples=100,
-                 mean_field_cd=False, cd_steps=1, loss_summary=False,
-                 optimizer=None, optimizer_opts=None, graph=None):
+    def __init__(self, inputs, num_hidden, persistent=True, mean_field=True,
+                 num_samples=100, mean_field_cd=False, cd_steps=1,
+                 loss_summary=False, optimizer=None, optimizer_opts=None,
+                 graph=None):
         self.graph = inputs.graph if graph is None else graph
         self.num_inputs = inputs.get_shape()[1].value
         self.inputs = inputs
         self.num_hidden = num_hidden
+        self.persistent = persistent
         self.mean_field = mean_field
         self.num_samples = num_samples
         self.mean_field_cd = mean_field_cd
@@ -162,6 +164,8 @@ class SemiSupervisedRBM(Model):
             self.w = tf.Variable(tf.random_normal(
                 shape=[self.num_inputs, self.num_hidden], mean=0.0, stddev=0.01,
                 dtype=tf.float32), name='w')
+        self._previous_unlabeled_v = None
+        self._previous_labeled_v = None
         outputs = self._outputs()
         loss = self._loss()
         super(SemiSupervisedRBM, self).__init__(
@@ -229,27 +233,48 @@ class SemiSupervisedRBM(Model):
     def _unlabeled_loss(self, unlabeled_inputs=None):
         if unlabeled_inputs is None:
             unlabeled_inputs = self.inputs
-        v_sample, _ = self._contrastive_divergence(
-            k=self.cd_steps, initial_v=unlabeled_inputs)
+            if self.persistent:
+                self._previous_unlabeled_v = tf.Variable(
+                    unlabeled_inputs, dtype=tf.float32, validate_shape=False,
+                    trainable=False)
+        if self.persistent:
+            v_sample, _ = self._contrastive_divergence(
+                k=self.cd_steps, initial_v=self._previous_unlabeled_v)
+            v_sample = tf.assign(self._previous_unlabeled_v, v_sample)
+        else:
+            v_sample, _ = self._contrastive_divergence(
+                k=self.cd_steps, initial_v=unlabeled_inputs)
         data_free_energy = self._free_energy(unlabeled_inputs)
         sample_free_energy = self._free_energy(v_sample)
         return tf.reduce_sum(tf.sub(data_free_energy, sample_free_energy))
 
     @graph_context
     def _labeled_loss(self, labeled_inputs, labels):
-        v_sample, h_sample = self._contrastive_divergence(
-            k=self.cd_steps, initial_v=labeled_inputs)
+        if self.persistent:
+            v_sample, h_sample = self._contrastive_divergence(
+                k=self.cd_steps, initial_v=self._previous_labeled_v)
+            v_sample = tf.assign(self._previous_labeled_v, v_sample)
+        else:
+            v_sample, h_sample = self._contrastive_divergence(
+                k=self.cd_steps, initial_v=labeled_inputs)
         data_free_energy = self._free_energy(labeled_inputs, labels)
         sample_free_energy = self._free_energy(v_sample, h_sample)
         return tf.reduce_sum(tf.sub(data_free_energy, sample_free_energy))
 
     @graph_context
     def _combined_loss(self):
+        # TODO: Persistent CD is broken when the number of labeled/unlabeled examples can differ for each iteration.
         unlabeled_mask = self.train_outputs < 0
         labeled_mask = tf.logical_not(unlabeled_mask)
         unlabeled_inputs = tf.boolean_mask(self.inputs, unlabeled_mask)
+        self._previous_unlabeled_v = tf.Variable(
+            unlabeled_inputs, dtype=tf.float32, validate_shape=False,
+            trainable=False)
         unlabeled_loss = self._unlabeled_loss(unlabeled_inputs)
         labeled_inputs = tf.boolean_mask(self.inputs, labeled_mask)
+        self._previous_labeled_v = tf.Variable(
+            labeled_inputs, dtype=tf.float32, validate_shape=False,
+            trainable=False)
         labels = tf.boolean_mask(self.train_outputs, labeled_mask)
         labeled_loss = self._labeled_loss(labeled_inputs, labels[:, None])
         return tf.add(unlabeled_loss, labeled_loss)
