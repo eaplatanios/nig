@@ -26,18 +26,19 @@ __all__ = ['MultiLayerPerceptron']
 
 class MultiLayerPerceptron(Model):
     def __init__(self, input_size, output_size, hidden_layer_sizes, activation,
-                 softmax_output=True, use_log=True, train_outputs_one_hot=False,
-                 loss=None, loss_summary=False, optimizer=None,
-                 optimizer_opts=None):
+                 softmax_output=True, sigmoid_output=False, log_output=True,
+                 train_outputs_one_hot=False, loss=None, loss_summary=False,
+                 optimizer=None, optimizer_opts=None):
         self.output_size = output_size
         self.hidden_layer_sizes = hidden_layer_sizes
         self.activation = activation
         self.softmax_output = softmax_output
-        self.use_log = use_log
+        self.sigmoid_output = sigmoid_output
+        self.log_output = log_output
         self.train_outputs_one_hot = train_outputs_one_hot
         inputs = tf.placeholder(tf.float32, shape=[None, input_size])
         outputs = self._output_op(inputs)
-        train_outputs = None if train_outputs_one_hot \
+        train_outputs = None if self.train_outputs_one_hot \
             else tf.placeholder(tf.int32, shape=[None])
         super(MultiLayerPerceptron, self).__init__(
             inputs=inputs, outputs=outputs, train_outputs=train_outputs,
@@ -66,10 +67,12 @@ class MultiLayerPerceptron(Model):
                 stddev=1.0 / np.math.sqrt(float(input_size))), name='W')
             biases = tf.Variable(tf.zeros([self.output_size]), name='b')
             outputs = tf.matmul(hidden, weights) + biases
-        if self.softmax_output and self.use_log:
+        if self.softmax_output and self.log_output:
             return tf.nn.log_softmax(outputs)
         elif self.softmax_output:
             return tf.nn.softmax(outputs)
-        elif self.use_log:
+        elif self.sigmoid_output and self.log_output:
+            return tf.log(tf.sigmoid(outputs))
+        elif self.log_output:
             return tf.log(outputs)
         return outputs

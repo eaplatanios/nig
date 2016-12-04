@@ -30,18 +30,20 @@ __all__ = ['get_iterator', 'DataIterator', 'ListIterator', 'NPArrayIterator',
 
 
 def get_iterator(data, batch_size=None, shuffle=False, cycle=False,
-                 cycle_shuffle=False, pipelines=None):
+                 cycle_shuffle=False, keep_last=True, pipelines=None):
     if isinstance(data, np.ndarray):
         batch_size = batch_size if batch_size is not None else data.shape[0]
         return NPArrayIterator(
             data, batch_size=batch_size, shuffle=shuffle, cycle=cycle,
-            cycle_shuffle=cycle_shuffle, keep_last=True, pipelines=pipelines)
+            cycle_shuffle=cycle_shuffle, keep_last=keep_last,
+            pipelines=pipelines)
     if isinstance(data, tuple):
         # TODO: Add shuffling capability.
         return ZipDataIterator(
             iterators=[_process_data_element(data=d, batch_size=batch_size)
                        for d in data],
-            keys=None, batch_size=batch_size, cycle=cycle, pipelines=pipelines)
+            keys=None, batch_size=batch_size, cycle=cycle, keep_last=keep_last,
+            pipelines=pipelines)
     if isinstance(data, dict):
         # TODO: Add shuffling capability.
         if isinstance(pipelines, dict):
@@ -50,22 +52,24 @@ def get_iterator(data, batch_size=None, shuffle=False, cycle=False,
             iterators=[_process_data_element(data=d, batch_size=batch_size)
                        for d in data.values()],
             keys=list(data.keys()), batch_size=batch_size, cycle=cycle,
-            pipelines=pipelines)
+            keep_last=keep_last, pipelines=pipelines)
     if not isinstance(data, DataIterator) \
             and not isinstance(data, ZipDataIterator):
         raise TypeError('Unsupported data type %s encountered.' % type(data))
     return data.reset_copy(
         batch_size=batch_size, shuffle=shuffle, cycle=cycle,
-        cycle_shuffle=cycle_shuffle, pipelines=pipelines)
+        cycle_shuffle=cycle_shuffle, keep_last=keep_last, pipelines=pipelines)
 
 
-def _process_data_element(data, batch_size=None):
+def _process_data_element(data, batch_size=None, cycle=False, keep_last=True):
     if isinstance(data, np.ndarray):
         batch_size = batch_size if batch_size is not None else data.shape[0]
-        return NPArrayIterator(data=data, batch_size=batch_size)
+        return NPArrayIterator(
+            data=data, batch_size=batch_size, cycle=cycle, keep_last=keep_last)
     if not isinstance(data, DataIterator):
         raise TypeError('Unsupported data type %s encountered.' % type(data))
-    return data.reset_copy(batch_size=batch_size)
+    return data.reset_copy(
+        batch_size=batch_size, cycle=cycle, keep_last=keep_last)
 
 
 def _process_pipelines(pipelines):

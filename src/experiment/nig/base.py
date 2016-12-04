@@ -25,9 +25,9 @@ class Experiment(with_metaclass(abc.ABCMeta, object)):
                  save_trained=True):
         if predict_postprocess is None:
             predict_postprocess = lambda x: x
-        if inputs_pipeline is None:
+        if inputs_pipeline is None and outputs_pipeline is not None:
             inputs_pipeline = lambda x: x
-        if outputs_pipeline is None:
+        if outputs_pipeline is None and inputs_pipeline is not None:
             outputs_pipeline = lambda x: x
         self.models = models
         self.eval_metric = eval_metric
@@ -52,12 +52,40 @@ class Experiment(with_metaclass(abc.ABCMeta, object)):
     def load_data(self):
         pass
 
+    @staticmethod
+    def _merge_data_sets(*data_sets):
+        data_set_type = type(data_sets[0])
+        for data_set in data_sets:
+            if not isinstance(data_set, data_set_type):
+                raise TypeError('All data sets being merged must have the same '
+                                'data type.')
+        if data_set_type == np.ndarray:
+            return np.concatenate(data_sets)
+        if data_set_type == tuple:
+            return tuple(np.concatenate(d) for d in zip(*data_sets))
+        if data_set_type == list:
+            return [np.concatenate(d) for d in zip(*data_sets)]
+        if data_set_type == dict:
+            keys = set(data_sets[0].keys)
+            for data_set in data_sets:
+                if set(data_set.keys()) != keys:
+                    raise ValueError('All data sets must contain the same '
+                                     'dictionary keys.')
+            return {k: np.concatenate(tuple(d[k] for d in data_sets))
+                    for k in keys}
+        raise TypeError('Unsupported data sets type %s.' % data_set_type)
+
     def _get_iterator(self, data, include_outputs=True):
-        pipelines = [self.inputs_pipeline]
-        if include_outputs:
+        if self.inputs_pipeline is not None:
+            pipelines = [self.inputs_pipeline]
+        elif self.outputs_pipeline is None:
+            pipelines = None
+        else:
+            pipelines = [lambda x: x]
+        if include_outputs and self.outputs_pipeline is not None:
             pipelines.append(self.outputs_pipeline)
-        return nig.NPArrayIterator(
-            data, self.batch_size, shuffle=True, cycle=False,
+        return nig.get_iterator(
+            data, batch_size=self.batch_size, shuffle=True, cycle=False,
             cycle_shuffle=False, keep_last=True, pipelines=pipelines)
 
     def _callbacks(self, train_data=None, val_data=None, test_data=None,
@@ -111,23 +139,30 @@ class Experiment(with_metaclass(abc.ABCMeta, object)):
                 train_data=train_data, val_data=val_data, test_data=test_data,
                 loss_values=losses, eval_train_values=train_evals,
                 eval_val_values=val_evals, eval_test_values=test_evals)
+            if self.inputs_pipeline is not None:
+                labeled_pipelines = [self.inputs_pipeline]
+                unlabeled_pipelines = [self.inputs_pipeline]
+            else:
+                labeled_pipelines = [lambda x: x]
+                unlabeled_pipelines = None
+            if self.outputs_pipeline is None:
+                labeled_pipelines.append(lambda x: x)
+            else:
+                labeled_pipelines.append(self.outputs_pipeline)
             learner = learner(
                 models=self.models,
                 predict_postprocess=self.predict_postprocess)
             labeled_data = nig.get_iterator(
-                data=np.concatenate([train_data, val_data], axis=0),
+                data=self._merge_data_sets(train_data, val_data),
                 batch_size=self.labeled_batch_size, shuffle=True,
-                cycle=True, cycle_shuffle=True,
-                pipelines=[self.inputs_pipeline, self.outputs_pipeline])
+                cycle=True, cycle_shuffle=True, pipelines=labeled_pipelines)
             unlabeled_data = nig.get_iterator(
                 data=test_data, batch_size=self.unlabeled_batch_size,
                 shuffle=True, cycle=True, cycle_shuffle=True,
-                pipelines=[self.inputs_pipeline])
+                pipelines=unlabeled_pipelines)
             learner.train(
-                data=train_data,
-                pipelines=[self.inputs_pipeline, self.outputs_pipeline],
-                init_option=True, per_model_callbacks=None,
-                combined_model_callbacks=callbacks,
+                data=train_data, pipelines=labeled_pipelines, init_option=True,
+                per_model_callbacks=None, combined_model_callbacks=callbacks,
                 working_dir=self.working_dir,
                 ckpt_file_prefix=self.checkpoint_file_prefix,
                 restore_sequentially=self.restore_sequentially,

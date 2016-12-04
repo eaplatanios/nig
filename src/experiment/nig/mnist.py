@@ -41,7 +41,8 @@ class MNISTExperiment(base.Experiment):
             'grads_processor': gradients_processor}
         models = [nig.MultiLayerPerceptron(
             784, 10, architecture, activation=activation,
-            softmax_output=use_one_hot_encoding, use_log=use_one_hot_encoding,
+            softmax_output=use_one_hot_encoding,
+            log_output=use_one_hot_encoding,
             train_outputs_one_hot=use_one_hot_encoding, loss=loss,
             loss_summary=False, optimizer=optimizer,
             optimizer_opts=optimizer_opts)
