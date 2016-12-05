@@ -979,9 +979,8 @@ class TrustBasedLearner(Learner):
                     validate_shape=False, name='trust', dtype=tf.float32)
                 consensus_losses = self._consensus_losses()
                 for m in range(len(self.models)):
-                    self.models[m] = self.models[m].update_loss(
-                        loss=self.models[m].loss + consensus_losses[m],
-                        graph=self.graph)
+                    self.models[m].update_loss(
+                        loss=self.models[m].loss + consensus_losses[m])
         self.integrator = rbm_integrator.SemiSupervisedRBMIntegrator(
             num_functions=self.num_models, estimate_errors=True,
             working_dir=os.getcwd(), persistent=False)
@@ -1263,9 +1262,7 @@ class ConsensusLearner(Learner):
                     consensus_loss = tf.reduce_mean(consensus_loss)
                     consensus_loss *= self.consensus_loss_weight
                     consensus_loss *= self._consensus_loss_multiplier
-                    self.models[m] = model.update_loss(
-                        loss=tf.add(model.loss, consensus_loss),
-                        graph=self.graph)
+                    model.update_loss(tf.add(model.loss, consensus_loss))
         else:
             raise ValueError('ConsensusLearner can only be used with trainable '
                              'models.')

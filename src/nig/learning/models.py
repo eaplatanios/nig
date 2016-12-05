@@ -139,6 +139,11 @@ class Model(with_metaclass(abc.ABCMeta, object)):
                 name=self.outputs.name.split(':')[0] + '/observed')
 
         # Process loss
+        self.update_loss(self.loss)
+
+    def update_loss(self, loss=None):
+        if loss is not None:
+            self.loss = loss
         if callable(self.loss):
             self.loss = self.loss(self.outputs, self.train_outputs)
         if not isinstance(self.loss, tf.Tensor):
@@ -189,10 +194,6 @@ class Model(with_metaclass(abc.ABCMeta, object)):
                     grads_and_vars=self._gradients)
             else:
                 self.train_op = self.optimizer.minimize(loss=self.loss)
-
-    def update_loss(self, loss, graph=tf.Graph()):
-        self.loss = loss
-        return self.copy_to_graph(graph=graph)
 
     def get_feed_dict(self, data, is_train=False):
         if isinstance(data, np.ndarray):
