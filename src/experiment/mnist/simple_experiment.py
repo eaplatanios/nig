@@ -89,13 +89,13 @@ with tf.device('/cpu:0'):
 
     learners = {'Majority-0.0': maj_00_consensus_learner,
                 'Majority-1.0': maj_0_consensus_learner,
-                'Majority-10.0': maj_1_consensus_learner,
-                'Majority-100.0': maj_2_consensus_learner,
+                # 'Majority-10.0': maj_1_consensus_learner,
+                # 'Majority-100.0': maj_2_consensus_learner,
                 'Majority-1000.0': maj_3_consensus_learner,
                 'RBM-0.0': maj_00_consensus_learner,
                 'RBM-1.0': maj_0_consensus_learner,
-                'RBM-10.0': maj_1_consensus_learner,
-                'RBM-100.0': maj_2_consensus_learner,
+                # 'RBM-10.0': maj_1_consensus_learner,
+                # 'RBM-100.0': maj_2_consensus_learner,
                 'RBM-1000.0': maj_3_consensus_learner}
     experiment.run(learners, show_plots=False, plots_folder=working_dir)
 
