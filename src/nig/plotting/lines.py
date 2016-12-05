@@ -44,7 +44,7 @@ def plot_lines(lines, names=None, style_sheet='ggplot', colormap='viridis',
     plt.style.use(style_sheet)
     colormap = plt.get_cmap(colormap)
     colors = colormap(np.linspace(0, 1, len(lines)))
-    plt.figure()
+    fig = plt.figure()
     for name, line, color in zip(names, lines, colors):
         x, y = zip(*line)
         plt.plot(
@@ -64,7 +64,7 @@ def plot_lines(lines, names=None, style_sheet='ggplot', colormap='viridis',
     if show_plot:
         plt.show()
     if save_filename is not None:
-        plt.savefig(
+        fig.savefig(
             save_filename, dpi=dpi, facecolor=facecolor, edgecolor=edgecolor,
             orientation=orientation, papertype=papertype, format=format,
             transparent=transparent, bbox_inches=bbox_inches,
