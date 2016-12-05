@@ -31,8 +31,7 @@ working_dir = os.path.join(os.getcwd(), 'working')
 checkpoint_file_prefix = 'ckpt'
 restore_sequentially = False
 save_trained = True
-optimizer = lambda: nig.gradient_descent(
-    1e-1, decay_rate=0.99, learning_rate_summary=True)
+optimizer = lambda: nig.gradient_descent(1e0, decay_rate=0.99)
 gradients_processor = None  # processors.norm_clipping(clip_norm=0.1)
 
 # optimizer = tf.contrib.opt.ScipyOptimizerInterface
@@ -66,7 +65,7 @@ maj_3_consensus_learner = partial(
 maj_10_consensus_learner = partial(
     nig.ConsensusLearner, consensus_loss_weight=1e10, consensus_method='MAJ')
 
-learners = {'Majority-0.0': maj_00_consensus_learner,
+learners = {'Majority-0. 0': maj_00_consensus_learner,
             'Majority-1.0': maj_0_consensus_learner,
             'Majority-10.0': maj_1_consensus_learner,
             'Majority-100.0': maj_2_consensus_learner,

@@ -17,6 +17,7 @@ from __future__ import absolute_import, division, print_function
 import numpy as np
 
 from matplotlib import pyplot as plt
+from matplotlib.style import context
 
 __author__ = 'eaplatanios'
 
@@ -41,31 +42,31 @@ def plot_lines(lines, names=None, style='ggplot', colormap='viridis',
         lines = [lines[name] for name in names]
     if save_filename is None and not show_plot:
         show_plot = True
-    plt.style.use(style)
-    colormap = plt.get_cmap(colormap)
-    colors = colormap(np.linspace(0, 1, len(lines)))
-    fig = plt.figure()
-    for name, line, color in zip(names, lines, colors):
-        x, y = zip(*line)
-        plt.plot(
-            x, y, label=name, color=color, alpha=alpha, linestyle=linestyle,
-            linewidth=linewidth, marker=marker, markersize=markersize,
-            markeredgewidth=0.0)
-    plt.xscale(xscale)
-    plt.yscale(yscale)
-    if xlabel is not None:
-        plt.xlabel(xlabel)
-    if ylabel is not None:
-        plt.ylabel(ylabel)
-    if title is not None:
-        plt.title(title)
-    if include_legend:
-        plt.legend(loc=legend_location)
-    if show_plot:
-        plt.show()
-    if save_filename is not None:
-        fig.savefig(
-            save_filename, dpi=dpi, facecolor=facecolor, edgecolor=edgecolor,
-            orientation=orientation, papertype=papertype, format=format,
-            transparent=transparent, bbox_inches=bbox_inches,
-            pad_inches=pad_inches, frameon=frameon)
+    with context(style):
+        colormap = plt.get_cmap(colormap)
+        colors = colormap(np.linspace(0, 1, len(lines)))
+        fig = plt.figure()
+        for name, line, color in zip(names, lines, colors):
+            x, y = zip(*line)
+            plt.plot(
+                x, y, label=name, color=color, alpha=alpha,
+                linestyle=linestyle, linewidth=linewidth, marker=marker,
+                markersize=markersize, markeredgewidth=0.0)
+        plt.xscale(xscale)
+        plt.yscale(yscale)
+        if xlabel is not None:
+            plt.xlabel(xlabel)
+        if ylabel is not None:
+            plt.ylabel(ylabel)
+        if title is not None:
+            plt.title(title)
+        if include_legend:
+            plt.legend(loc=legend_location)
+        if show_plot:
+            plt.show()
+        if save_filename is not None:
+            fig.savefig(
+                save_filename, dpi=dpi, facecolor=facecolor, edgecolor=edgecolor,
+                orientation=orientation, papertype=papertype, format=format,
+                transparent=transparent, bbox_inches=bbox_inches,
+                pad_inches=pad_inches, frameon=frameon)
