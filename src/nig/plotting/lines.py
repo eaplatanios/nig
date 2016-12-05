@@ -65,7 +65,7 @@ def plot_lines(lines, names=None, style_sheet='ggplot', colormap='viridis',
         plt.show()
     if save_filename is not None:
         plt.savefig(
-            fname=save_filename, dpi=dpi, facecolor=facecolor,
-            edgecolor=edgecolor, orientation=orientation, papertype=papertype,
-            format=format, transparent=transparent, bbox_inches=bbox_inches,
+            save_filename, dpi=dpi, facecolor=facecolor, edgecolor=edgecolor,
+            orientation=orientation, papertype=papertype, format=format,
+            transparent=transparent, bbox_inches=bbox_inches,
             pad_inches=pad_inches, frameon=frameon)
