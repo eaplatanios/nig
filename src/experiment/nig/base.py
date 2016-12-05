@@ -195,21 +195,22 @@ class Experiment(with_metaclass(abc.ABCMeta, object)):
                 val_filename = None
                 test_filename = None
             nig.plot_lines(
-                lines=losses, xlabel='Iteration', ylabel='Loss Value',
-                title='Loss Function Value', include_legend=True,
-                show_plot=show_plots, save_filename=loss_filename)
+                lines=losses, style='fivethirtyeight', xlabel='Iteration',
+                ylabel='Loss Value', title='Loss Function Value',
+                include_legend=True, show_plot=show_plots,
+                save_filename=loss_filename)
             nig.plot_lines(
-                lines=train_evals, xlabel='Iteration',
+                lines=train_evals, style='fivethirtyeight', xlabel='Iteration',
                 ylabel=str(self.eval_metric),
                 title=str(self.eval_metric) + ' Value', include_legend=True,
                 show_plot=show_plots, save_filename=train_filename)
             nig.plot_lines(
-                lines=val_evals, xlabel='Iteration',
+                lines=val_evals, style='fivethirtyeight', xlabel='Iteration',
                 ylabel=str(self.eval_metric),
                 title=str(self.eval_metric) + ' Value', include_legend=True,
                 show_plot=show_plots, save_filename=val_filename)
             nig.plot_lines(
-                lines=test_evals, xlabel='Iteration',
+                lines=test_evals, style='fivethirtyeight', xlabel='Iteration',
                 ylabel=str(self.eval_metric),
                 title=str(self.eval_metric) + ' Value', include_legend=True,
                 show_plot=show_plots, save_filename=test_filename)
