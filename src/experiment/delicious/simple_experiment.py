@@ -31,7 +31,7 @@ working_dir = os.path.join(os.getcwd(), 'working')
 checkpoint_file_prefix = 'ckpt'
 restore_sequentially = False
 save_trained = True
-optimizer = lambda: tf.train.AdamOptimizer()
+optimizer = lambda: tf.train.AdamOptimizer(0.0001)
 gradients_processor = None  # norm_clipping(clip_norm=0.1)
 
 # optimizer = tf.contrib.opt.ScipyOptimizerInterface

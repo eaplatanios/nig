@@ -111,10 +111,8 @@ class HammingLossMetric(Metric):
     def __str__(self):
         return 'hamming_loss'
 
-    def evaluate(self, prediction, truth,
-                 use_logits=True, name='hamming_loss'):
-        preds = tf.nn.relu(tf.sign(prediction)) if use_logits \
-                else tf.nn.relu(tf.sign(prediction - tf.log(0.5)))
+    def evaluate(self, prediction, truth, name='hamming_loss'):
+        preds = tf.nn.relu(tf.sign(prediction - tf.log(0.5)))
         mispreds = tf.cast(tf.not_equal(preds, truth), tf.float32)
         hl = tf.reduce_sum(mispreds, reduction_indices=[1])
         metric = tf.reduce_mean(hl, name=name)
