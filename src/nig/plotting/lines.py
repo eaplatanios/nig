@@ -29,7 +29,7 @@ def plot_lines(lines, names=None, style='ggplot', colormap='viridis',
                title=None, alpha=1.0, linestyle='-', linewidth=2.0, marker=None,
                markersize=0.0, include_legend=True, legend_location='best',
                show_plot=False, save_filename=None, dpi=None, transparent=True,
-               bbox_inches=None, pad_inches=0.1):
+               bbox_inches='tight', pad_inches=0.1):
     if names is None and isinstance(lines, dict):
         names = list(lines.keys())
         lines = list(lines.values())
