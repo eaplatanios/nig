@@ -23,7 +23,7 @@ __author__ = 'eaplatanios'
 __all__ = ['plot_lines']
 
 
-def plot_lines(lines, names=None, style_sheet='ggplot', colormap='viridis',
+def plot_lines(lines, names=None, style='ggplot', colormap='viridis',
                xscale='linear', xlabel=None, yscale='linear', ylabel=None,
                title=None, alpha=1.0, linestyle='-', linewidth=2.0, marker=None,
                markersize=0.0, include_legend=True, legend_location='best',
@@ -41,7 +41,7 @@ def plot_lines(lines, names=None, style_sheet='ggplot', colormap='viridis',
         lines = [lines[name] for name in names]
     if save_filename is None and not show_plot:
         show_plot = True
-    plt.style.use(style_sheet)
+    plt.style.use(style)
     colormap = plt.get_cmap(colormap)
     colors = colormap(np.linspace(0, 1, len(lines)))
     fig = plt.figure()
