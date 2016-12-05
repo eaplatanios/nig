@@ -57,5 +57,6 @@ class DeliciousExperiment(base.Experiment):
             save_trained=save_trained)
 
     def load_data(self):
-        train_data, val_data, test_data, _ = delicious.load('data')
+        train_data, val_data, test_data, _ = delicious.load(
+            os.path.join(self.working_dir, 'data'))
         return train_data, val_data, test_data

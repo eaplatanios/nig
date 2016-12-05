@@ -63,7 +63,7 @@ consensus_learner = partial(
     consensus_update_max_iter=500)
 
 learners = [maj_consensus_learner, consensus_learner]
-experiment.run(learners, show_plots=True, plots_folder=working_dir)
+experiment.run(learners, show_plots=False, plots_folder=working_dir)
 
 # test_predictions = learner.predict(
 #     _get_iterator(test_data, False), ckpt=False, working_dir=working_dir,
