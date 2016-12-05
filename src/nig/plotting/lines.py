@@ -28,8 +28,8 @@ def plot_lines(lines, names=None, style='ggplot', colormap='viridis',
                xscale='linear', xlabel=None, yscale='linear', ylabel=None,
                title=None, alpha=1.0, linestyle='-', linewidth=2.0, marker=None,
                markersize=0.0, include_legend=True, legend_location='best',
-               show_plot=False, save_filename=None, dpi=None, facecolor=None,
-               edgecolor=None, orientation='portrait', papertype=None,
+               show_plot=False, save_filename=None, dpi=None, facecolor='white',
+               edgecolor='white', orientation='landscape', papertype=None,
                format=None, transparent=True, bbox_inches=None, pad_inches=0.1,
                frameon=None):
     if names is None and isinstance(lines, dict):

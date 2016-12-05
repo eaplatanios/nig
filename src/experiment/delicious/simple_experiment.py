@@ -1,7 +1,6 @@
 import logging
 import nig
 import os
-import tensorflow as tf
 
 from functools import partial
 
@@ -31,7 +30,7 @@ working_dir = os.path.join(os.getcwd(), 'working', 'delicious')
 checkpoint_file_prefix = 'ckpt'
 restore_sequentially = False
 save_trained = True
-optimizer = lambda: tf.train.AdamOptimizer()
+optimizer = lambda: nig.gradient_descent(1e0, decay_rate=0.99)
 gradients_processor = None  # processors.norm_clipping(clip_norm=0.1)
 
 # optimizer = tf.contrib.opt.ScipyOptimizerInterface
