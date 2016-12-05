@@ -308,6 +308,58 @@ class KFold(_KFoldBase):
         return self.k - self._current_fold
 
 
+class GroupKFold(_KFoldBase):
+    def __init__(self, groups, k):
+        super(GroupKFold, self).__init__(len(groups), k, shuffle=False)
+        self._groups = groups
+        self._fold_assignments = self._compute_fold_assignments()
+        self._current_fold = 0
+
+    def _compute_fold_assignments(self):
+        groups = np.asarray(self._groups)
+        unique_groups, groups = np.unique(groups, return_inverse=True)
+        num_groups = len(unique_groups)
+        if num_groups < self.k:
+            raise ValueError('The number of groups %d must be at least as big '
+                             'as the number of folds %d.'
+                             % (num_groups, self.k))
+        # Distribute the samples by traversing the groups in order of the number
+        # of samples assigned to each one and assigning each group to the fold
+        # with the least number of samples.
+        num_samples_per_group = np.bincount(groups)
+        indices = np.argsort(num_samples_per_group)[::-1]
+        num_samples_per_group = num_samples_per_group[indices]
+        num_samples_per_fold = np.zeros(self.k)
+        group_to_fold_map = np.zeros(len(unique_groups))
+        for group_index, num_samples in enumerate(num_samples_per_group):
+            lightest_fold = np.argmin(num_samples_per_fold)
+            num_samples_per_fold[lightest_fold] += num_samples
+            group_to_fold_map[indices[group_index]] = lightest_fold
+        return group_to_fold_map[groups]
+
+    def _next_test(self):
+        if self._current_fold >= self.k:
+            raise StopIteration()
+        self._current_fold += 1
+        return np.where(self._fold_assignments == self._current_fold - 1)[0]
+
+    def reset(self, k=None):
+        if k is not None:
+            self.k = k
+        self._fold_assignments = self._compute_fold_assignments()
+        self._current_fold = 0
+
+    def reset_copy(self, k=None):
+        k = k if k is not None else self.k
+        return GroupKFold(self._groups, k)
+
+    def __len__(self):
+        return self.k
+
+    def remaining_length(self):
+        return self.k - self._current_fold
+
+
 class StratifiedKFold(_KFoldBase):
     def __init__(self, labels, k, shuffle=False, seed=None):
         super(StratifiedKFold, self).__init__(len(labels), k, shuffle, seed)
@@ -378,7 +430,6 @@ class StratifiedKFold(_KFoldBase):
         return self.k - self._current_fold
 
 
-# TODO: Add LabelKFold.
 # TODO: Add ShuffleSplit.
 # TODO: Add LabelShuffleSplit.
 # TODO: Add PredefinedSplit.
