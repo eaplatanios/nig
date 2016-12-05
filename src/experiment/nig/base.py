@@ -195,23 +195,23 @@ class Experiment(with_metaclass(abc.ABCMeta, object)):
                 val_filename = None
                 test_filename = None
             nig.plot_lines(
-                lines=losses, style='fivethirtyeight', xlabel='Iteration',
+                lines=losses, style='ggplot', xlabel='Iteration',
                 ylabel='Loss Value', title='Loss Function Value',
                 include_legend=True, show_plot=show_plots,
-                save_filename=loss_filename)
+                save_filename=loss_filename, dpi=300)
             nig.plot_lines(
-                lines=train_evals, style='fivethirtyeight', xlabel='Iteration',
+                lines=train_evals, style='ggplot', xlabel='Iteration',
                 ylabel=str(self.eval_metric),
                 title=str(self.eval_metric) + ' Value', include_legend=True,
-                show_plot=show_plots, save_filename=train_filename)
+                show_plot=show_plots, save_filename=train_filename, dpi=300)
             nig.plot_lines(
-                lines=val_evals, style='fivethirtyeight', xlabel='Iteration',
+                lines=val_evals, style='ggplot', xlabel='Iteration',
                 ylabel=str(self.eval_metric),
                 title=str(self.eval_metric) + ' Value', include_legend=True,
-                show_plot=show_plots, save_filename=val_filename)
+                show_plot=show_plots, save_filename=val_filename, dpi=300)
             nig.plot_lines(
-                lines=test_evals, style='fivethirtyeight', xlabel='Iteration',
+                lines=test_evals, style='ggplot', xlabel='Iteration',
                 ylabel=str(self.eval_metric),
                 title=str(self.eval_metric) + ' Value', include_legend=True,
-                show_plot=show_plots, save_filename=test_filename)
+                show_plot=show_plots, save_filename=test_filename, dpi=300)
         return losses, train_evals, val_evals, test_evals

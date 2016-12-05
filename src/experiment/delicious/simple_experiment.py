@@ -1,6 +1,7 @@
 import logging
 import nig
 import os
+import tensorflow as tf
 
 from functools import partial
 
@@ -16,7 +17,7 @@ activation = nig.leaky_relu(0.01)
 batch_size = 100
 labeled_batch_size = 100
 unlabeled_batch_size = 100
-max_iter = 1000
+max_iter = 200
 abs_loss_chg_tol = 1e-6
 rel_loss_chg_tol = 1e-6
 loss_chg_iter_below_tol = 5
@@ -30,7 +31,7 @@ working_dir = os.path.join(os.getcwd(), 'working', 'delicious')
 checkpoint_file_prefix = 'ckpt'
 restore_sequentially = False
 save_trained = True
-optimizer = lambda: nig.gradient_descent(1e0, decay_rate=0.99)
+optimizer = lambda: tf.train.AdamOptimizer()
 gradients_processor = None  # processors.norm_clipping(clip_norm=0.1)
 
 # optimizer = tf.contrib.opt.ScipyOptimizerInterface
