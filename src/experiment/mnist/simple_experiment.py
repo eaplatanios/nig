@@ -56,15 +56,17 @@ with tf.device('/cpu:0'):
     # maj_trust_based_learner = partial(nig.TrustBasedLearner, first_trust_update=max_iter + 1)
     # trust_based_learner = partial(
     #     nig.TrustBasedLearner, first_trust_update=10, trust_update_frequency=10)
-    maj_consensus_learner = partial(
+    maj_0_consensus_learner = partial(
         nig.ConsensusLearner, consensus_loss_weight=0.0, consensus_method='MAJ')
-    consensus_learner = partial(
-        nig.ConsensusLearner, consensus_method='RBM', first_consensus=10,
-        first_consensus_max_iter=5000, consensus_update_frequency=10,
-        consensus_update_max_iter=500)
+    maj_1_consensus_learner = partial(
+        nig.ConsensusLearner, consensus_loss_weight=1.0, consensus_method='MAJ')
+    # consensus_learner = partial(
+    #     nig.ConsensusLearner, consensus_method='RBM', first_consensus=10,
+    #     first_consensus_max_iter=5000, consensus_update_frequency=10,
+    #     consensus_update_max_iter=500)
 
-    learners = {'Majority-0.0': maj_consensus_learner,
-                'Consensus-1.0': consensus_learner}
+    learners = {'Majority-0.0': maj_0_consensus_learner,
+                'Majority-1.0': maj_1_consensus_learner}
     experiment.run(learners, show_plots=False, plots_folder=working_dir)
 
     # test_predictions = learner.predict(

@@ -29,7 +29,7 @@ def plot_lines(lines, names=None, style_sheet='ggplot', colormap='viridis',
                markersize=0.0, include_legend=True, legend_location='best',
                show_plot=False, save_filename=None, dpi=None, facecolor=None,
                edgecolor=None, orientation='portrait', papertype=None,
-               format=None, transparent=False, bbox_inches=None, pad_inches=0.1,
+               format=None, transparent=True, bbox_inches=None, pad_inches=0.1,
                frameon=None):
     if names is None and isinstance(lines, dict):
         names = list(lines.keys())
@@ -64,8 +64,6 @@ def plot_lines(lines, names=None, style_sheet='ggplot', colormap='viridis',
     if show_plot:
         plt.show()
     if save_filename is not None:
-        if dpi is None:
-            dpi = fig.dpi
         fig.savefig(
             save_filename, dpi=dpi, facecolor=facecolor, edgecolor=edgecolor,
             orientation=orientation, papertype=papertype, format=format,
