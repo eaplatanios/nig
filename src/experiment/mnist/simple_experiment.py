@@ -63,7 +63,8 @@ with tf.device('/cpu:0'):
         first_consensus_max_iter=5000, consensus_update_frequency=10,
         consensus_update_max_iter=500)
 
-    learners = [maj_consensus_learner, consensus_learner]
+    learners = {'Majority-0.0': maj_consensus_learner,
+                'Consensus-1.0': consensus_learner}
     experiment.run(learners, show_plots=False, plots_folder=working_dir)
 
     # test_predictions = learner.predict(
