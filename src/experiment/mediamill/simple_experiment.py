@@ -32,7 +32,7 @@ working_dir = os.path.join(os.getcwd(), 'working', 'mediamill')
 checkpoint_file_prefix = 'ckpt'
 restore_sequentially = False
 save_trained = True
-optimizer = lambda: tf.AdamOptimizer()
+optimizer = lambda: tf.train.AdamOptimizer()
 gradients_processor = None  # processors.norm_clipping(clip_norm=0.1)
 
 # optimizer = tf.contrib.opt.ScipyOptimizerInterface
