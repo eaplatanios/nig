@@ -57,20 +57,20 @@ with tf.device('/cpu:0'):
         nig.ConsensusLearner, consensus_loss_weight=0.0, consensus_method='MAJ')
     maj_0_consensus_learner = partial(
         nig.ConsensusLearner, consensus_loss_weight=1e0, consensus_method='MAJ')
-    # maj_1_consensus_learner = partial(
-    #     nig.ConsensusLearner, consensus_loss_weight=1e1, consensus_method='MAJ')
-    # maj_2_consensus_learner = partial(
-    #     nig.ConsensusLearner, consensus_loss_weight=1e2, consensus_method='MAJ')
+    maj_1_consensus_learner = partial(
+        nig.ConsensusLearner, consensus_loss_weight=1e1, consensus_method='MAJ')
+    maj_2_consensus_learner = partial(
+        nig.ConsensusLearner, consensus_loss_weight=1e2, consensus_method='MAJ')
     maj_3_consensus_learner = partial(
         nig.ConsensusLearner, consensus_loss_weight=1e3, consensus_method='MAJ')
-    consensus_00_learner = partial(
-        nig.ConsensusLearner, consensus_loss_weight=0.0, consensus_method='RBM',
-        first_consensus=10, first_consensus_max_iter=5000,
-        consensus_update_frequency=10, consensus_update_max_iter=500)
-    consensus_0_learner = partial(
-        nig.ConsensusLearner, consensus_loss_weight=1e0, consensus_method='RBM',
-        first_consensus=10, first_consensus_max_iter=5000,
-        consensus_update_frequency=10, consensus_update_max_iter=500)
+    # consensus_00_learner = partial(
+    #     nig.ConsensusLearner, consensus_loss_weight=0.0, consensus_method='RBM',
+    #     first_consensus=10, first_consensus_max_iter=5000,
+    #     consensus_update_frequency=10, consensus_update_max_iter=500)
+    # consensus_0_learner = partial(
+    #     nig.ConsensusLearner, consensus_loss_weight=1e0, consensus_method='RBM',
+    #     first_consensus=10, first_consensus_max_iter=5000,
+    #     consensus_update_frequency=10, consensus_update_max_iter=500)
     # consensus_1_learner = partial(
     #     nig.ConsensusLearner, consensus_loss_weight=1e1, consensus_method='RBM',
     #     first_consensus=10, first_consensus_max_iter=5000,
@@ -79,21 +79,21 @@ with tf.device('/cpu:0'):
     #     nig.ConsensusLearner, consensus_loss_weight=1e2, consensus_method='RBM',
     #     first_consensus=10, first_consensus_max_iter=5000,
     #     consensus_update_frequency=10, consensus_update_max_iter=500)
-    consensus_3_learner = partial(
-        nig.ConsensusLearner, consensus_loss_weight=1e3, consensus_method='RBM',
-        first_consensus=10, first_consensus_max_iter=5000,
-        consensus_update_frequency=10, consensus_update_max_iter=500)
+    # consensus_3_learner = partial(
+    #     nig.ConsensusLearner, consensus_loss_weight=1e3, consensus_method='RBM',
+    #     first_consensus=10, first_consensus_max_iter=5000,
+    #     consensus_update_frequency=10, consensus_update_max_iter=500)
 
     learners = OrderedDict([('Majority-0.0', maj_00_consensus_learner),
                             ('Majority-1.0', maj_0_consensus_learner),
-                            # ('Majority-10.0', maj_1_consensus_learner),
-                            # ('Majority-100.0', maj_2_consensus_learner),
-                            ('Majority-1000.0', maj_3_consensus_learner),
-                            ('RBM-0.0', consensus_00_learner),
-                            ('RBM-1.0', consensus_0_learner),
-                            # ('RBM-10.0', consensus_1_learner),
-                            # ('RBM-100.0', consensus_2_learner),
-                            ('RBM-1000.0', consensus_3_learner)])
+                            ('Majority-10.0', maj_1_consensus_learner),
+                            ('Majority-100.0', maj_2_consensus_learner),
+                            ('Majority-1000.0', maj_3_consensus_learner)])
+                            # ('RBM-0.0', consensus_00_learner),
+                            # ('RBM-1.0', consensus_0_learner),
+                            # # ('RBM-10.0', consensus_1_learner),
+                            # # ('RBM-100.0', consensus_2_learner),
+                            # ('RBM-1000.0', consensus_3_learner)])
     experiment.run(learners, show_plots=False, plots_folder=working_dir)
 
     # test_predictions = learner.predict(

@@ -1221,7 +1221,7 @@ class ConsensusLearner(Learner):
             self.consensus_loss_weight = tf.Variable(
                 initial_value=consensus_loss_weight, trainable=False,
                 dtype=tf.float32)
-            supported_consensus_methods = {'MAJ', 'RBM'}
+            supported_consensus_methods = {'MAJ', 'HMAJ', 'RBM'}
             if consensus_method not in supported_consensus_methods:
                 raise ValueError('Unsupported consensus method "%s". Supported '
                                  'methods are: %s.'
@@ -1238,6 +1238,12 @@ class ConsensusLearner(Learner):
                 if self.consensus_method == 'MAJ':
                     self.consensus = tf.reduce_mean(
                         tf.exp(outputs), reduction_indices=[1])
+                elif self.consensus_method == 'HMAJ':
+                    self.consensus = tf.reduce_mean(
+                        tf.exp(outputs), reduction_indices=[1])
+                    self.consensus = tf.select(
+                        self.consensus >= 0.5, tf.ones_like(self.consensus),
+                        tf.zeros_like(self.consensus))
                 elif self.consensus_method == 'RBM':
                     outputs = tf.unpack(outputs, axis=2)  # O x [B x M]
                     optimizer = lambda: tf.train.AdamOptimizer()
