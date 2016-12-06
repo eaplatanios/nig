@@ -6,7 +6,7 @@ import tensorflow as tf
 from collections import OrderedDict
 from functools import partial
 
-from ..nig import delicious
+from ..nig import mediamill
 
 __author__ = 'eaplatanios'
 
@@ -39,7 +39,7 @@ gradients_processor = None  # processors.norm_clipping(clip_norm=0.1)
 # optimizer_opts = {'options': {'maxiter': 10000}}
 
 with tf.device('/cpu:0'):
-    experiment = delicious.DeliciousExperiment(
+    experiment = mediamill.MediaMillExperiment(
         architectures=architectures, activation=activation, batch_size=batch_size,
         labeled_batch_size=labeled_batch_size,
         unlabeled_batch_size=unlabeled_batch_size, max_iter=max_iter,
