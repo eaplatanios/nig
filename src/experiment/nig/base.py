@@ -6,6 +6,7 @@ import numpy as np
 import os
 import tensorflow as tf
 
+from collections import OrderedDict
 from six import with_metaclass
 
 __author__ = 'eaplatanios'
@@ -171,7 +172,8 @@ class Experiment(with_metaclass(abc.ABCMeta, object)):
             return losses, train_evals, val_evals, test_evals
 
         if isinstance(learners, list):
-            learners = {str(learner): learner for learner in learners}
+            learners = OrderedDict([(str(learner), learner)
+                                    for learner in learners])
         losses = dict()
         train_evals = dict()
         val_evals = dict()
