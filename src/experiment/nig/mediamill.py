@@ -35,7 +35,7 @@ class MediaMillExperiment(base.Experiment):
             'loss_chg_iter_below_tol': loss_chg_iter_below_tol,
             'grads_processor': gradients_processor}
         models = [nig.MultiLayerPerceptron(
-            500, 983, architecture, activation=activation, softmax_output=False,
+            120, 101, architecture, activation=activation, softmax_output=False,
             sigmoid_output=True, log_output=True, train_outputs_one_hot=True,
             loss=loss, loss_summary=False, optimizer=optimizer,
             optimizer_opts=optimizer_opts)
