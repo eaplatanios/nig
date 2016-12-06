@@ -1406,7 +1406,7 @@ class ConsensusLearner(Learner):
     def _train_integrators(self, labeled_data=None, unlabeled_data=None,
                            max_iter=100, abs_loss_chg_tol=1e-3,
                            rel_loss_chg_tol=1e-3, loss_chg_iter_below_tol=5):
-        if self.consensus_method == 'MAJ':
+        if self.consensus_method in {'MAJ', 'HMAJ'}:
             return
         untrained_integrators = list(range(len(self.integrators)))
         prev_loss = [sys.float_info.max] * len(self.integrators)
