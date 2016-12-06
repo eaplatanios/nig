@@ -18,20 +18,20 @@ activation = nig.leaky_relu(0.01)
 batch_size = 128
 labeled_batch_size = 128
 unlabeled_batch_size = 128
-max_iter = 100
+max_iter = 200
 abs_loss_chg_tol = 1e-6
 rel_loss_chg_tol = 1e-6
 loss_chg_iter_below_tol = 5
 logging_frequency = 10
-summary_frequency = 100
-checkpoint_frequency = 1000
+summary_frequency = -1
+checkpoint_frequency = -1
 evaluation_frequency = 10
 variable_statistics_frequency = -1
 run_meta_data_frequency = -1
 working_dir = os.path.join(os.getcwd(), 'working', 'mediamill')
 checkpoint_file_prefix = 'ckpt'
 restore_sequentially = False
-save_trained = True
+save_trained = False
 optimizer = lambda: tf.train.AdamOptimizer()
 gradients_processor = None  # processors.norm_clipping(clip_norm=0.1)
 
