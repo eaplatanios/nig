@@ -1271,8 +1271,7 @@ class ConsensusLearner(Learner):
                         consensus_loss = tf.square(consensus_loss)
                         consensus_loss = tf.reduce_mean(consensus_loss)
                     else:
-                        consensus_loss = metric(
-                            model.outputs, tf.log(self.consensus))
+                        consensus_loss = metric(model.outputs, self.consensus)
                     consensus_loss *= self.consensus_loss_weight
                     consensus_loss *= self._consensus_loss_multiplier
                     model.update_loss(tf.add(model.loss, consensus_loss))
