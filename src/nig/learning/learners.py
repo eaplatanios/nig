@@ -1202,13 +1202,15 @@ class TrustBasedLearner(Learner):
 
 class ConsensusLearner(Learner):
     def __init__(self, models, consensus_loss_weight=1.0,
-                 consensus_method='RBM', first_consensus=10,
-                 first_consensus_max_iter=10000, consensus_update_frequency=10,
-                 consensus_update_max_iter=500, new_graph=False, session=None,
-                 predict_postprocess=None, logging_level=0):
+                 consensus_method='RBM', consensus_loss_metric=None,
+                 first_consensus=10, first_consensus_max_iter=10000,
+                 consensus_update_frequency=10, consensus_update_max_iter=500,
+                 new_graph=False, session=None, predict_postprocess=None,
+                 logging_level=0):
         if any(model.uses_external_optimizer for model in models):
             raise ValueError('Only internal optimizers are supported for this '
                              'learner.')
+        self.consensus_loss_metric = consensus_loss_metric
         self.first_consensus = first_consensus
         self.first_consensus_max_iter = first_consensus_max_iter
         self.consensus_update_frequency = consensus_update_frequency
@@ -1262,10 +1264,15 @@ class ConsensusLearner(Learner):
                     self.consensus = tf.squeeze(tf.pack(self.consensus, axis=1))
                 self.consensus = tf.stop_gradient(self.consensus)
                 for m, model in enumerate(self.models):
-                    model_outputs = tf.exp(model.outputs)
-                    consensus_loss = model_outputs - self.consensus
-                    consensus_loss = tf.square(consensus_loss)
-                    consensus_loss = tf.reduce_mean(consensus_loss)
+                    metric = self.consensus_loss_metric
+                    if metric is None:
+                        model_outputs = tf.exp(model.outputs)
+                        consensus_loss = model_outputs - self.consensus
+                        consensus_loss = tf.square(consensus_loss)
+                        consensus_loss = tf.reduce_mean(consensus_loss)
+                    else:
+                        consensus_loss = metric(
+                            model.outputs, tf.log(self.consensus))
                     consensus_loss *= self.consensus_loss_weight
                     consensus_loss *= self._consensus_loss_multiplier
                     model.update_loss(tf.add(model.loss, consensus_loss))
@@ -1277,6 +1284,12 @@ class ConsensusLearner(Learner):
         return ConsensusLearner(
             models=self.models,
             consensus_loss_weight=self.consensus_loss_weight.initial_value,
+            consensus_method=self.consensus_method,
+            consensus_loss_metric=self.consensus_loss_metric,
+            first_consensus=self.first_consensus,
+            first_consensus_max_iter=self.first_consensus_max_iter,
+            consensus_update_frequency=self.consensus_update_frequency,
+            consensus_update_max_iter=self.consensus_update_max_iter,
             new_graph=new_graph, session=self.initial_session,
             predict_postprocess=self.predict_postprocess,
             logging_level=self.logging_level)

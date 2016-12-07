@@ -22,7 +22,7 @@ max_iter = 200
 abs_loss_chg_tol = 1e-6
 rel_loss_chg_tol = 1e-6
 loss_chg_iter_below_tol = 5
-logging_frequency = 10
+logging_frequency = 5
 summary_frequency = -1
 checkpoint_frequency = -1
 evaluation_frequency = 10
@@ -32,11 +32,13 @@ working_dir = os.path.join(os.getcwd(), 'working', 'mnist')
 checkpoint_file_prefix = 'ckpt'
 restore_sequentially = False
 save_trained = False
-optimizer = lambda: nig.gradient_descent(1e0, decay_rate=0.99)
+optimizer = lambda: tf.train.AdamOptimizer()
 gradients_processor = None  # norm_clipping(clip_norm=0.1)
 
 # optimizer = tf.contrib.opt.ScipyOptimizerInterface
 # optimizer_opts = {'options': {'maxiter': 10000}}
+
+consensus_loss_metric = nig.CrossEntropyOneHotEncodingMetric()
 
 with tf.device('/cpu:0'):
     experiment = mnist.MNISTExperiment(
@@ -58,25 +60,30 @@ with tf.device('/cpu:0'):
     # trust_based_learner = partial(
     #     nig.TrustBasedLearner, first_trust_update=10, trust_update_frequency=10)
     maj_00_consensus_learner = partial(
-        nig.ConsensusLearner, consensus_loss_weight=0.0, consensus_method='MAJ')
+        nig.ConsensusLearner, consensus_loss_weight=0.0, consensus_method='MAJ',
+        consensus_loss_metric=consensus_loss_metric)
     maj_0_consensus_learner = partial(
-        nig.ConsensusLearner, consensus_loss_weight=1e0, consensus_method='MAJ')
-    # maj_1_consensus_learner = partial(
-    #     nig.ConsensusLearner, consensus_loss_weight=1e1, consensus_method='MAJ')
-    # maj_2_consensus_learner = partial(
-    #     nig.ConsensusLearner, consensus_loss_weight=1e2, consensus_method='MAJ')
+        nig.ConsensusLearner, consensus_loss_weight=1e0, consensus_method='MAJ',
+        consensus_loss_metric=consensus_loss_metric)
+    maj_1_consensus_learner = partial(
+        nig.ConsensusLearner, consensus_loss_weight=1e1, consensus_method='MAJ',
+        consensus_loss_metric=consensus_loss_metric)
+    maj_2_consensus_learner = partial(
+        nig.ConsensusLearner, consensus_loss_weight=1e2, consensus_method='MAJ',
+        consensus_loss_metric=consensus_loss_metric)
     maj_3_consensus_learner = partial(
-        nig.ConsensusLearner, consensus_loss_weight=1e3, consensus_method='HMAJ')
-    hmaj_00_consensus_learner = partial(
-        nig.ConsensusLearner, consensus_loss_weight=0.0, consensus_method='HMAJ')
-    hmaj_0_consensus_learner = partial(
-        nig.ConsensusLearner, consensus_loss_weight=1e0, consensus_method='HMAJ')
+        nig.ConsensusLearner, consensus_loss_weight=1e3, consensus_method='MAJ',
+        consensus_loss_metric=consensus_loss_metric)
+    # hmaj_00_consensus_learner = partial(
+    #     nig.ConsensusLearner, consensus_loss_weight=0.0, consensus_method='HMAJ')
+    # hmaj_0_consensus_learner = partial(
+    #     nig.ConsensusLearner, consensus_loss_weight=1e0, consensus_method='HMAJ')
     # hmaj_1_consensus_learner = partial(
     #     nig.ConsensusLearner, consensus_loss_weight=1e1, consensus_method='HMAJ')
     # hmaj_2_consensus_learner = partial(
     #     nig.ConsensusLearner, consensus_loss_weight=1e2, consensus_method='HMAJ')
-    hmaj_3_consensus_learner = partial(
-        nig.ConsensusLearner, consensus_loss_weight=1e3, consensus_method='HMAJ')
+    # hmaj_3_consensus_learner = partial(
+    #     nig.ConsensusLearner, consensus_loss_weight=1e3, consensus_method='HMAJ')
     # consensus_00_learner = partial(
     #     nig.ConsensusLearner, consensus_loss_weight=0.0, consensus_method='RBM',
     #     first_consensus=10, first_consensus_max_iter=5000,
@@ -100,14 +107,14 @@ with tf.device('/cpu:0'):
 
     learners = OrderedDict([('Majority-0.0', maj_00_consensus_learner),
                             ('Majority-1.0', maj_0_consensus_learner),
-                            # ('Majority-10.0', maj_1_consensus_learner),
-                            # ('Majority-100.0', maj_2_consensus_learner),
-                            ('Majority-1000.0', maj_3_consensus_learner),
-                            ('Hard Majority-0.0', hmaj_00_consensus_learner),
-                            ('Hard Majority-1.0', hmaj_0_consensus_learner),
+                            ('Majority-10.0', maj_1_consensus_learner),
+                            ('Majority-100.0', maj_2_consensus_learner),
+                            ('Majority-1000.0', maj_3_consensus_learner)])
+                            # ('Hard Majority-0.0', hmaj_00_consensus_learner),
+                            # ('Hard Majority-1.0', hmaj_0_consensus_learner),
                             # ('Hard Majority-10.0', hmaj_1_consensus_learner),
-                            # ('Hard Majority-100.0', hmaj_2_consensus_learner),
-                            ('Hard Majority-1000.0', hmaj_3_consensus_learner)])
+                            # # ('Hard Majority-100.0', hmaj_2_consensus_learner),
+                            # ('Hard Majority-1000.0', hmaj_3_consensus_learner)])
                             # ('RBM-0.0', consensus_00_learner),
                             # ('RBM-1.0', consensus_0_learner),
                             # ('RBM-10.0', consensus_1_learner),
