@@ -15,6 +15,7 @@
 from __future__ import absolute_import, division, print_function
 
 import numpy as np
+import os
 
 from . import utilities
 
@@ -32,8 +33,7 @@ NB_LABELS = 101
 def maybe_download(working_dir):
     path = os.path.join(working_dir, 'mediamill/data.npz')
     if not os.path.isfile(path):
-        archive_path = utilities.maybe_download('data.npz',
-                                                working_dir, SOURCE_URL)
+        utilities.maybe_download('data.npz', working_dir, SOURCE_URL)
 
 
 def load(working_dir):

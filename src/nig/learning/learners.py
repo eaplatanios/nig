@@ -129,10 +129,10 @@ class Learner(with_metaclass(abc.ABCMeta, object)):
                 if self.session is None:
                     self.session = tf.Session()
                 self.session.run(
-                    fetches=tf.initialize_variables(tf.trainable_variables()),
+                    fetches=tf.variables_initializer(tf.trainable_variables()),
                     feed_dict=feed_dict)
                 self.session.run(
-                    fetches=tf.initialize_all_variables(), feed_dict=feed_dict)
+                    fetches=tf.global_variables_initializer(), feed_dict=feed_dict)
             elif self.session is None:
                 raise ValueError('When the initialization option is a boolean '
                                  'value set to `False`, a session needs to be '
@@ -949,11 +949,15 @@ class CrossValidationLearner(Learner):
 
 
 class TrustBasedLearner(Learner):
-    def __init__(self, models, consensus_loss_weight=1.0, new_graph=False,
-                 session=None, predict_postprocess=None, logging_level=0):
+    def __init__(self, models, consensus_loss_weight=1.0,
+                 first_trust_update=10, trust_update_frequency=10,
+                 new_graph=False, session=None, predict_postprocess=None,
+                 logging_level=0):
         if any(model.uses_external_optimizer for model in models):
             raise ValueError('Only internal optimizers are supported for this '
                              'learner.')
+        self.first_trust_update = first_trust_update
+        self.trust_update_frequency = trust_update_frequency
         super(TrustBasedLearner, self).__init__(
             models=models, new_graph=new_graph, session=session,
             predict_postprocess=predict_postprocess,
@@ -975,9 +979,8 @@ class TrustBasedLearner(Learner):
                     validate_shape=False, name='trust', dtype=tf.float32)
                 consensus_losses = self._consensus_losses()
                 for m in range(len(self.models)):
-                    self.models[m] = self.models[m].update_loss(
-                        loss=self.models[m].loss + consensus_losses[m],
-                        graph=self.graph)
+                    self.models[m].update_loss(
+                        loss=self.models[m].loss + consensus_losses[m])
         self.integrator = rbm_integrator.SemiSupervisedRBMIntegrator(
             num_functions=self.num_models, estimate_errors=True,
             working_dir=os.getcwd(), persistent=False)
@@ -1040,15 +1043,17 @@ class TrustBasedLearner(Learner):
             data=data, batch_size=batch_size, cycle=True, pipelines=pipelines)
         if labeled_data is None:
             labeled_data = get_iterator(
-                data=data, cycle=True, pipelines=pipelines)
+                data=data, cycle=True, keep_last=False, pipelines=pipelines)
         else:
             labeled_data = get_iterator(
-                data=labeled_data, cycle=True, pipelines=pipelines)
+                data=labeled_data, cycle=True, keep_last=False,
+                pipelines=pipelines)
         if unlabeled_data is not None:
             if unlabeled_pipelines is None:
                 unlabeled_pipelines = pipelines
             unlabeled_data = get_iterator(
-                data=unlabeled_data, cycle=True, pipelines=unlabeled_pipelines)
+                data=unlabeled_data, cycle=True, keep_last=False,
+                pipelines=unlabeled_pipelines)
         per_model_callbacks = [_process_callbacks(per_model_callbacks)
                                for _ in self.models]
         combined_model_callbacks = _process_callbacks(combined_model_callbacks)
@@ -1073,7 +1078,9 @@ class TrustBasedLearner(Learner):
         iter_below_tol = [0] * len(models)
         step = 0
         while True:
-            if step >= 10 and (step - 10) % 10 == 0:
+            if step >= self.first_trust_update \
+                    and (step - self.first_trust_update) \
+                    % self.trust_update_frequency == 0:
                 self.update_trust(self._estimate_trust(
                     labeled_data=labeled_data, unlabeled_data=unlabeled_data))
             fetches = [[models[m].train_op, models[m].loss]
@@ -1194,11 +1201,20 @@ class TrustBasedLearner(Learner):
 
 
 class ConsensusLearner(Learner):
-    def __init__(self, models, consensus_loss_weight=1.0, new_graph=False,
-                 session=None, predict_postprocess=None, logging_level=0):
+    def __init__(self, models, consensus_loss_weight=1.0,
+                 consensus_method='RBM', consensus_loss_metric=None,
+                 first_consensus=10, first_consensus_max_iter=10000,
+                 consensus_update_frequency=10, consensus_update_max_iter=500,
+                 new_graph=False, session=None, predict_postprocess=None,
+                 logging_level=0):
         if any(model.uses_external_optimizer for model in models):
             raise ValueError('Only internal optimizers are supported for this '
                              'learner.')
+        self.consensus_loss_metric = consensus_loss_metric
+        self.first_consensus = first_consensus
+        self.first_consensus_max_iter = first_consensus_max_iter
+        self.consensus_update_frequency = consensus_update_frequency
+        self.consensus_update_max_iter = consensus_update_max_iter
         super(ConsensusLearner, self).__init__(
             models=models, new_graph=new_graph, session=session,
             predict_postprocess=predict_postprocess,
@@ -1207,6 +1223,13 @@ class ConsensusLearner(Learner):
             self.consensus_loss_weight = tf.Variable(
                 initial_value=consensus_loss_weight, trainable=False,
                 dtype=tf.float32)
+            supported_consensus_methods = {'MAJ', 'HMAJ', 'RBM'}
+            if consensus_method not in supported_consensus_methods:
+                raise ValueError('Unsupported consensus method "%s". Supported '
+                                 'methods are: %s.'
+                                 % (consensus_method,
+                                    supported_consensus_methods))
+            self.consensus_method = consensus_method
             self._consensus_loss_multiplier = tf.Variable(
                 initial_value=0.0, trainable=False, dtype=tf.float32)
             with self.graph.as_default(), tf.name_scope('consensus_learner'):
@@ -1214,39 +1237,58 @@ class ConsensusLearner(Learner):
                 self.num_outputs = tf.shape(self.models[0].outputs)[1]
                 outputs = [model.outputs for model in self.models]
                 outputs = tf.pack(outputs, axis=1)  # B x M x O
-                outputs = tf.unpack(outputs, axis=2)  # O x [B x M]
-                optimizer = lambda: tf.train.AdamOptimizer()
-                optimizer_opts = {
-                    'abs_loss_chg_tol': 1e-3, 'rel_loss_chg_tol': 1e-3,
-                    'loss_chg_iter_below_tol': 5, 'grads_processor': None}
-                self.integrators = [
-                    rbm.SemiSupervisedRBM(
-                        inputs=tf.stop_gradient(tf.exp(output)), num_hidden=1,
-                        mean_field=True, mean_field_cd=False, cd_steps=1,
-                        loss_summary=False, optimizer=optimizer,
-                        optimizer_opts=optimizer_opts, graph=None)
-                    for output in outputs]
-                self.consensus = [i.outputs for i in self.integrators]
-                self.consensus = tf.squeeze(tf.pack(self.consensus, axis=1))
+                if self.consensus_method == 'MAJ':
+                    self.consensus = tf.reduce_mean(
+                        tf.exp(outputs), reduction_indices=[1])
+                elif self.consensus_method == 'HMAJ':
+                    self.consensus = tf.reduce_mean(
+                        tf.exp(outputs), reduction_indices=[1])
+                    self.consensus = tf.select(
+                        self.consensus >= 0.5, tf.ones_like(self.consensus),
+                        tf.zeros_like(self.consensus))
+                elif self.consensus_method == 'RBM':
+                    outputs = tf.unpack(outputs, axis=2)  # O x [B x M]
+                    optimizer = lambda: tf.train.AdamOptimizer()
+                    optimizer_opts = {
+                        'abs_loss_chg_tol': 1e-3, 'rel_loss_chg_tol': 1e-3,
+                        'loss_chg_iter_below_tol': 5, 'grads_processor': None}
+                    self.integrators = [
+                        rbm.SemiSupervisedRBM(
+                            inputs=tf.stop_gradient(tf.exp(output)),
+                            num_hidden=1, persistent=False, mean_field=True,
+                            mean_field_cd=False, cd_steps=1, loss_summary=False,
+                            optimizer=optimizer, optimizer_opts=optimizer_opts,
+                            graph=None)
+                        for output in outputs]
+                    self.consensus = [i.outputs for i in self.integrators]
+                    self.consensus = tf.squeeze(tf.pack(self.consensus, axis=1))
                 self.consensus = tf.stop_gradient(self.consensus)
                 for m, model in enumerate(self.models):
-                    model_outputs = tf.exp(model.outputs)
-                    consensus_loss = model_outputs - self.consensus
-                    consensus_loss = tf.square(consensus_loss)
-                    consensus_loss = tf.reduce_mean(consensus_loss)
+                    metric = self.consensus_loss_metric
+                    if metric is None:
+                        model_outputs = tf.exp(model.outputs)
+                        consensus_loss = model_outputs - self.consensus
+                        consensus_loss = tf.square(consensus_loss)
+                        consensus_loss = tf.reduce_mean(consensus_loss)
+                    else:
+                        consensus_loss = metric(model.outputs, self.consensus)
                     consensus_loss *= self.consensus_loss_weight
                     consensus_loss *= self._consensus_loss_multiplier
-                    self.models[m] = model.update_loss(
-                        loss=tf.add(model.loss, consensus_loss),
-                        graph=self.graph)
+                    model.update_loss(tf.add(model.loss, consensus_loss))
         else:
-            raise ValueError('The ConsensusLearner can only be used with '
-                             'trainable models.')
+            raise ValueError('ConsensusLearner can only be used with trainable '
+                             'models.')
 
     def copy(self, new_graph=False):
         return ConsensusLearner(
             models=self.models,
             consensus_loss_weight=self.consensus_loss_weight.initial_value,
+            consensus_method=self.consensus_method,
+            consensus_loss_metric=self.consensus_loss_metric,
+            first_consensus=self.first_consensus,
+            first_consensus_max_iter=self.first_consensus_max_iter,
+            consensus_update_frequency=self.consensus_update_frequency,
+            consensus_update_max_iter=self.consensus_update_max_iter,
             new_graph=new_graph, session=self.initial_session,
             predict_postprocess=self.predict_postprocess,
             logging_level=self.logging_level)
@@ -1284,15 +1326,16 @@ class ConsensusLearner(Learner):
             data=data, batch_size=batch_size, cycle=True, pipelines=pipelines)
         if labeled_data is None:
             labeled_data = get_iterator(
-                data=data, cycle=True, pipelines=pipelines)
+                data=data, cycle=True, keep_last=False, pipelines=pipelines)
         else:
             labeled_data = get_iterator(
-                data=labeled_data, cycle=True, pipelines=pipelines)
+                data=labeled_data, cycle=True, keep_last=False, pipelines=pipelines)
         if unlabeled_data is not None:
             if unlabeled_pipelines is None:
                 unlabeled_pipelines = pipelines
             unlabeled_data = get_iterator(
-                data=unlabeled_data, cycle=True, pipelines=unlabeled_pipelines)
+                data=unlabeled_data, cycle=True, keep_last=False,
+                pipelines=unlabeled_pipelines)
         per_model_callbacks = [_process_callbacks(per_model_callbacks)
                                for _ in self.models]
         combined_model_callbacks = _process_callbacks(combined_model_callbacks)
@@ -1317,15 +1360,17 @@ class ConsensusLearner(Learner):
         iter_below_tol = [0] * len(models)
         step = 0
         while True:
-            if step == 10:
+            if step == self.first_consensus:
                 self._train_integrators(
                     labeled_data=labeled_data, unlabeled_data=unlabeled_data,
-                    max_iter=10000)
+                    max_iter=self.first_consensus_max_iter)
                 self.session.run(self._consensus_loss_multiplier.assign(1.0))
-            elif step > 10 and (step - 10) % 10 == 0:
+            elif step > self.first_consensus \
+                    and (step - self.first_consensus) \
+                    % self.consensus_update_frequency == 0:
                 self._train_integrators(
                     labeled_data=labeled_data, unlabeled_data=unlabeled_data,
-                    max_iter=500)
+                    max_iter=self.consensus_update_max_iter)
             fetches = [[models[m].train_op, models[m].loss]
                        for m in untrained_models]
             run_outputs = self.session.run(fetches=fetches, feed_dict=feed_dict)
@@ -1364,7 +1409,7 @@ class ConsensusLearner(Learner):
             step += 1
         self._train_integrators(
             labeled_data=labeled_data, unlabeled_data=unlabeled_data,
-            max_iter=500)
+            max_iter=self.consensus_update_max_iter)
         if save_trained:
             Learner._save_checkpoint(
                 session=self.session, saver=saver, working_dir=working_dir,
@@ -1373,6 +1418,8 @@ class ConsensusLearner(Learner):
     def _train_integrators(self, labeled_data=None, unlabeled_data=None,
                            max_iter=100, abs_loss_chg_tol=1e-3,
                            rel_loss_chg_tol=1e-3, loss_chg_iter_below_tol=5):
+        if self.consensus_method in {'MAJ', 'HMAJ'}:
+            return
         untrained_integrators = list(range(len(self.integrators)))
         prev_loss = [sys.float_info.max] * len(self.integrators)
         iter_below_tol = [0] * len(self.integrators)

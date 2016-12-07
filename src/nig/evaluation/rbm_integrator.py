@@ -122,7 +122,7 @@ class SemiSupervisedRBMIntegrator(object):
             self._num_labels = unlabeled_predictions.shape[2]
             optimizer = lambda: tf.train.AdamOptimizer()
             optimizer_opts = {
-                'batch_size': 200, 'max_iter': 10000, 'abs_loss_chg_tol': 1e-6,
+                'batch_size': None, 'max_iter': 10000, 'abs_loss_chg_tol': 1e-6,
                 'rel_loss_chg_tol': 1e-6, 'loss_chg_iter_below_tol': 5,
                 'grads_processor': None}
             self._learners = []
@@ -132,10 +132,10 @@ class SemiSupervisedRBMIntegrator(object):
                         tf.float32, shape=[None, self.num_functions],
                         name='input')
                     model = rbm.SemiSupervisedRBM(
-                        inputs=inputs, num_hidden=1, mean_field=True,
-                        mean_field_cd=False, cd_steps=1, loss_summary=False,
-                        optimizer=optimizer, optimizer_opts=optimizer_opts,
-                        graph=None)
+                        inputs=inputs, num_hidden=1, persistent=True,
+                        mean_field=True, mean_field_cd=False, cd_steps=1,
+                        loss_summary=False, optimizer=optimizer,
+                        optimizer_opts=optimizer_opts, graph=None)
                     if self.estimate_errors:
                         integrated = tf.tile(
                             input=model.outputs,
