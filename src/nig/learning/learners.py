@@ -118,8 +118,8 @@ class Learner(with_metaclass(abc.ABCMeta, object)):
                 return False
         return True
 
-    def _init_session(self, option, saver, working_dir, ckpt_file_prefix,
-                      feed_dict=None):
+    def init_session(self, option, saver, working_dir, ckpt_file_prefix,
+                     feed_dict=None):
         if option is None:
             option = False
         if feed_dict is None:
@@ -132,7 +132,8 @@ class Learner(with_metaclass(abc.ABCMeta, object)):
                     fetches=tf.variables_initializer(tf.trainable_variables()),
                     feed_dict=feed_dict)
                 self.session.run(
-                    fetches=tf.global_variables_initializer(), feed_dict=feed_dict)
+                    fetches=tf.global_variables_initializer(),
+                    feed_dict=feed_dict)
             elif self.session is None:
                 raise ValueError('When the initialization option is a boolean '
                                  'value set to `False`, a session needs to be '
@@ -209,7 +210,7 @@ class Learner(with_metaclass(abc.ABCMeta, object)):
             return predictions
         saver = tf.train.Saver(restore_sequentially=restore_sequentially)
         feed_dict = self.combined_model.get_feed_dict(data, is_train=False)
-        self._init_session(
+        self.init_session(
             option=ckpt, saver=saver, working_dir=working_dir,
             ckpt_file_prefix=ckpt_file_prefix, feed_dict=feed_dict)
         return self.session.run(
@@ -226,7 +227,7 @@ class Learner(with_metaclass(abc.ABCMeta, object)):
             feed_dict = self.combined_model.get_feed_dict(
                 data_batch, is_train=False)
             if is_first_batch:
-                self._init_session(
+                self.init_session(
                     option=ckpt, saver=saver, working_dir=working_dir,
                     ckpt_file_prefix=ckpt_file_prefix, feed_dict=feed_dict)
             is_first_batch = False
@@ -294,7 +295,7 @@ class SimpleLearner(Learner):
         model = self.models
         data_batch = data.next()
         feed_dict = model.get_feed_dict(data_batch, is_train=True)
-        self._init_session(
+        self.init_session(
             option=init_option, saver=saver, working_dir=working_dir,
             ckpt_file_prefix=ckpt_file_prefix, feed_dict=feed_dict)
         for callback in callbacks:
@@ -342,7 +343,7 @@ class SimpleLearner(Learner):
         saver = tf.train.Saver(restore_sequentially=restore_sequentially)
         model = self.models
         feed_dict = model.get_feed_dict(data.next(), is_train=True)
-        self._init_session(
+        self.init_session(
             option=init_option, saver=saver, working_dir=working_dir,
             ckpt_file_prefix=ckpt_file_prefix, feed_dict=feed_dict)
         for callback in callbacks:
@@ -366,10 +367,9 @@ class SimpleLearner(Learner):
             def inner(*fetches):
                 if inner.step != self.train_iteration:
                     inner.step = self.train_iteration
-                    for call in callbacks:
+                    for callback in callbacks:
                         args = fetches + (inner.step,)
-                        # callback(self.session, feed_dict, loss, self.train_iteration)
-                        call(self.session, feed_dict, *args)
+                        callback(self.session, feed_dict, *args)
             inner.step = -1
             return inner
         loss_callback = _loss_callback()
@@ -779,7 +779,7 @@ class CrossValidationLearner(Learner):
 #         saver = tf.train.Saver(restore_sequentially=restore_sequentially)
 #         data_batch = data.next()
 #         feed_dict = self._get_feed_dict(data_batch, is_train=True)
-#         self._init_session(
+#         self.init_session(
 #             option=init_option, saver=saver, working_dir=working_dir,
 #             ckpt_file_prefix=ckpt_file_prefix, feed_dict=feed_dict)
 #         for m, callbacks in enumerate(per_model_callbacks):
@@ -1061,7 +1061,7 @@ class TrustBasedLearner(Learner):
         saver = tf.train.Saver(restore_sequentially=restore_sequentially)
         data_batch = data.next()
         feed_dict = self._get_feed_dict(data_batch, is_train=True)
-        self._init_session(
+        self.init_session(
             option=init_option, saver=saver, working_dir=working_dir,
             ckpt_file_prefix=ckpt_file_prefix, feed_dict=feed_dict)
         for m, callbacks in enumerate(per_model_callbacks):
@@ -1329,7 +1329,8 @@ class ConsensusLearner(Learner):
                 data=data, cycle=True, keep_last=False, pipelines=pipelines)
         else:
             labeled_data = get_iterator(
-                data=labeled_data, cycle=True, keep_last=False, pipelines=pipelines)
+                data=labeled_data, cycle=True, keep_last=False,
+                pipelines=pipelines)
         if unlabeled_data is not None:
             if unlabeled_pipelines is None:
                 unlabeled_pipelines = pipelines
@@ -1343,7 +1344,7 @@ class ConsensusLearner(Learner):
         saver = tf.train.Saver(restore_sequentially=restore_sequentially)
         data_batch = data.next()
         feed_dict = self._get_feed_dict(data_batch, is_train=True)
-        self._init_session(
+        self.init_session(
             option=init_option, saver=saver, working_dir=working_dir,
             ckpt_file_prefix=ckpt_file_prefix, feed_dict=feed_dict)
         for m, callbacks in enumerate(per_model_callbacks):
