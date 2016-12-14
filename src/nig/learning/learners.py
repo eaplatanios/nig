@@ -118,8 +118,48 @@ class Learner(with_metaclass(abc.ABCMeta, object)):
                 return False
         return True
 
-    def init_session(self, option, saver, working_dir, ckpt_file_prefix,
-                     feed_dict=None):
+    def init_session(self, option, saver=None, working_dir=os.getcwd(),
+                     ckpt_file_prefix='ckpt', feed_dict=None):
+        """Initializes a TensorFlow session for this learner.
+
+        Args:
+            option (NoneType, bool, int): Initialization option for the session.
+                It can have one of the following values/types:
+                    - `None`: The session is not initialized, but a check is
+                        performed to see whether or not it has already been
+                        initialized. If it has not, then a `ValueError` is
+                        thrown. Equivalent to `False`.
+                    - `bool`: If `True`, then the session is initialized using
+                        the variable initializers provided during the graph
+                        construction. If `False`, then the option is equivalent
+                        to `None`.
+                    - `int`: Checkpoint number to load (i.e., checkpoint from
+                        training). The function will look for the specified
+                        checkpoint file in the `working_dir` directory (and
+                        using `ckpt_file_prefix` as the file name prefix). If it
+                        finds it, then it will initialize a session and load all
+                        the variable values from that file. If not, it will log
+                        a warning and it will then initialize a session using
+                        the variable initializers provided during the graph
+                        construction. If set to `-1`, then the latest available
+                        checkpoint is loaded (i.e., the one with the highest
+                        number).
+            saver (tf.train.Saver, optional): TensorFlow saver to use when
+                loading checkpoints. Defaults to `None`.
+            working_dir (str, optional): Working directory to use when loading
+                checkpoints. Defaults to the current directory.
+            ckpt_file_prefix (str, optional): Checkpoint file name prefix to use
+                when loading checkpoints. Defaults to `'ckpt'`.
+            feed_dict (dict, optional): Dictionary from TensorFlow tensors to
+                their corresponding values, to use while initializing the
+                session. Defaults to `None`.
+
+        Raises:
+            TypeError: If an invalid type is provided for `option`.
+            ValueError: If `option` is set to `None` or `False` and the session
+                has not been initialized previously, or if `option` is an `int`,
+                specifying a checkpoint to be loaded, but `saver` is `None`.
+        """
         if option is None:
             option = False
         if feed_dict is None:
@@ -166,14 +206,14 @@ class Learner(with_metaclass(abc.ABCMeta, object)):
             if os.path.isfile(ckpt_file):
                 saver.restore(sess=session, save_path=ckpt_file)
                 return
-        # TODO: Check if filename/working_dir contain illegal characters.
+        # TODO: Check if filename/working_dir contains illegal characters.
         ckpt_file = tf.train.latest_checkpoint(
             checkpoint_dir=working_dir, latest_filename=file_prefix)
         if ckpt_file is not None:
             saver.restore(sess=session, save_path=ckpt_file)
             return
-        logger.warn('The requested checkpoint file does not exist. All the '
-                    'variables are initialized to their default values.')
+        logger.warning('The requested checkpoint file does not exist. All the '
+                       'variables are initialized to their default values.')
         session.run(tf.initialize_all_variables())
 
     @abc.abstractmethod
