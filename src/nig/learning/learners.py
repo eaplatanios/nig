@@ -214,7 +214,7 @@ class Learner(with_metaclass(abc.ABCMeta, object)):
             return
         logger.warning('The requested checkpoint file does not exist. All the '
                        'variables are initialized to their default values.')
-        session.run(tf.initialize_all_variables())
+        session.run(fetches=tf.global_variables_initializer())
 
     @abc.abstractmethod
     def train(self, data, pipelines=None, init_option=-1, callbacks=None,
@@ -330,7 +330,7 @@ class SimpleLearner(Learner):
         data = get_iterator(
             data=data, batch_size=batch_size, cycle=True, pipelines=pipelines)
         callbacks = _process_callbacks(callbacks)
-        summary_writer = tf.train.SummaryWriter(working_dir, self.graph)
+        summary_writer = tf.summary.FileWriter(working_dir, self.graph)
         saver = tf.train.Saver(restore_sequentially=restore_sequentially)
         model = self.models
         data_batch = data.next()
@@ -379,7 +379,7 @@ class SimpleLearner(Learner):
         data = get_iterator(
             data=data, batch_size=None, cycle=True, pipelines=pipelines)
         callbacks = _process_callbacks(callbacks)
-        summary_writer = tf.train.SummaryWriter(working_dir, self.graph)
+        summary_writer = tf.summary.FileWriter(working_dir, self.graph)
         saver = tf.train.Saver(restore_sequentially=restore_sequentially)
         model = self.models
         feed_dict = model.get_feed_dict(data.next(), is_train=True)
@@ -815,7 +815,7 @@ class CrossValidationLearner(Learner):
 #         per_model_callbacks = [_process_callbacks(per_model_callbacks)
 #                                for _ in self.models]
 #         combined_model_callbacks = _process_callbacks(combined_model_callbacks)
-#         summary_writer = tf.train.SummaryWriter(working_dir, self.graph)
+#         summary_writer = tf.summary.FileWriter(working_dir, self.graph)
 #         saver = tf.train.Saver(restore_sequentially=restore_sequentially)
 #         data_batch = data.next()
 #         feed_dict = self._get_feed_dict(data_batch, is_train=True)
@@ -1097,7 +1097,7 @@ class TrustBasedLearner(Learner):
         per_model_callbacks = [_process_callbacks(per_model_callbacks)
                                for _ in self.models]
         combined_model_callbacks = _process_callbacks(combined_model_callbacks)
-        summary_writer = tf.train.SummaryWriter(working_dir, self.graph)
+        summary_writer = tf.summary.FileWriter(working_dir, self.graph)
         saver = tf.train.Saver(restore_sequentially=restore_sequentially)
         data_batch = data.next()
         feed_dict = self._get_feed_dict(data_batch, is_train=True)
@@ -1380,7 +1380,7 @@ class ConsensusLearner(Learner):
         per_model_callbacks = [_process_callbacks(per_model_callbacks)
                                for _ in self.models]
         combined_model_callbacks = _process_callbacks(combined_model_callbacks)
-        summary_writer = tf.train.SummaryWriter(working_dir, self.graph)
+        summary_writer = tf.summary.FileWriter(working_dir, self.graph)
         saver = tf.train.Saver(restore_sequentially=restore_sequentially)
         data_batch = data.next()
         feed_dict = self._get_feed_dict(data_batch, is_train=True)

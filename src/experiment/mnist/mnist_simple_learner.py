@@ -10,7 +10,7 @@ __author__ = 'eaplatanios'
 
 logger = logging.getLogger(__name__)
 
-use_one_hot_encoding = False
+use_one_hot_encoding = True
 architectures = [[], [5]]
 activation = tf.nn.relu
 batch_size = 100

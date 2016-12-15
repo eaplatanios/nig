@@ -167,9 +167,8 @@ class VariableStatisticsSummaryWriterCallback(Callback):
                     tag = scope + '/variables/' + variable.name + '/' + name
                     tag = tf.get_default_graph().unique_name(
                         name=tag, mark_as_used=False)
-                    summaries.append(tf.scalar_summary(
-                        tags=tag, values=statistic(variable),
-                        name=tag.replace(':', '_')))
+                    summaries.append(tf.summary.scalar(
+                        name=tag.replace(':', '_'), tensor=statistic(variable)))
                 if self.histogram:
                     tag = scope + '/variables/' + variable.name + '/histogram'
                     tag = tf.get_default_graph().unique_name(
@@ -184,14 +183,14 @@ class VariableStatisticsSummaryWriterCallback(Callback):
             if self.variables is 'trainable':
                 self._tf_variables = tf.trainable_variables()
             elif self.variables is 'all':
-                self._tf_variables = tf.all_variables()
+                self._tf_variables = tf.global_variables()
             elif isinstance(self.variables, str):
-                self._tf_variables = [v for v in tf.all_variables()
+                self._tf_variables = [v for v in tf.global_variables()
                                       if v.name == self.variables][0]
             elif isinstance(self.variables, tf.Variable):
                 self._tf_variables = [self.variables]
             elif isinstance(self.variables, list):
-                self._tf_variables = [v for v in tf.all_variables()
+                self._tf_variables = [v for v in tf.global_variables()
                                       if v.name in self.variables]
             self._summary_op = self._variable_statistics_summaries()
             self._summary_writer = summary_writer

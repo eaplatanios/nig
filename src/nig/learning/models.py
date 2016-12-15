@@ -149,9 +149,7 @@ class Model(with_metaclass(abc.ABCMeta, object)):
             raise TypeError('Unsupported loss type %s encountered.'
                             % type(self.loss))
         if self.loss_summary:
-            summary_tag = tf.get_default_graph().unique_name(
-                name=self.loss.op.name, mark_as_used=False)
-            tf.scalar_summary(summary_tag, self.loss)
+            tf.summary.scalar(name=self.loss.op.name, tensor=self.loss)
 
         # Process optimizer and optimizer_opts
         if self.uses_external_optimizer:
@@ -273,7 +271,8 @@ class Model(with_metaclass(abc.ABCMeta, object)):
     @graph_context
     def _op_variables(self, ops, traversed_ops=None, tf_variables=None):
         if tf_variables is None:
-            tf_variables = {v.name.split(':')[0]: v for v in tf.all_variables()}
+            tf_variables = {v.name.split(':')[0]: v
+                            for v in tf.global_variables()}
         if traversed_ops is None:
             traversed_ops = set()
         if isinstance(ops, list):
@@ -419,10 +418,7 @@ class LinearCombinationModel(Model):
             self.loss /= len(self.models)
             self.loss_summary = loss_summary
             if self.loss_summary:
-                summary_tag = tf.get_default_graph().unique_name(
-                    name=self.loss.op.name,
-                    mark_as_used=False)
-                tf.scalar_summary(summary_tag, self.loss)
+                tf.summary.scalar(name=self.loss.op.name, tensor=self.loss)
 
     @staticmethod
     def _combine_model_variables(models, variables_name):
