@@ -137,7 +137,6 @@ class Model(with_metaclass(abc.ABCMeta, object)):
             self.train_outputs = tf.placeholder(
                 dtype=self.outputs.dtype, shape=self.outputs.get_shape(),
                 name=self.outputs.name.split(':')[0] + '/observed')
-
         # Process loss
         self.update_loss(self.loss)
 
@@ -181,6 +180,11 @@ class Model(with_metaclass(abc.ABCMeta, object)):
             if isinstance(self._gradients, dict):
                 self._gradients = [(v, k) for k, v in self._gradients.items()]
             if grads_processor is not None and self._gradients is None:
+                if not callable(grads_processor):
+                    raise TypeError('Unsupported gradients processor type %s '
+                                    'encountered. The provided gradients '
+                                    'processor needs to be a function.'
+                                    % type(grads_processor))
                 trainable_vars = tf.trainable_variables()
                 grads = tf.gradients(ys=self.loss, xs=trainable_vars)
                 grads = grads_processor(grads)

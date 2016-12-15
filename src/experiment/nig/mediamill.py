@@ -26,7 +26,7 @@ class MediaMillExperiment(base.Experiment):
                  save_trained=True, optimizer=lambda: tf.train.AdamOptimizer(),
                  gradients_processor=None):
         self.architectures = architectures
-        loss = nig.CrossEntropyOneHotEncodingLogitsMetric()
+        loss = nig.CrossEntropy(log_predictions=True, one_hot_truth=True)
         optimizer_opts = {
             'batch_size': batch_size,
             'max_iter': max_iter,
@@ -40,7 +40,7 @@ class MediaMillExperiment(base.Experiment):
             loss=loss, loss_summary=False, optimizer=optimizer,
             optimizer_opts=optimizer_opts)
                   for architecture in self.architectures]
-        eval_metric = nig.HammingLossMetric()
+        eval_metric = nig.HammingLoss()
         super(MediaMillExperiment, self).__init__(
             models=models, eval_metric=eval_metric, batch_size=batch_size,
             labeled_batch_size=labeled_batch_size,

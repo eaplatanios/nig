@@ -25,8 +25,8 @@ def main():
                       'loss_chg_iter_below_tol': 5,
                       'grads_processor': None}
 
-    loss = nig.CrossEntropyOneHotEncodingLogitsMetric()
-    eval_metric = nig.HammingLossMetric()
+    loss = nig.CrossEntropy(log_predictions=True, one_hot_truth=True)
+    eval_metric = nig.HammingLoss(log_predictions=True)
 
     models = [nig.MultiLabelMLP(
         train_data[0].shape[1], train_data[1].shape[1], architecture,

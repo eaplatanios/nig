@@ -56,14 +56,13 @@ def _get_iterator(mnist_data, include_labels=True):
         mnist_data, batch_size, shuffle=False, cycle=False, cycle_shuffle=False,
         keep_last=True, pipelines=pipelines)
 
-loss = nig.CrossEntropyOneHotEncodingMetric() if use_one_hot_encoding \
-    else nig.CrossEntropyIntegerEncodingMetric()
-eval_metric = nig.AccuracyOneHotEncodingMetric() if use_one_hot_encoding \
-    else nig.AccuracyIntegerEncodingMetric()
+loss = nig.CrossEntropy(
+    log_predictions=use_one_hot_encoding, one_hot_truth=use_one_hot_encoding)
+eval_metric = nig.Accuracy(one_hot_truth=use_one_hot_encoding)
 
 models = [nig.MultiLayerPerceptron(
     784, 10, architecture, activation=activation,
-    softmax_output=use_one_hot_encoding, use_log=use_one_hot_encoding,
+    softmax_output=use_one_hot_encoding, log_output=use_one_hot_encoding,
     train_outputs_one_hot=use_one_hot_encoding, loss=loss, loss_summary=True,
     optimizer=optimizer, optimizer_opts=optimizer_opts)
           for architecture in architectures]

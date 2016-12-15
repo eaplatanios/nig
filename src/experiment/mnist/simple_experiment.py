@@ -38,7 +38,8 @@ gradients_processor = None  # norm_clipping(clip_norm=0.1)
 # optimizer = tf.contrib.opt.ScipyOptimizerInterface
 # optimizer_opts = {'options': {'maxiter': 10000}}
 
-consensus_loss_metric = nig.CrossEntropyOneHotEncodingMetric()
+consensus_loss_metric = nig.CrossEntropy(
+    log_predictions=use_one_hot_encoding, one_hot_truth=use_one_hot_encoding)
 
 with tf.device('/cpu:0'):
     experiment = mnist.MNISTExperiment(

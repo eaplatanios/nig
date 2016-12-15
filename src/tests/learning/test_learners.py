@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 
-from nig.learning.metrics import CrossEntropyIntegerEncodingMetric
+from nig.learning.metrics import CrossEntropyInteger
 from nig.learning.models import MultiLayerPerceptron as MLP
 from nig.learning.optimizers import gradient_descent
 from nig.learning.learners import SimpleLearner
@@ -21,7 +21,7 @@ def test_simple_learner():
     Y = rng.randint(0, 10, size=(N, 1))
 
     # Loss and optimizer
-    loss = CrossEntropyIntegerEncodingMetric()
+    loss = CrossEntropyInteger()
     optimizer = gradient_descent(1e-1, decay_rate=0.99)
 
     # Construct an MLP

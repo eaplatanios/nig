@@ -28,10 +28,9 @@ class MNISTExperiment(base.Experiment):
                  gradients_processor=None):
         self.architectures = architectures
         self.use_one_hot_encoding = use_one_hot_encoding
-        if self.use_one_hot_encoding:
-            loss = nig.CrossEntropyOneHotEncodingMetric()
-        else:
-            loss = nig.CrossEntropyIntegerEncodingMetric()
+        loss = nig.CrossEntropy(
+            log_predictions=self.use_one_hot_encoding,
+            one_hot_truth=self.use_one_hot_encoding)
         optimizer_opts = {
             'batch_size': batch_size,
             'max_iter': max_iter,
@@ -47,10 +46,7 @@ class MNISTExperiment(base.Experiment):
             loss_summary=False, optimizer=optimizer,
             optimizer_opts=optimizer_opts)
                   for architecture in self.architectures]
-        if self.use_one_hot_encoding:
-            eval_metric = nig.AccuracyOneHotEncodingMetric()
-        else:
-            eval_metric = nig.AccuracyIntegerEncodingMetric()
+        eval_metric = nig.Accuracy(one_hot_truth=self.use_one_hot_encoding)
         predict_postprocess = lambda l: tf.argmax(l, 1)
         inputs_pipeline = nig.ColumnsExtractor(list(range(784)))
         outputs_pipeline = nig.ColumnsExtractor(784)
