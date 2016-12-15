@@ -123,7 +123,7 @@ class SummaryWriterCallback(Callback):
     def initialize(self, learner, model, model_name, working_dir,
                    summary_writer):
         if self._summary_op is None:
-            self._summary_op = tf.merge_all_summaries()
+            self._summary_op = tf.summary.merge_all()
             self._summary_writer = summary_writer
 
     def execute(self, session, feed_dict, loss, global_step):
@@ -175,7 +175,7 @@ class VariableStatisticsSummaryWriterCallback(Callback):
                         name=tag, mark_as_used=False)
                     summaries.append(tf.histogram_summary(
                         tag=tag, values=variable, name=tag.replace(':', '_')))
-            return tf.merge_summary(summaries, name='variables' + self.name)
+            return tf.summary.merge(summaries, name='variables' + self.name)
 
     def initialize(self, learner, model, model_name, working_dir,
                    summary_writer):
@@ -241,7 +241,7 @@ class RunMetaDataSummaryWriterCallback(Callback):
         run_options = tf.RunOptions(trace_level=self.trace_level)
         run_metadata = tf.RunMetadata()
         session.run(
-            fetches=[self._model.loss], feed_dict=feed_dict,
+            fetches=[self._model.loss_op], feed_dict=feed_dict,
             options=run_options, run_metadata=run_metadata)
         tag = '%s_step_%d' % (self._model_name, global_step)
         tag = tf.get_default_graph().unique_name(name=tag, mark_as_used=False)

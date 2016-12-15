@@ -21,50 +21,7 @@ from ..learning.models import Model
 
 __author__ = 'alshedivat'
 
-__all__ = ['MultiLabelMLP', 'ADIOS']
-
-
-class MultiLabelMLP(Model):
-    """Multi Layer Perceptron for multi-label classification.
-    """
-    def __init__(self, input_size, output_size, hidden_layer_sizes, activation,
-                 loss=None, loss_summary=False, use_logits=True,
-                 optimizer=None, optimizer_opts=None):
-        self.output_size = output_size
-        self.hidden_layer_sizes = hidden_layer_sizes
-        self.activation = activation
-        self.use_logits = use_logits
-        inputs = tf.placeholder(tf.float32, shape=[None, input_size])
-        outputs = self._output_op(inputs)
-        train_outputs = tf.placeholder(tf.float32, shape=[None, output_size])
-        super(MultiLabelMLP, self).__init__(
-            inputs=inputs, outputs=outputs, train_outputs=train_outputs,
-            loss=loss, loss_summary=loss_summary, optimizer=optimizer,
-            optimizer_opts=optimizer_opts)
-
-    def _output_op(self, inputs):
-        input_size = inputs.get_shape().dims[-1].value
-
-        hidden = inputs
-        for layer_index, output_size in enumerate(self.hidden_layer_sizes):
-            with tf.variable_scope('hidden' + str(layer_index)):
-                weights = tf.Variable(tf.random_normal(
-                    [input_size, output_size],
-                    stddev=1.0 / np.math.sqrt(float(input_size))), name='W')
-                biases = tf.Variable(tf.zeros([output_size]), name='b')
-                hidden = self.activation(tf.matmul(hidden, weights) + biases)
-            input_size = output_size
-
-        with tf.variable_scope('output_sigmoid_linear'):
-            weights = tf.Variable(tf.random_normal(
-                [input_size, self.output_size],
-                stddev=1.0 / np.math.sqrt(float(input_size))), name='W')
-            biases = tf.Variable(tf.zeros([self.output_size]), name='b')
-            outputs = tf.matmul(hidden, weights) + biases
-            if not self.use_logits:
-                outputs = tf.log(tf.sigmoid(outputs))
-
-        return outputs
+__all__ = ['ADIOS']
 
 
 class ADIOS(Model):
@@ -99,8 +56,6 @@ class ADIOS(Model):
             optimizer_opts=optimizer_opts)
 
     def _output_op(self, inputs):
-        input_size = inputs.get_shape().dims[-1].value
-
         outputs = []
 
         # The first hidden and output layers are concatenated

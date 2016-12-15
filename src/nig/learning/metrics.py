@@ -39,6 +39,20 @@ class Metric(with_metaclass(abc.ABCMeta, object)):
         pass
 
 
+class CombinedMetric(Metric):
+    def __init__(self, metrics, combination_function=None,
+                 name='combined_metric'):
+        super(CombinedMetric, self).__init__(name=name)
+        if combination_function is None:
+            combination_function = lambda tensors: tf.add_n(tensors)
+        self.combination_function = combination_function
+        self.metrics = metrics
+
+    def evaluate(self, prediction, truth):
+        tensors = [metric(prediction, truth) for metric in self.metrics]
+        return self.combination_function(tensors)
+
+
 class Accuracy(Metric):
     def __init__(self, one_hot_truth=False, name='accuracy'):
         super(Accuracy, self).__init__(name=name)

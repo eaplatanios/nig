@@ -16,12 +16,28 @@ from __future__ import absolute_import, division, print_function
 
 import tensorflow as tf
 
+from ..learning.metrics import Metric
 from ..learning.models import Model
 from ..utilities.tensorflow import graph_context
 
 __author__ = 'eaplatanios'
 
-__all__ = ['RBM']
+__all__ = ['RBMLoss', 'RBM', 'SemiSupervisedRBM']
+
+
+class RBMLoss(Metric):
+    def __init__(self, rbm):
+        super(RBMLoss, self).__init__(name='rbm_loss')
+        if not isinstance(rbm, RBM):
+            raise TypeError('The provided argument is a %s, instead of an RBM '
+                            'model which was expected.' % type(rbm))
+        self.rbm = rbm
+
+    def evaluate(self, outputs, train_outputs):
+        v_sample = self.rbm._contrastive_divergence(self.rbm.cd_steps)
+        v_free_energy = self.rbm._free_energy(self.rbm.inputs)
+        v_sample_free_energy = self.rbm._free_energy(v_sample)
+        return tf.reduce_mean(tf.sub(v_free_energy, v_sample_free_energy))
 
 
 class RBM(Model):
@@ -54,11 +70,9 @@ class RBM(Model):
             self.w = tf.Variable(tf.random_normal(
                 shape=[self.num_inputs, self.num_hidden], mean=0.0, stddev=0.01,
                 dtype=tf.float32), name='w')
-        outputs = self._outputs()
-        loss = self._loss()
         super(RBM, self).__init__(
-            inputs=inputs, outputs=outputs, train_outputs=[],
-            loss=loss, loss_summary=loss_summary,
+            inputs=inputs, outputs=self._outputs(), train_outputs=[],
+            loss=RBMLoss(rbm=self), loss_summary=loss_summary,
             optimizer=optimizer, optimizer_opts=optimizer_opts,
             graph=self.graph)
 
@@ -109,13 +123,6 @@ class RBM(Model):
         return tf.add(cond_term, bias_term)
 
     @graph_context
-    def _loss(self):
-        v_sample = self._contrastive_divergence(self.cd_steps)
-        v_free_energy = self._free_energy(self.inputs)
-        v_sample_free_energy = self._free_energy(v_sample)
-        return tf.reduce_mean(tf.sub(v_free_energy, v_sample_free_energy))
-
-    @graph_context
     def _outputs(self):
         with tf.name_scope('rbm'):
             h_p = self._conditional_h_given_v(self.inputs)
@@ -131,6 +138,22 @@ class RBM(Model):
                     h_samples.append(h_sample)
                 h_samples = tf.pack(h_samples, axis=0)
                 return tf.reduce_mean(h_samples, reduction_indices=[0])
+
+
+class SemiSupervisedRBMLoss(Metric):
+    def __init__(self, rbm):
+        super(SemiSupervisedRBMLoss, self).__init__(name='rbm_loss')
+        if not isinstance(rbm, SemiSupervisedRBM):
+            raise TypeError('The provided argument is a %s, instead of a '
+                            'semi-supervised RBM model which was expected.'
+                            % type(rbm))
+        self.rbm = rbm
+
+    def evaluate(self, outputs, train_outputs):
+        num_train_outputs = tf.shape(train_outputs)[0]
+        return tf.cond(
+            num_train_outputs > 0, lambda: self.rbm._combined_loss(),
+            lambda: self.rbm._unlabeled_loss())
 
 
 class SemiSupervisedRBM(Model):
@@ -166,12 +189,12 @@ class SemiSupervisedRBM(Model):
                 dtype=tf.float32), name='w')
         self._previous_unlabeled_v = None
         self._previous_labeled_v = None
-        outputs = self._outputs()
-        loss = self._loss()
         super(SemiSupervisedRBM, self).__init__(
-            inputs=inputs, outputs=outputs, train_outputs=self.train_outputs,
-            loss=loss, loss_summary=loss_summary, optimizer=optimizer,
-            optimizer_opts=optimizer_opts, graph=self.graph)
+            inputs=inputs, outputs=self._outputs(),
+            train_outputs=self.train_outputs,
+            loss=SemiSupervisedRBMLoss(self), loss_summary=loss_summary,
+            optimizer=optimizer, optimizer_opts=optimizer_opts,
+            graph=self.graph)
 
     @graph_context
     def _conditional_h_given_v(self, v):
@@ -278,13 +301,6 @@ class SemiSupervisedRBM(Model):
         labels = tf.boolean_mask(self.train_outputs, labeled_mask)
         labeled_loss = self._labeled_loss(labeled_inputs, labels[:, None])
         return tf.add(unlabeled_loss, labeled_loss)
-
-    @graph_context
-    def _loss(self):
-        num_train_outputs = tf.shape(self.train_outputs)[0]
-        return tf.cond(
-            num_train_outputs > 0, lambda: self._combined_loss(),
-            lambda: self._unlabeled_loss())
 
     @graph_context
     def _outputs(self):

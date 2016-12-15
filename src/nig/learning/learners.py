@@ -25,6 +25,7 @@ from contextlib import closing
 from multiprocessing.dummy import Pool as ThreadPool
 from six import with_metaclass
 
+from .metrics import Metric
 from .models import Model, CombinedModel, LinearCombinationModel
 from ..data.iterators import get_iterator
 from ..evaluation import rbm_integrator
@@ -345,7 +346,7 @@ class SimpleLearner(Learner):
         step = 0
         while True:
             _, loss = self.session.run(
-                fetches=[model.train_op, model.loss], feed_dict=feed_dict)
+                fetches=[model.train_op, model.loss_op], feed_dict=feed_dict)
             for callback in callbacks:
                 callback(self.session, feed_dict, loss, self.train_iteration)
             loss_diff = abs(prev_loss - loss)
@@ -416,7 +417,7 @@ class SimpleLearner(Learner):
 
         model.optimizer.minimize(
             session=self.session, feed_dict=feed_dict,
-            fetches=[model.loss], loss_callback=loss_callback,
+            fetches=[model.loss_op], loss_callback=loss_callback,
             step_callback=step_callback)
         if save_trained:
             Learner._save_checkpoint(
@@ -465,7 +466,7 @@ class ValidationSetLearner(Learner):
         if not add_val_loss_op:
             return learner
         if self._val_loss is None:
-            val_loss_op = learner.models.loss
+            val_loss_op = learner.models.loss_op
         elif isinstance(self._val_loss, list):
             with learner.graph.as_default(), tf.name_scope('val_loss'):
                 val_loss_op = self._val_loss[model_index](
@@ -586,7 +587,7 @@ class CrossValidationLearner(Learner):
         if not add_val_loss_op:
             return learner
         if self._val_loss is None:
-            val_loss_op = learner.models.loss
+            val_loss_op = learner.models.loss_op
         elif isinstance(self._val_loss, list):
             with learner.graph.as_default(), tf.name_scope('val_loss'):
                 val_loss_op = self._val_loss[model_index](
@@ -742,7 +743,7 @@ class CrossValidationLearner(Learner):
 #                 consensus_losses = self._consensus_losses()
 #                 for m in range(len(self.models)):
 #                     self.models[m] = self.models[m].update_loss(
-#                         loss=self.models[m].loss + consensus_losses[m],
+#                         loss=self.models[m].loss_op + consensus_losses[m],
 #                         graph=self.graph)
 #
 #     def _consensus_losses(self):
@@ -840,7 +841,7 @@ class CrossValidationLearner(Learner):
 #             if step >= 100 and (step - 100) % 100 == 0:
 #                 self.update_trust(self._estimate_trust(
 #                     labeled_data=labeled_data, unlabeled_data=unlabeled_data))
-#             fetches = [[models[m].train_op, models[m].loss]
+#             fetches = [[models[m].train_op, models[m].loss_op]
 #                        for m in untrained_models]
 #             run_outputs = self.session.run(fetches=fetches, feed_dict=feed_dict)
 #             losses = []
@@ -988,6 +989,16 @@ class CrossValidationLearner(Learner):
 #             graph=self.graph)
 
 
+class TrustBasedLearnerLoss(Metric):
+    def __init__(self, model, consensus_loss, name='combined_loss'):
+        super(TrustBasedLearnerLoss, self).__init__(name=name)
+        self.model_loss = model.loss
+        self.consensus_loss = consensus_loss
+
+    def evaluate(self, prediction, truth):
+        return self.model_loss(prediction, truth) + self.consensus_loss
+
+
 class TrustBasedLearner(Learner):
     def __init__(self, models, consensus_loss_weight=1.0,
                  first_trust_update=10, trust_update_frequency=10,
@@ -1019,8 +1030,9 @@ class TrustBasedLearner(Learner):
                     validate_shape=False, name='trust', dtype=tf.float32)
                 consensus_losses = self._consensus_losses()
                 for m in range(len(self.models)):
-                    self.models[m].update_loss(
-                        loss=self.models[m].loss + consensus_losses[m])
+                    # self.models[m].update_loss(
+                    #     loss=self.models[m].loss_op + consensus_losses[m])
+                    self.models[m].update_loss(TrustBasedLearnerLoss(self.models[m], consensus_losses[m]))
         self.integrator = rbm_integrator.SemiSupervisedRBMIntegrator(
             num_functions=self.num_models, estimate_errors=True,
             working_dir=os.getcwd(), persistent=False)
@@ -1123,7 +1135,7 @@ class TrustBasedLearner(Learner):
                     % self.trust_update_frequency == 0:
                 self.update_trust(self._estimate_trust(
                     labeled_data=labeled_data, unlabeled_data=unlabeled_data))
-            fetches = [[models[m].train_op, models[m].loss]
+            fetches = [[models[m].train_op, models[m].loss_op]
                        for m in untrained_models]
             run_outputs = self.session.run(fetches=fetches, feed_dict=feed_dict)
             losses = []
@@ -1314,7 +1326,7 @@ class ConsensusLearner(Learner):
                         consensus_loss = metric(model.outputs, self.consensus)
                     consensus_loss *= self.consensus_loss_weight
                     consensus_loss *= self._consensus_loss_multiplier
-                    model.update_loss(tf.add(model.loss, consensus_loss))
+                    model.update_loss(tf.add(model.loss_op, consensus_loss))
         else:
             raise ValueError('ConsensusLearner can only be used with trainable '
                              'models.')
@@ -1412,7 +1424,7 @@ class ConsensusLearner(Learner):
                 self._train_integrators(
                     labeled_data=labeled_data, unlabeled_data=unlabeled_data,
                     max_iter=self.consensus_update_max_iter)
-            fetches = [[models[m].train_op, models[m].loss]
+            fetches = [[models[m].train_op, models[m].loss_op]
                        for m in untrained_models]
             run_outputs = self.session.run(fetches=fetches, feed_dict=feed_dict)
             losses = []
@@ -1466,7 +1478,8 @@ class ConsensusLearner(Learner):
         iter_below_tol = [0] * len(self.integrators)
         step = 0
         while True:
-            fetches = [[self.integrators[i].train_op, self.integrators[i].loss]
+            fetches = [[self.integrators[i].train_op,
+                        self.integrators[i].loss_op]
                        for i in untrained_integrators]
             feed_dict = dict()
             train_outputs = None

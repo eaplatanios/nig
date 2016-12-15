@@ -23,6 +23,7 @@ import tensorflow as tf
 
 from six import with_metaclass
 
+from . import metrics
 from ..utilities.tensorflow import graph_context, copy_op_to_graph, \
     copy_variable_to_graph
 
@@ -96,6 +97,7 @@ class Model(with_metaclass(abc.ABCMeta, object)):
             and optimizer is not None
         self.train_outputs = train_outputs
         self.loss = loss
+        self.loss_op = None
         self.loss_summary = loss_summary
         self._gradients = gradients
         self.uses_external_optimizer = inspect.isclass(optimizer)
@@ -123,33 +125,31 @@ class Model(with_metaclass(abc.ABCMeta, object)):
                     raise ValueError(__TENSORS_DIFFERENT_GRAPHS_ERROR__)
             elif self.train_outputs.graph != self.graph:
                 raise ValueError(__TENSORS_DIFFERENT_GRAPHS_ERROR__)
-        elif isinstance(self.outputs, list) and callable(self.loss):
+        elif isinstance(self.outputs, list):
             self.train_outputs = [tf.placeholder(
                 dtype=output.dtype, shape=output.get_shape(),
                 name=output.name.split(':')[0] + '/observed')
                                   for output in self.outputs]
-        elif isinstance(self.outputs, dict) and callable(self.loss):
+        elif isinstance(self.outputs, dict):
             self.train_outputs = {k: tf.placeholder(
                 dtype=v.dtype, shape=v.get_shape(),
                 name=v.name.split(':')[0] + '/observed')
                                   for k, v in self.outputs.items()}
-        elif callable(self.loss):
+        else:
             self.train_outputs = tf.placeholder(
                 dtype=self.outputs.dtype, shape=self.outputs.get_shape(),
                 name=self.outputs.name.split(':')[0] + '/observed')
         # Process loss
-        self.update_loss(self.loss)
+        self.update_loss(loss=self.loss)
 
-    def update_loss(self, loss=None):
-        if loss is not None:
-            self.loss = loss
-        if callable(self.loss):
-            self.loss = self.loss(self.outputs, self.train_outputs)
-        if not isinstance(self.loss, tf.Tensor):
-            raise TypeError('Unsupported loss type %s encountered.'
-                            % type(self.loss))
+    def update_loss(self, loss):
+        if not isinstance(loss, metrics.Metric):
+            raise TypeError('Unsupported loss type %s encountered. The loss '
+                            'is required to be a NIG Metric.' % type(loss))
+        self.loss = loss
+        self.loss_op = self.loss(self.outputs, self.train_outputs)
         if self.loss_summary:
-            tf.summary.scalar(name=self.loss.op.name, tensor=self.loss)
+            tf.summary.scalar(name=self.loss_op.op.name, tensor=self.loss_op)
 
         # Process optimizer and optimizer_opts
         if self.uses_external_optimizer:
@@ -160,7 +160,7 @@ class Model(with_metaclass(abc.ABCMeta, object)):
                 else:
                     self.optimizer_opts['options'] = {'disp': False}
                 self.optimizer = self.provided_optimizer(
-                    self.loss, **self.optimizer_opts)
+                    self.loss_op, **self.optimizer_opts)
         elif not callable(self.provided_optimizer):
             raise TypeError('Unsupported optimizer type %s encountered.'
                             % type(self.provided_optimizer))
@@ -184,7 +184,7 @@ class Model(with_metaclass(abc.ABCMeta, object)):
                                     'processor needs to be a function.'
                                     % type(grads_processor))
                 trainable_vars = tf.trainable_variables()
-                grads = tf.gradients(ys=self.loss, xs=trainable_vars)
+                grads = tf.gradients(ys=self.loss_op, xs=trainable_vars)
                 grads = grads_processor(grads)
                 self.train_op = self.optimizer.apply_gradients(
                     grads_and_vars=zip(grads, trainable_vars))
@@ -195,7 +195,7 @@ class Model(with_metaclass(abc.ABCMeta, object)):
                 self.train_op = self.optimizer.apply_gradients(
                     grads_and_vars=self._gradients)
             else:
-                self.train_op = self.optimizer.minimize(loss=self.loss)
+                self.train_op = self.optimizer.minimize(loss=self.loss_op)
 
     def get_feed_dict(self, data, is_train=False):
         if isinstance(data, np.ndarray):
@@ -250,18 +250,15 @@ class Model(with_metaclass(abc.ABCMeta, object)):
                     scope=scope)
             else:
                 train_outputs = None
-            loss = self._copy_ops_to_graph(
-                ops=self.loss, graph=graph, variables=variables,
-                scope=scope)
             return Model(
                 inputs=inputs, outputs=outputs, train_outputs=train_outputs,
-                loss=loss, optimizer=self.provided_optimizer,
+                loss=self.loss, optimizer=self.provided_optimizer,
                 optimizer_opts=self.optimizer_opts)
         return Model(inputs=inputs, outputs=outputs)
 
     def _variables(self):
         if self.trainable:
-            start_ops = self.loss
+            start_ops = self.loss_op
         elif isinstance(self.outputs, dict):
             start_ops = self.outputs.values()
         else:
@@ -414,11 +411,12 @@ class LinearCombinationModel(Model):
             #         models=self.models, variables_name='train_outputs')
             # TODO: Make this a trainable model.
             self.trainable = False
-            self.loss = tf.add_n([model.loss for model in self.models])
-            self.loss /= len(self.models)
+            self.loss_op = tf.add_n([model.loss_op for model in self.models])
+            self.loss_op /= len(self.models)
             self.loss_summary = loss_summary
             if self.loss_summary:
-                tf.summary.scalar(name=self.loss.op.name, tensor=self.loss)
+                tf.summary.scalar(
+                    name=self.loss_op.op.name, tensor=self.loss_op)
 
     @staticmethod
     def _combine_model_variables(models, variables_name):
