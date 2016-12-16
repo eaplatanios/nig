@@ -21,7 +21,9 @@ from six import with_metaclass
 
 __author__ = 'eaplatanios'
 
-__all__ = ['Metric', 'Accuracy', 'CrossEntropy', 'HammingLoss']
+__all__ = [
+    'Metric', 'CombinedMetric', 'L2Loss', 'Accuracy', 'CrossEntropy',
+    'HammingLoss']
 
 
 class Metric(with_metaclass(abc.ABCMeta, object)):
@@ -31,11 +33,11 @@ class Metric(with_metaclass(abc.ABCMeta, object)):
     def __str__(self):
         return self.name
 
-    def __call__(self, prediction, truth):
-        return self.evaluate(prediction, truth)
+    def __call__(self, outputs, train_outputs):
+        return self.evaluate(outputs, train_outputs)
 
     @abc.abstractmethod
-    def evaluate(self, prediction, truth):
+    def evaluate(self, outputs, train_outputs):
         pass
 
 
@@ -48,9 +50,20 @@ class CombinedMetric(Metric):
         self.combination_function = combination_function
         self.metrics = metrics
 
-    def evaluate(self, prediction, truth):
-        tensors = [metric(prediction, truth) for metric in self.metrics]
+    def evaluate(self, outputs, train_outputs):
+        tensors = [metric(outputs, train_outputs) for metric in self.metrics]
         return self.combination_function(tensors)
+
+
+class L2Loss(Metric):
+    def __init__(self, name='l2_loss'):
+        super(L2Loss, self).__init__(name=name)
+
+    def evaluate(self, outputs, train_outputs):
+        with tf.name_scope(self.name):
+            metric = tf.square(tf.sub(outputs - train_outputs))
+            metric = tf.reduce_sum(metric)
+        return metric
 
 
 class Accuracy(Metric):
@@ -58,13 +71,15 @@ class Accuracy(Metric):
         super(Accuracy, self).__init__(name=name)
         self.one_hot_truth = one_hot_truth
 
-    def evaluate(self, prediction, truth):
+    def evaluate(self, outputs, train_outputs):
         with tf.name_scope(self.name):
             if self.one_hot_truth:
-                metric = tf.equal(tf.argmax(prediction, 1), tf.argmax(truth, 1))
+                outputs = tf.argmax(outputs, 1)
+                train_outputs = tf.argmax(train_outputs, 1)
+                metric = tf.equal(outputs, train_outputs)
             else:
-                truth = tf.to_int64(tf.squeeze(truth))
-                metric = tf.nn.in_top_k(prediction, truth, 1)
+                train_outputs = tf.to_int64(tf.squeeze(train_outputs))
+                metric = tf.nn.in_top_k(outputs, train_outputs, 1)
             metric = tf.cast(metric, tf.float32)
             metric = tf.reduce_mean(metric)
         return metric
@@ -78,22 +93,22 @@ class CrossEntropy(Metric):
         self.scaled_predictions = scaled_predictions
         self.one_hot_truth = one_hot_truth
 
-    def evaluate(self, prediction, truth):
+    def evaluate(self, outputs, train_outputs):
         with tf.name_scope(self.name):
             if not self.log_predictions:
-                prediction = tf.log(prediction)
+                outputs = tf.log(outputs)
             if self.one_hot_truth:
                 if self.scaled_predictions:
-                    metric = truth * prediction
+                    metric = train_outputs * outputs
                     metric = -tf.reduce_sum(metric, reduction_indices=[1])
                 else:
                     metric = tf.nn.softmax_cross_entropy_with_logits(
-                        logits=prediction, labels=truth)
+                        logits=outputs, labels=train_outputs)
             else:
                 # TODO: Make efficient for scaled predictions.
-                truth = tf.to_int64(tf.squeeze(truth))
+                train_outputs = tf.to_int64(tf.squeeze(train_outputs))
                 metric = tf.nn.sparse_softmax_cross_entropy_with_logits(
-                    logits=prediction, labels=truth)
+                    logits=outputs, labels=train_outputs)
             metric = tf.reduce_mean(metric)
         return metric
 
@@ -103,13 +118,13 @@ class HammingLoss(Metric):
         super(HammingLoss, self).__init__(name=name)
         self.log_predictions = log_predictions
 
-    def evaluate(self, prediction, truth):
+    def evaluate(self, outputs, train_outputs):
         with tf.name_scope(self.name):
             if self.log_predictions:
-                prediction = tf.nn.relu(tf.sign(prediction - tf.log(0.5)))
+                outputs = tf.nn.relu(tf.sign(outputs - tf.log(0.5)))
             else:
-                prediction = tf.nn.relu(tf.sign(prediction - 0.5))
-            metric = tf.cast(tf.not_equal(prediction, truth), tf.float32)
+                outputs = tf.nn.relu(tf.sign(outputs - 0.5))
+            metric = tf.cast(tf.not_equal(outputs, train_outputs), tf.float32)
             metric = tf.reduce_sum(metric, reduction_indices=[1])
             metric = tf.reduce_mean(metric)
             return metric
