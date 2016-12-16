@@ -36,10 +36,16 @@ class MultiLayerPerceptron(Model):
         self.sigmoid_output = sigmoid_output
         self.log_output = log_output
         self.train_outputs_one_hot = train_outputs_one_hot
-        inputs = tf.placeholder(tf.float32, shape=[None, input_size])
-        outputs = self._output_op(inputs)
-        train_outputs = None if self.train_outputs_one_hot \
-            else tf.placeholder(tf.int32, shape=[None])
+        with tf.name_scope('multi_layer_perceptron'):
+            inputs = tf.placeholder(
+                tf.float32, shape=[None, input_size], name='inputs')
+            outputs = self._output_op(inputs)
+            if self.train_outputs_one_hot:
+                train_outputs = tf.placeholder(
+                    tf.float32, shape=[None, output_size], name='train_outputs')
+            else:
+                train_outputs = tf.placeholder(
+                    tf.int32, shape=[None], name='train_outputs')
         super(MultiLayerPerceptron, self).__init__(
             inputs=inputs, outputs=outputs, train_outputs=train_outputs,
             loss=loss, loss_summary=loss_summary, optimizer=optimizer,
