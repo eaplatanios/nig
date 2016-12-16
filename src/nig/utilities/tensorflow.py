@@ -212,6 +212,7 @@ def copy_op_to_graph(org_instance, to_graph, variables, copy_summaries=False,
             copy_summaries=copy_summaries, scope=scope)
         output_index = op.outputs.index(org_instance)
         new_tensor = new_op.outputs[output_index]
+        new_tensor.set_shape(org_instance.get_shape())
         #Add to collections if any
         for collection in collections:
             to_graph.add_to_collection(collection, new_tensor)
