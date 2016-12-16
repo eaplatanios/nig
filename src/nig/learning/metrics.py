@@ -62,7 +62,8 @@ class L2Loss(Metric):
     def evaluate(self, outputs, train_outputs):
         with tf.name_scope(self.name):
             metric = tf.square(tf.sub(outputs, train_outputs))
-            metric = tf.reduce_sum(metric)
+            num_samples = tf.shape(metric)[0]
+            metric = tf.reduce_sum(metric) / num_samples
         return metric
 
 
