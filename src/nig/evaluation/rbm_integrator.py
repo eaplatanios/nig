@@ -18,8 +18,8 @@ import numpy as np
 import os
 import tensorflow as tf
 
-from ..learning import learners
-from ..models import rbm
+import nig.learning.learners as learners
+import nig.models.rbm as rbm
 
 __author__ = 'eaplatanios'
 

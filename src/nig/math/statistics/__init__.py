@@ -14,9 +14,11 @@
 
 from __future__ import absolute_import, division, print_function
 
+from . import cross_validation
+
 from .cross_validation import *
 
 __author__ = 'eaplatanios'
 
-__all__ = []
+__all__ = ['cross_validation']
 __all__.extend(cross_validation.__all__)

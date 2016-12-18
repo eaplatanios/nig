@@ -14,9 +14,11 @@
 
 from __future__ import absolute_import, division, print_function
 
+from . import array_ops
+
 from .array_ops import *
 
 __author__ = 'eaplatanios'
 
-__all__ = []
+__all__ = ['array_ops']
 __all__.extend(array_ops.__all__)
