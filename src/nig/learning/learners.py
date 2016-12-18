@@ -27,8 +27,8 @@ from six import with_metaclass
 
 from .metrics import Metric
 from .models import Model, CombinedModel, LinearCombinationModel
+from .. import evaluation
 from ..data.iterators import get_iterator
-from ..evaluation import rbm_integrator
 from ..math.statistics.cross_validation import KFold
 from ..models import rbm
 from ..utilities.functions import memoize
@@ -1033,7 +1033,7 @@ class TrustBasedLearner(Learner):
                     # self.models[m].update_loss(
                     #     loss=self.models[m].loss_op + consensus_losses[m])
                     self.models[m].update_loss(TrustBasedLearnerLoss(self.models[m], consensus_losses[m]))
-        self.integrator = rbm_integrator.SemiSupervisedRBMIntegrator(
+        self.integrator = evaluation.rbm_integrator.SemiSupervisedRBMIntegrator(
             num_functions=self.num_models, estimate_errors=True,
             working_dir=os.getcwd(), persistent=False)
 
