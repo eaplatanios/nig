@@ -18,15 +18,6 @@ import logging.config
 import os
 import yaml
 
-from . import data
-from . import evaluation
-from . import learning
-from . import math
-from . import models
-from . import ops
-from . import plotting
-from . import utilities
-
 from .data import *
 from .evaluation import *
 from .learning import *

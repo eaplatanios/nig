@@ -16,13 +16,11 @@ from __future__ import absolute_import, division, print_function
 
 from matplotlib import pyplot as plt
 
-from . import lines
-
 from .lines import *
 
 __author__ = 'eaplatanios'
 
-__all__ = ['apply_style_sheet', 'lines']
+__all__ = ['apply_style_sheet']
 __all__.extend(lines.__all__)
 
 
