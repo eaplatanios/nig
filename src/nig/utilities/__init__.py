@@ -14,15 +14,15 @@
 
 from __future__ import absolute_import, division, print_function
 
-from . import functions
-from . import generic
-from . import iterators
-from . import tensorflow
+import nig.utilities.functions as functions
+import nig.utilities.generic as generic
+import nig.utilities.iterators as iterators
+import nig.utilities.tensorflow as tensorflow
 
-from .functions import *
-from .generic import *
-from .iterators import *
-from .tensorflow import *
+from nig.utilities.functions import *
+from nig.utilities.generic import *
+from nig.utilities.iterators import *
+from nig.utilities.tensorflow import *
 
 __author__ = 'eaplatanios'
 

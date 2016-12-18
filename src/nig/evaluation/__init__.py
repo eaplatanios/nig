@@ -14,13 +14,13 @@
 
 from __future__ import absolute_import, division, print_function
 
-from . import constraints
-from . import integrators
-from . import rbm_integrator
+import nig.evaluation.constraints as constraints
+import nig.evaluation.integrators as integrators
+import nig.evaluation.rbm_integrator as rbm_integrator
 
-from .constraints import *
-from .integrators import *
-from .rbm_integrator import *
+from nig.evaluation.constraints import *
+from nig.evaluation.integrators import *
+from nig.evaluation.rbm_integrator import *
 
 __author__ = 'eaplatanios'
 

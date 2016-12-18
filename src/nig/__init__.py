@@ -18,23 +18,23 @@ import logging.config
 import os
 import yaml
 
-from . import data
-from . import evaluation
-from . import learning
-from . import math
-from . import models
-from . import ops
-from . import plotting
-from . import utilities
+import nig.data as data
+import nig.evaluation as evaluation
+import nig.learning as learning
+import nig.math as math
+import nig.models as models
+import nig.ops as ops
+import nig.plotting as plotting
+import nig.utilities as utilities
 
-from .data import *
-from .evaluation import *
-from .learning import *
-from .math import *
-from .models import *
-from .ops import *
-from .plotting import *
-from .utilities import *
+from nig.data import *
+from nig.evaluation import *
+from nig.learning import *
+from nig.math import *
+from nig.models import *
+from nig.ops import *
+from nig.plotting import *
+from nig.utilities import *
 
 __author__ = 'eaplatanios'
 
