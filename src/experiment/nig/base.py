@@ -16,11 +16,12 @@ __all__ = ['Experiment']
 
 class Experiment(with_metaclass(abc.ABCMeta, object)):
     def __init__(self, models, eval_metric, predict_postprocess=None,
-                 inputs_pipeline=None, outputs_pipeline=None, batch_size=100,
+                 inputs_pipeline=None, outputs_pipeline=None,
                  labeled_batch_size=100, unlabeled_batch_size=100,
-                 logging_frequency=10, summary_frequency=100,
-                 checkpoint_frequency=1000, evaluation_frequency=10,
-                 variable_statistics_frequency=-1, run_meta_data_frequency=-1,
+                 test_data_proportion=0.1, logging_frequency=10,
+                 summary_frequency=100, checkpoint_frequency=1000,
+                 evaluation_frequency=10, variable_statistics_frequency=-1,
+                 run_meta_data_frequency=-1,
                  working_dir=os.path.join(os.getcwd(), 'working'),
                  checkpoint_file_prefix='ckpt', restore_sequentially=False,
                  save_trained=True):
@@ -35,9 +36,9 @@ class Experiment(with_metaclass(abc.ABCMeta, object)):
         self.predict_postprocess = predict_postprocess
         self.inputs_pipeline = inputs_pipeline
         self.outputs_pipeline = outputs_pipeline
-        self.batch_size = batch_size
         self.labeled_batch_size = labeled_batch_size
         self.unlabeled_batch_size = unlabeled_batch_size
+        self.test_data_proportion = test_data_proportion
         self.logging_frequency = logging_frequency
         self.summary_frequency = summary_frequency
         self.checkpoint_frequency = checkpoint_frequency
@@ -76,6 +77,12 @@ class Experiment(with_metaclass(abc.ABCMeta, object)):
                     for k in keys}
         raise TypeError('Unsupported data sets type %s.' % data_set_type)
 
+    @staticmethod
+    def _split_data_set(data_set, test_proportion=0.1):
+        # TODO: Guarantee even label split using our cross-validation module.
+        num_train = int(np.floor((1 - test_proportion) * data_set.shape[0]))
+        return data_set[:num_train], data_set[num_train:]
+
     def _get_iterator(self, data, include_outputs=True):
         if self.inputs_pipeline is not None:
             pipelines = [self.inputs_pipeline]
@@ -86,12 +93,11 @@ class Experiment(with_metaclass(abc.ABCMeta, object)):
         if include_outputs and self.outputs_pipeline is not None:
             pipelines.append(self.outputs_pipeline)
         return nig.get_iterator(
-            data, batch_size=self.batch_size, shuffle=True, cycle=False,
+            data, shuffle=True, cycle=False,
             cycle_shuffle=False, keep_last=True, pipelines=pipelines)
 
-    def _callbacks(self, train_data=None, val_data=None, test_data=None,
-                   loss_values=None, eval_train_values=None,
-                   eval_val_values=None, eval_test_values=None):
+    def _callbacks(self, train_data=None, test_data=None, loss_values=None,
+                   eval_train_values=None, eval_test_values=None):
         callbacks = []
         if self.logging_frequency > 0:
             callbacks.append(nig.LoggerCallback(
@@ -108,11 +114,6 @@ class Experiment(with_metaclass(abc.ABCMeta, object)):
                 frequency=self.evaluation_frequency,
                 data=self._get_iterator(train_data), metrics=self.eval_metric,
                 name='eval/train', stored_values=eval_train_values))
-        if self.evaluation_frequency > 0 and val_data is not None:
-            callbacks.append(nig.EvaluationCallback(
-                frequency=self.evaluation_frequency,
-                data=self._get_iterator(val_data), metrics=self.eval_metric,
-                name='eval/val', stored_values=eval_val_values))
         if self.evaluation_frequency > 0 and test_data is not None:
             callbacks.append(nig.EvaluationCallback(
                 frequency=self.evaluation_frequency,
@@ -129,17 +130,17 @@ class Experiment(with_metaclass(abc.ABCMeta, object)):
         return callbacks
 
     def run(self, learners, show_plots=True, plots_folder=None):
-        train_data, val_data, test_data = self.load_data()
+        data = self._merge_data_sets(*self.load_data())
+        train_data, test_data = self._split_data_set(
+            data_set=data, test_proportion=self.test_data_proportion)
 
         def _run_learner(learner):
             losses = []
             train_evals = []
-            val_evals = []
             test_evals = []
             callbacks = self._callbacks(
-                train_data=train_data, val_data=val_data, test_data=test_data,
-                loss_values=losses, eval_train_values=train_evals,
-                eval_val_values=val_evals, eval_test_values=test_evals)
+                train_data=train_data, test_data=test_data, loss_values=losses,
+                eval_train_values=train_evals, eval_test_values=test_evals)
             if self.inputs_pipeline is not None:
                 labeled_pipelines = [self.inputs_pipeline]
                 unlabeled_pipelines = [self.inputs_pipeline]
@@ -151,50 +152,46 @@ class Experiment(with_metaclass(abc.ABCMeta, object)):
             else:
                 labeled_pipelines.append(self.outputs_pipeline)
             learner = learner(
-                models=self.models,
+                models=self.models, new_graph=True,
                 predict_postprocess=self.predict_postprocess)
             labeled_data = nig.get_iterator(
-                data=self._merge_data_sets(train_data, val_data),
-                batch_size=self.labeled_batch_size, shuffle=True,
-                cycle=True, cycle_shuffle=True, pipelines=labeled_pipelines)
+                data=train_data, batch_size=self.labeled_batch_size,
+                shuffle=True, cycle=True, cycle_shuffle=True,
+                pipelines=labeled_pipelines)
             unlabeled_data = nig.get_iterator(
                 data=test_data, batch_size=self.unlabeled_batch_size,
                 shuffle=True, cycle=True, cycle_shuffle=True,
                 pipelines=unlabeled_pipelines)
             learner.train(
-                data=train_data, pipelines=labeled_pipelines, init_option=True,
-                per_model_callbacks=None, combined_model_callbacks=callbacks,
+                labeled_data=labeled_data, pipelines=labeled_pipelines,
+                init_option=True, per_model_callbacks=None,
+                combined_model_callbacks=callbacks,
                 working_dir=self.working_dir,
                 ckpt_file_prefix=self.checkpoint_file_prefix,
                 restore_sequentially=self.restore_sequentially,
-                save_trained=self.save_trained, labeled_data=labeled_data,
-                unlabeled_data=unlabeled_data)
-            return losses, train_evals, val_evals, test_evals
+                save_trained=self.save_trained, unlabeled_data=unlabeled_data)
+            return losses, train_evals, test_evals
 
         if isinstance(learners, list):
             learners = OrderedDict([(str(learner), learner)
                                     for learner in learners])
         losses = dict()
         train_evals = dict()
-        val_evals = dict()
         test_evals = dict()
         for name, learner in learners.items():
             results = _run_learner(learner)
             losses[name] = results[0]
             train_evals[name] = results[1]
-            val_evals[name] = results[2]
-            test_evals[name] = results[3]
+            test_evals[name] = results[2]
         if show_plots or plots_folder is not None:
             if plots_folder is not None:
                 plots_folder = os.path.join(self.working_dir, plots_folder)
                 loss_filename = os.path.join(plots_folder, 'loss.pdf')
                 train_filename = os.path.join(plots_folder, 'train_eval.pdf')
-                val_filename = os.path.join(plots_folder, 'val_eval.pdf')
                 test_filename = os.path.join(plots_folder, 'test_eval.pdf')
             else:
                 loss_filename = None
                 train_filename = None
-                val_filename = None
                 test_filename = None
             nig.plot_lines(
                 lines=losses, style='ggplot', xlabel='Iteration',
@@ -207,13 +204,8 @@ class Experiment(with_metaclass(abc.ABCMeta, object)):
                 title=str(self.eval_metric) + ' Value', include_legend=True,
                 show_plot=show_plots, save_filename=train_filename, dpi=300)
             nig.plot_lines(
-                lines=val_evals, style='ggplot', xlabel='Iteration',
-                ylabel=str(self.eval_metric),
-                title=str(self.eval_metric) + ' Value', include_legend=True,
-                show_plot=show_plots, save_filename=val_filename, dpi=300)
-            nig.plot_lines(
                 lines=test_evals, style='ggplot', xlabel='Iteration',
                 ylabel=str(self.eval_metric),
                 title=str(self.eval_metric) + ' Value', include_legend=True,
                 show_plot=show_plots, save_filename=test_filename, dpi=300)
-        return losses, train_evals, val_evals, test_evals
+        return losses, train_evals, test_evals

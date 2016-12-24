@@ -18,6 +18,7 @@ activation = nig.leaky_relu(0.01)
 batch_size = 128
 labeled_batch_size = 128
 unlabeled_batch_size = 128
+test_data_proportion = 0.9
 max_iter = 200
 abs_loss_chg_tol = 1e-6
 rel_loss_chg_tol = 1e-6
@@ -40,9 +41,10 @@ gradients_processor = None  # processors.norm_clipping(clip_norm=0.1)
 
 with tf.device('/cpu:0'):
     experiment = mediamill.MediaMillExperiment(
-        architectures=architectures, activation=activation, batch_size=batch_size,
+        architectures=architectures, activation=activation,
         labeled_batch_size=labeled_batch_size,
-        unlabeled_batch_size=unlabeled_batch_size, max_iter=max_iter,
+        unlabeled_batch_size=unlabeled_batch_size,
+        test_data_proportion=test_data_proportion, max_iter=max_iter,
         abs_loss_chg_tol=abs_loss_chg_tol, rel_loss_chg_tol=rel_loss_chg_tol,
         loss_chg_iter_below_tol=loss_chg_iter_below_tol,
         logging_frequency=logging_frequency, summary_frequency=summary_frequency,

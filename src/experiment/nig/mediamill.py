@@ -14,12 +14,12 @@ __all__ = ['MediaMillExperiment']
 
 
 class MediaMillExperiment(base.Experiment):
-    def __init__(self, architectures, activation=tf.nn.relu, batch_size=128,
+    def __init__(self, architectures, activation=tf.nn.relu,
                  labeled_batch_size=100, unlabeled_batch_size=100,
-                 max_iter=1000, abs_loss_chg_tol=1e-6, rel_loss_chg_tol=1e-6,
-                 loss_chg_iter_below_tol=5, logging_frequency=10,
-                 summary_frequency=100, checkpoint_frequency=1000,
-                 evaluation_frequency=10,
+                 test_data_proportion=0.1, max_iter=1000, abs_loss_chg_tol=1e-6,
+                 rel_loss_chg_tol=1e-6, loss_chg_iter_below_tol=5,
+                 logging_frequency=10, summary_frequency=100,
+                 checkpoint_frequency=1000, evaluation_frequency=10,
                  variable_statistics_frequency=-1, run_meta_data_frequency=-1,
                  working_dir=os.path.join(os.getcwd(), 'working'),
                  checkpoint_file_prefix='ckpt', restore_sequentially=False,
@@ -28,7 +28,7 @@ class MediaMillExperiment(base.Experiment):
         self.architectures = architectures
         loss = nig.CrossEntropy(log_predictions=True, one_hot_truth=True)
         optimizer_opts = {
-            'batch_size': batch_size,
+            'batch_size': labeled_batch_size,
             'max_iter': max_iter,
             'abs_loss_chg_tol': abs_loss_chg_tol,
             'rel_loss_chg_tol': rel_loss_chg_tol,
@@ -42,9 +42,10 @@ class MediaMillExperiment(base.Experiment):
                   for architecture in self.architectures]
         eval_metric = nig.HammingLoss()
         super(MediaMillExperiment, self).__init__(
-            models=models, eval_metric=eval_metric, batch_size=batch_size,
+            models=models, eval_metric=eval_metric,
             labeled_batch_size=labeled_batch_size,
             unlabeled_batch_size=unlabeled_batch_size,
+            test_data_proportion=test_data_proportion,
             logging_frequency=logging_frequency,
             summary_frequency=summary_frequency,
             checkpoint_frequency=checkpoint_frequency,
