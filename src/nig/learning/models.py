@@ -197,9 +197,19 @@ class Model(with_metaclass(abc.ABCMeta, object)):
             else:
                 self.train_op = self.optimizer.minimize(loss=self.loss_op)
 
-    def get_feed_dict(self, data, is_train=False):
+    @staticmethod
+    def _add_to_feed_dict(feed_dict, new_feed_dict):
+        if feed_dict is not None:
+            for key, value in new_feed_dict.items():
+                if key in feed_dict:
+                    value = np.concatenate((feed_dict[key], value), axis=0)
+                feed_dict.update({key: value})
+            return feed_dict
+        return new_feed_dict
+
+    def get_feed_dict(self, data, is_train=False, feed_dict=None):
         if isinstance(data, np.ndarray):
-            return {self.inputs: data}
+            return self._add_to_feed_dict(feed_dict, {self.inputs: data})
         if isinstance(data, list) or isinstance(data, tuple):
             tensors = []
             if isinstance(self.inputs, list):
@@ -219,12 +229,15 @@ class Model(with_metaclass(abc.ABCMeta, object)):
                                     'dictionaries.')
                 else:
                     tensors.append(self.train_outputs)
-            return dict(zip(tensors, data))
+            return self._add_to_feed_dict(feed_dict, dict(zip(tensors, data)))
         if isinstance(data, dict):
-            return {Model._get_tensor_name(k): v for k, v in data.items()}
+            new_feed_dict = {Model._get_tensor_name(k): v
+                             for k, v in data.items()}
+            return self._add_to_feed_dict(feed_dict, new_feed_dict)
         if not is_train or self.train_outputs is None:
-            return {self.inputs: data}
-        return {self.inputs: data[0], self.train_outputs: data[1]}
+            return self._add_to_feed_dict(feed_dict, {self.inputs: data})
+        new_feed_dict = {self.inputs: data[0], self.train_outputs: data[1]}
+        return self._add_to_feed_dict(feed_dict, new_feed_dict)
 
     @staticmethod
     def _get_tensor_name(tensor):
@@ -349,7 +362,8 @@ class CombinedModel(Model):
                     for n, v in model_vars.items()}
         return variables
 
-    def get_feed_dict(self, data, is_train=False):
+    def get_feed_dict(self, data, is_train=False, feed_dict=None):
+        # TODO: Update this to use the feed_dict argument.
         feed_dict = dict()
         for m, model in enumerate(self.models):
             model_data = data
@@ -429,7 +443,8 @@ class LinearCombinationModel(Model):
                     for n, v in model_vars.items()}
         return variables
 
-    def get_feed_dict(self, data, is_train=False):
+    def get_feed_dict(self, data, is_train=False, feed_dict=None):
+        # TODO: Update this to use the feed_dict argument.
         feed_dict = dict()
         for m, model in enumerate(self.models):
             model_data = data
