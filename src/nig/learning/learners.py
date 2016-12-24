@@ -27,8 +27,8 @@ from six import with_metaclass
 
 from .metrics import Metric
 from .models import Model, CombinedModel, LinearCombinationModel
-from .. import evaluation
 from ..data.iterators import get_iterator
+from ..evaluation import rbm_integrator
 from ..math.statistics.cross_validation import KFold
 from ..models import rbm
 from ..utilities.functions import memoize
@@ -110,13 +110,14 @@ class Learner(with_metaclass(abc.ABCMeta, object)):
 
     @staticmethod
     def _equal_shapes(shape_1, shape_2):
-        if len(shape_1) != len(shape_2):
+        if shape_1.ndims != shape_2.ndims:
             return False
-        for dim_1, dim_2 in zip(shape_1.dims, shape_2.dims):
-            if dim_1 is None and dim_2 is None:
-                continue
-            if dim_1 != dim_2:
-                return False
+        if shape_1.ndims is not None:
+            for dim_1, dim_2 in zip(shape_1.dims, shape_2.dims):
+                if dim_1 is None and dim_2 is None:
+                    continue
+                if dim_1 != dim_2:
+                    return False
         return True
 
     def init_session(self, option, saver=None, working_dir=os.getcwd(),
@@ -990,13 +991,25 @@ class CrossValidationLearner(Learner):
 
 
 class TrustBasedLearnerLoss(Metric):
-    def __init__(self, model, consensus_loss, name='combined_loss'):
+    def __init__(self, model_index, models, trust, consensus_loss_weight=1.0,
+                 name='combined_loss'):
         super(TrustBasedLearnerLoss, self).__init__(name=name)
-        self.model_loss = model.loss
-        self.consensus_loss = consensus_loss
+        self.model_index = model_index
+        self.model_loss = models[self.model_index].loss
+        # TODO: Exclude self outputs and trust.
+        self.model_outputs = [tf.exp(model.outputs) for model in models]
+        self.trust = trust[:, self.model_index, :]
+        self.consensus_loss_weight = consensus_loss_weight
 
-    def evaluate(self, prediction, truth):
-        return self.model_loss(prediction, truth) + self.consensus_loss
+    def evaluate(self, outputs, train_outputs):
+        model_loss = self.model_loss(outputs, train_outputs)
+        model_output = self.model_outputs[self.model_index]
+        consensus = tf.mul(self.trust, tf.pack(self.model_outputs, axis=2))
+        consensus = tf.reduce_sum(consensus, reduction_indices=[2])
+        consensus_loss = tf.square(model_output - consensus)
+        consensus_loss = tf.reduce_sum(consensus_loss, reduction_indices=[0, 1])
+        consensus_loss *= self.consensus_loss_weight
+        return tf.add(model_loss, consensus_loss)
 
 
 class TrustBasedLearner(Learner):
@@ -1028,28 +1041,31 @@ class TrustBasedLearner(Learner):
                 self.trust = tf.Variable(
                     initial_value=initial_trust, trainable=False,
                     validate_shape=False, name='trust', dtype=tf.float32)
-                consensus_losses = self._consensus_losses()
+                # consensus_losses = self._consensus_losses()
                 for m in range(len(self.models)):
                     # self.models[m].update_loss(
                     #     loss=self.models[m].loss_op + consensus_losses[m])
-                    self.models[m].update_loss(TrustBasedLearnerLoss(self.models[m], consensus_losses[m]))
-        self.integrator = evaluation.rbm_integrator.SemiSupervisedRBMIntegrator(
+                    loss = TrustBasedLearnerLoss(
+                        model_index=m, models=self.models, trust=self.trust,
+                        consensus_loss_weight=self.consensus_loss_weight)
+                    self.models[m].update_loss(loss)
+        self.integrator = rbm_integrator.SemiSupervisedRBMIntegrator(
             num_functions=self.num_models, estimate_errors=True,
             working_dir=os.getcwd(), persistent=False)
 
-    def _consensus_losses(self):
-        # TODO: Need to deal with other model outputs formats.
-        outputs = tf.pack([model.outputs for model in self.models], axis=-1)
-        outputs = tf.expand_dims(outputs, dim=-1)
-        outputs = tf.tile(outputs, multiples=[1, 1, 1, self.num_models])
-        disagreement = outputs - tf.transpose(outputs, perm=[0, 1, 3, 2])
-        disagreement = tf.square(disagreement)
-        trust = tf.reshape(self.trust, [-1, self.num_models, self.num_models])
-        loss = tf.einsum('ijkl,jlk->k', disagreement, trust)
-        loss /= tf.reduce_prod(
-            tf.cast(tf.shape(disagreement), dtype=tf.float32)[:-1])
-        loss = tf.reshape(loss, [self.num_models])
-        return tf.unpack(self.consensus_loss_weight * loss, axis=0)
+    # def _consensus_losses(self):
+    #     # TODO: Need to deal with other model outputs formats.
+    #     outputs = tf.pack([model.outputs for model in self.models], axis=-1)
+    #     outputs = tf.expand_dims(outputs, dim=-1)
+    #     outputs = tf.tile(outputs, multiples=[1, 1, 1, self.num_models])
+    #     disagreement = outputs - tf.transpose(outputs, perm=[0, 1, 3, 2])
+    #     disagreement = tf.square(disagreement)
+    #     trust = tf.reshape(self.trust, [-1, self.num_models, self.num_models])
+    #     loss = tf.einsum('ijkl,jlk->k', disagreement, trust)
+    #     loss /= tf.reduce_prod(
+    #         tf.cast(tf.shape(disagreement), dtype=tf.float32)[:-1])
+    #     loss = tf.reshape(loss, [self.num_models])
+    #     return tf.unpack(self.consensus_loss_weight * loss, axis=0)
 
     def copy(self, new_graph=False):
         return TrustBasedLearner(
@@ -1252,6 +1268,30 @@ class TrustBasedLearner(Learner):
             models=self.models, weights=weights, graph=self.graph)
 
 
+class ConsensusLearnerLoss(Metric):
+    def __init__(self, model, consensus, consensus_loss_weight=1.0,
+                 consensus_loss_metric=None, name='combined_loss'):
+        super(ConsensusLearnerLoss, self).__init__(name=name)
+        self.model_loss = model.loss
+        self.consensus = consensus
+        self.consensus_loss_weight = consensus_loss_weight
+        self.consensus_loss_metric = consensus_loss_metric
+
+    def evaluate(self, outputs, train_outputs):
+        num_labeled = tf.shape(train_outputs)[0]
+        model_loss = self.model_loss(outputs[:num_labeled], train_outputs)
+        if self.consensus_loss_metric is None:
+            consensus_loss = self.model_loss(
+                outputs[num_labeled:], self.consensus[num_labeled:])
+        else:
+            consensus_loss = self.consensus_loss_metric(
+                outputs[num_labeled:], self.consensus[num_labeled:])
+        # model_loss = tf.Print(model_loss, [model_loss], 'Model Loss: ', first_n=1000, summarize=1000)
+        # consensus_loss = tf.Print(consensus_loss, [consensus_loss], 'Consensus Loss: ', first_n=1000, summarize=1000)
+        consensus_loss = tf.mul(self.consensus_loss_weight, consensus_loss)
+        return tf.add(model_loss, consensus_loss)
+
+
 class ConsensusLearner(Learner):
     def __init__(self, models, consensus_loss_weight=1.0,
                  consensus_method='RBM', consensus_loss_metric=None,
@@ -1272,9 +1312,6 @@ class ConsensusLearner(Learner):
             predict_postprocess=predict_postprocess,
             logging_level=logging_level)
         if self.trainable:
-            self.consensus_loss_weight = tf.Variable(
-                initial_value=consensus_loss_weight, trainable=False,
-                dtype=tf.float32)
             supported_consensus_methods = {'MAJ', 'HMAJ', 'RBM'}
             if consensus_method not in supported_consensus_methods:
                 raise ValueError('Unsupported consensus method "%s". Supported '
@@ -1282,9 +1319,10 @@ class ConsensusLearner(Learner):
                                  % (consensus_method,
                                     supported_consensus_methods))
             self.consensus_method = consensus_method
-            self._consensus_loss_multiplier = tf.Variable(
-                initial_value=0.0, trainable=False, dtype=tf.float32)
             with self.graph.as_default(), tf.name_scope('consensus_learner'):
+                self.consensus_loss_weight = consensus_loss_weight
+                self._consensus_loss_weight_var = tf.Variable(
+                    initial_value=0.0, trainable=False, dtype=tf.float32)
                 self.num_models = len(self.models)
                 self.num_outputs = tf.shape(self.models[0].outputs)[1]
                 outputs = [model.outputs for model in self.models]
@@ -1293,6 +1331,7 @@ class ConsensusLearner(Learner):
                     self.consensus = tf.reduce_mean(
                         tf.exp(outputs), reduction_indices=[1])
                 elif self.consensus_method == 'HMAJ':
+                    # TODO: What about mutual-exclusivity in multi-class problems?
                     self.consensus = tf.reduce_mean(
                         tf.exp(outputs), reduction_indices=[1])
                     self.consensus = tf.select(
@@ -1316,17 +1355,22 @@ class ConsensusLearner(Learner):
                     self.consensus = tf.squeeze(tf.pack(self.consensus, axis=1))
                 self.consensus = tf.stop_gradient(self.consensus)
                 for m, model in enumerate(self.models):
-                    metric = self.consensus_loss_metric
-                    if metric is None:
-                        model_outputs = tf.exp(model.outputs)
-                        consensus_loss = model_outputs - self.consensus
-                        consensus_loss = tf.square(consensus_loss)
-                        consensus_loss = tf.reduce_mean(consensus_loss)
-                    else:
-                        consensus_loss = metric(model.outputs, self.consensus)
-                    consensus_loss *= self.consensus_loss_weight
-                    consensus_loss *= self._consensus_loss_multiplier
-                    model.update_loss(tf.add(model.loss_op, consensus_loss))
+                    # metric = self.consensus_loss_metric
+                    # if metric is None:
+                    #     model_outputs = tf.exp(model.outputs)
+                    #     consensus_loss = model_outputs - self.consensus
+                    #     consensus_loss = tf.square(consensus_loss)
+                    #     consensus_loss = tf.reduce_mean(consensus_loss)
+                    # else:
+                    #     consensus_loss = metric(model.outputs, self.consensus)
+                    # consensus_loss *= self.consensus_loss_weight
+                    # consensus_loss *= self._consensus_loss_multiplier
+                    # model.update_loss(tf.add(model.loss_op, consensus_loss))
+                    loss = ConsensusLearnerLoss(
+                        model=model, consensus=self.consensus,
+                        consensus_loss_weight=self._consensus_loss_weight_var,
+                        consensus_loss_metric=self.consensus_loss_metric)
+                    model.update_loss(loss)
         else:
             raise ValueError('ConsensusLearner can only be used with trainable '
                              'models.')
@@ -1334,7 +1378,7 @@ class ConsensusLearner(Learner):
     def copy(self, new_graph=False):
         return ConsensusLearner(
             models=self.models,
-            consensus_loss_weight=self.consensus_loss_weight.initial_value,
+            consensus_loss_weight=self.consensus_loss_weight,
             consensus_method=self.consensus_method,
             consensus_loss_metric=self.consensus_loss_metric,
             first_consensus=self.first_consensus,
@@ -1345,18 +1389,27 @@ class ConsensusLearner(Learner):
             predict_postprocess=self.predict_postprocess,
             logging_level=self.logging_level)
 
-    def _get_feed_dict(self, data, is_train=False):
+    def _get_feed_dict(self, labeled_data=None, unlabeled_data=None):
         feed_dict = dict()
         for model in self.models:
-            feed_dict.update(model.get_feed_dict(data, is_train=is_train))
+            if labeled_data is not None:
+                model_feed_dict = model.get_feed_dict(
+                    data=labeled_data, is_train=True)
+            else:
+                model_feed_dict = None
+            if unlabeled_data is not None:
+                model_feed_dict = model.get_feed_dict(
+                    data=unlabeled_data, is_train=False,
+                    feed_dict=model_feed_dict)
+            feed_dict.update(model_feed_dict)
         return feed_dict
 
     @graph_context
-    def train(self, data, pipelines=None, init_option=-1,
+    def train(self, labeled_data, pipelines=None, init_option=-1,
               per_model_callbacks=None, combined_model_callbacks=None,
               working_dir=os.getcwd(), ckpt_file_prefix='ckpt',
               restore_sequentially=False, save_trained=False,
-              labeled_data=None, unlabeled_data=None, unlabeled_pipelines=None):
+              unlabeled_data=None, unlabeled_pipelines=None):
         if not self.trainable:
             raise ValueError('At least one of the models is not trainable.')
         models = self.models
@@ -1374,28 +1427,22 @@ class ConsensusLearner(Learner):
         loss_chg_iter_below_tol = [
             model.optimizer_opts.get('loss_chg_iter_below_tol', 5)
             for model in models]
-        data = get_iterator(
-            data=data, batch_size=batch_size, cycle=True, pipelines=pipelines)
-        if labeled_data is None:
-            labeled_data = get_iterator(
-                data=data, cycle=True, keep_last=False, pipelines=pipelines)
-        else:
-            labeled_data = get_iterator(
-                data=labeled_data, cycle=True, keep_last=False,
-                pipelines=pipelines)
+        labeled_data = get_iterator(
+            data=labeled_data, batch_size=batch_size, cycle=True,
+            pipelines=pipelines)
         if unlabeled_data is not None:
             if unlabeled_pipelines is None:
                 unlabeled_pipelines = pipelines
             unlabeled_data = get_iterator(
-                data=unlabeled_data, cycle=True, keep_last=False,
-                pipelines=unlabeled_pipelines)
+                data=unlabeled_data, cycle=True, pipelines=unlabeled_pipelines)
         per_model_callbacks = [_process_callbacks(per_model_callbacks)
                                for _ in self.models]
         combined_model_callbacks = _process_callbacks(combined_model_callbacks)
         summary_writer = tf.summary.FileWriter(working_dir, self.graph)
         saver = tf.train.Saver(restore_sequentially=restore_sequentially)
-        data_batch = data.next()
-        feed_dict = self._get_feed_dict(data_batch, is_train=True)
+        feed_dict = self._get_feed_dict(
+            labeled_data=labeled_data.next(),
+            unlabeled_data=unlabeled_data.next())
         self.init_session(
             option=init_option, saver=saver, working_dir=working_dir,
             ckpt_file_prefix=ckpt_file_prefix, feed_dict=feed_dict)
@@ -1417,7 +1464,8 @@ class ConsensusLearner(Learner):
                 self._train_integrators(
                     labeled_data=labeled_data, unlabeled_data=unlabeled_data,
                     max_iter=self.first_consensus_max_iter)
-                self.session.run(self._consensus_loss_multiplier.assign(1.0))
+                self.session.run(fetches=self._consensus_loss_weight_var.assign(
+                    self.consensus_loss_weight))
             elif step > self.first_consensus \
                     and (step - self.first_consensus) \
                     % self.consensus_update_frequency == 0:
@@ -1457,8 +1505,9 @@ class ConsensusLearner(Learner):
             if len(untrained_models) == 0:
                 logger.info('All models have finished training.')
                 break
-            data_batch = data.next()
-            feed_dict = self._get_feed_dict(data_batch, is_train=True)
+            feed_dict = self._get_feed_dict(
+                labeled_data=labeled_data.next(),
+                unlabeled_data=unlabeled_data.next())
             step += 1
         self._train_integrators(
             labeled_data=labeled_data, unlabeled_data=unlabeled_data,
@@ -1485,14 +1534,13 @@ class ConsensusLearner(Learner):
             train_outputs = None
             if labeled_data is not None:
                 labeled_data_batch = labeled_data.next()
-                feed_dict = self._get_feed_dict(
-                    data=labeled_data_batch, is_train=False)
+                feed_dict = self._get_feed_dict(labeled_data=labeled_data_batch)
                 train_outputs = [labeled_data_batch[-1][:, i]
                                  for i in untrained_integrators]
             if unlabeled_data is not None:
                 unlabeled_data_batch = unlabeled_data.next()
                 unlabeled_feed_dict = self._get_feed_dict(
-                    data=unlabeled_data_batch, is_train=False)
+                    unlabeled_data=unlabeled_data_batch)
                 if train_outputs is not None:
                     for k in unlabeled_feed_dict.keys():
                         feed_dict[k] = np.concatenate(
