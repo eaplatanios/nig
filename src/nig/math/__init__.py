@@ -14,9 +14,9 @@
 
 from __future__ import absolute_import, division, print_function
 
-from . import statistics
+import nig.math.statistics as statistics
 
-from .statistics import *
+from nig.math.statistics import *
 
 __author__ = 'eaplatanios'
 

@@ -14,9 +14,9 @@
 
 from __future__ import absolute_import, division, print_function
 
-from . import cross_validation
+import nig.math.statistics.cross_validation as cross_validation
 
-from .cross_validation import *
+from nig.math.statistics.cross_validation import *
 
 __author__ = 'eaplatanios'
 

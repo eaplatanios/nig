@@ -22,8 +22,8 @@ import subprocess
 
 from six import with_metaclass
 
-from nig.evaluation import integrator_pb2
-from nig.evaluation.constraints import Constraint
+from . import integrator_pb2
+from .constraints import Constraint
 
 __author__ = 'eaplatanios'
 
