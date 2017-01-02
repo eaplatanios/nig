@@ -140,9 +140,9 @@ class Model(with_metaclass(abc.ABCMeta, object)):
                 dtype=self.outputs.dtype, shape=self.outputs.get_shape(),
                 name=self.outputs.name.split(':')[0] + '/observed')
         # Process loss
-        self.update_loss(loss=self.loss)
+        self.update_loss(loss=self.loss, gradients=self._gradients)
 
-    def update_loss(self, loss):
+    def update_loss(self, loss, gradients=None):
         if not isinstance(loss, metrics.Metric):
             raise TypeError('Unsupported loss type %s encountered. The loss '
                             'is required to be a NIG Metric.' % type(loss))
@@ -175,6 +175,7 @@ class Model(with_metaclass(abc.ABCMeta, object)):
                             % (unsupported,
                                __SUPPORTED_INTERNAL_OPTIMIZER_OPTS__))
             grads_processor = self.optimizer_opts.get('grads_processor', None)
+            self._gradients = gradients
             if isinstance(self._gradients, dict):
                 self._gradients = [(v, k) for k, v in self._gradients.items()]
             if grads_processor is not None and self._gradients is None:
@@ -185,9 +186,12 @@ class Model(with_metaclass(abc.ABCMeta, object)):
                                     % type(grads_processor))
                 trainable_vars = tf.trainable_variables()
                 grads = tf.gradients(ys=self.loss_op, xs=trainable_vars)
-                grads = grads_processor(grads)
+                grads_and_vars = []
+                for grad, var in zip(grads, trainable_vars):
+                    if grad is not None:
+                        grads_and_vars.append((grads_processor(grad), var))
                 self.train_op = self.optimizer.apply_gradients(
-                    grads_and_vars=zip(grads, trainable_vars))
+                    grads_and_vars=grads_and_vars)
             elif self._gradients is not None:
                 if grads_processor is not None:
                     self._gradients = [(grads_processor(g), v)
