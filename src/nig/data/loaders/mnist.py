@@ -24,7 +24,7 @@ from . import utilities
 __author__ = 'eaplatanios'
 
 SOURCE_URL = 'http://yann.lecun.com/exdb/mnist/'
-VALIDATION_SIZE = 5000
+# VALIDATION_SIZE = 5000
 TRAIN_IMAGES = 'train-images-idx3-ubyte.gz'
 TRAIN_LABELS = 'train-labels-idx1-ubyte.gz'
 TEST_IMAGES = 't10k-images-idx3-ubyte.gz'
@@ -106,6 +106,7 @@ def load(working_dir, float_images=True):
     else:
         train_data = np.load(train_data_file)
         test_data = np.load(test_data_file)
-    val_data = train_data[:VALIDATION_SIZE]
-    train_data = train_data[:VALIDATION_SIZE]
-    return train_data, val_data, test_data
+    # val_data = train_data[:VALIDATION_SIZE]
+    # train_data = train_data[:VALIDATION_SIZE]
+    # return train_data, val_data, test_data
+    return train_data, test_data
