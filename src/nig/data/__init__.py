@@ -14,18 +14,18 @@
 
 from __future__ import absolute_import, division, print_function
 
-import nig.data.loaders as loaders
-import nig.data.converters as converters
-import nig.data.filters as filters
-import nig.data.iterators as iterators
-import nig.data.processors as processors
-import nig.data.utilities as utilities
+from . import loaders
+from . import converters
+from . import filters
+from . import iterators
+from . import processors
+from . import utilities
 
-from nig.data.converters import *
-from nig.data.filters import *
-from nig.data.iterators import *
-from nig.data.processors import *
-from nig.data.utilities import *
+from .converters import *
+from .filters import *
+from .iterators import *
+from .processors import *
+from .utilities import *
 
 __author__ = 'eaplatanios'
 

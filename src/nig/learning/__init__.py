@@ -14,17 +14,17 @@
 
 from __future__ import absolute_import, division, print_function
 
-import nig.learning.callbacks as callbacks
-import nig.learning.learners as learners
-import nig.learning.metrics as metrics
-import nig.learning.models as models
-import nig.learning.optimizers as optimizers
+from . import callbacks
+from . import learners
+from . import metrics
+from . import models
+from . import optimizers
 
-from nig.learning.callbacks import *
-from nig.learning.learners import *
-from nig.learning.metrics import *
-from nig.learning.models import *
-from nig.learning.optimizers import *
+from .callbacks import *
+from .learners import *
+from .metrics import *
+from .models import *
+from .optimizers import *
 
 __author__ = 'eaplatanios'
 

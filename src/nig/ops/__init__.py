@@ -14,9 +14,9 @@
 
 from __future__ import absolute_import, division, print_function
 
-import nig.ops.array_ops as array_ops
+from . import array_ops
 
-from nig.ops.array_ops import *
+from .array_ops import *
 
 __author__ = 'eaplatanios'
 

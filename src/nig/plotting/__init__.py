@@ -16,9 +16,9 @@ from __future__ import absolute_import, division, print_function
 
 from matplotlib import pyplot as plt
 
-import nig.plotting.lines as lines
+from . import lines
 
-from nig.plotting.lines import *
+from .lines import *
 
 __author__ = 'eaplatanios'
 

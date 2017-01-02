@@ -14,11 +14,11 @@
 
 from __future__ import absolute_import, division, print_function
 
-import nig.data.loaders.dbpedia as dbpedia
-import nig.data.loaders.delicious as delicious
-import nig.data.loaders.glove as glove
-import nig.data.loaders.mediamill as mediamill
-import nig.data.loaders.mnist as mnist
+from . import dbpedia
+from . import delicious
+from . import glove
+from . import mediamill
+from . import mnist
 
 __author__ = 'eaplatanios'
 

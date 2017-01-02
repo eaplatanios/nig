@@ -14,21 +14,21 @@
 
 from __future__ import absolute_import, division, print_function
 
-import nig.models.activations as activations
-import nig.models.adios as adios
-import nig.models.common as common
-import nig.models.complex as complex
-import nig.models.rbm as rbm
-import nig.models.rnn as rnn
-import nig.models.unitary_rnn as unitary_rnn
+from . import activations
+from . import adios
+from . import common
+from . import complex
+from . import rbm
+from . import rnn
+from . import unitary_rnn
 
-from nig.models.activations import *
-from nig.models.adios import *
-from nig.models.common import *
-from nig.models.complex import *
-from nig.models.rbm import *
-from nig.models.rnn import *
-from nig.models.unitary_rnn import *
+from .activations import *
+from .adios import *
+from .common import *
+from .complex import *
+from .rbm import *
+from .rnn import *
+from .unitary_rnn import *
 
 __author__ = 'eaplatanios'
 
