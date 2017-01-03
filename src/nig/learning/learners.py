@@ -37,14 +37,15 @@ from ..utilities.tensorflow import graph_context
 __author__ = 'eaplatanios'
 
 __all__ = ['Learner', 'SimpleLearner', 'ValidationSetLearner',
-           'CrossValidationLearner', 'TrustBasedLearner', 'ConsensusLearner']
+           'CrossValidationLearner', 'TrustBasedLearnerLoss',
+           'TrustBasedLearner']
 
 __LEARNER_NOT_TRAINED_ERROR__ = 'The current learner has not been trained.'
 
 logger = logging.getLogger(__name__)
 
 
-def _process_callbacks(callbacks):
+def process_callbacks(callbacks):
     if callbacks is None:
         return []
     if isinstance(callbacks, list):
@@ -331,7 +332,7 @@ class SimpleLearner(Learner):
             'loss_chg_iter_below_tol', 5)
         data = get_iterator(
             data=data, batch_size=batch_size, cycle=True, pipelines=pipelines)
-        callbacks = _process_callbacks(callbacks)
+        callbacks = process_callbacks(callbacks)
         summary_writer = tf.summary.FileWriter(working_dir, self.graph)
         saver = tf.train.Saver(restore_sequentially=restore_sequentially)
         model = self.models
@@ -380,7 +381,7 @@ class SimpleLearner(Learner):
                         save_trained=False):
         data = get_iterator(
             data=data, batch_size=None, cycle=True, pipelines=pipelines)
-        callbacks = _process_callbacks(callbacks)
+        callbacks = process_callbacks(callbacks)
         summary_writer = tf.summary.FileWriter(working_dir, self.graph)
         saver = tf.train.Saver(restore_sequentially=restore_sequentially)
         model = self.models
@@ -1122,9 +1123,9 @@ class TrustBasedLearner(Learner):
             unlabeled_data = get_iterator(
                 data=unlabeled_data, cycle=True, keep_last=False,
                 pipelines=unlabeled_pipelines)
-        per_model_callbacks = [_process_callbacks(per_model_callbacks)
+        per_model_callbacks = [process_callbacks(per_model_callbacks)
                                for _ in self.models]
-        combined_model_callbacks = _process_callbacks(combined_model_callbacks)
+        combined_model_callbacks = process_callbacks(combined_model_callbacks)
         summary_writer = tf.summary.FileWriter(working_dir, self.graph)
         saver = tf.train.Saver(restore_sequentially=restore_sequentially)
         data_batch = data.next()
@@ -1280,15 +1281,16 @@ class ConsensusLearnerLoss(Metric):
     def evaluate(self, outputs, train_outputs):
         num_labeled = tf.shape(train_outputs)[0]
         model_loss = self.model_loss(outputs[:num_labeled], train_outputs)
+        # model_loss = tf.mul(1-self.consensus_loss_weight, model_loss)
         if self.consensus_loss_metric is None:
             consensus_loss = self.model_loss(
                 outputs[num_labeled:], self.consensus[num_labeled:])
         else:
             consensus_loss = self.consensus_loss_metric(
                 outputs[num_labeled:], self.consensus[num_labeled:])
+        consensus_loss = tf.mul(self.consensus_loss_weight, consensus_loss)
         # model_loss = tf.Print(model_loss, [model_loss], 'Model Loss: ', first_n=1000, summarize=1000)
         # consensus_loss = tf.Print(consensus_loss, [consensus_loss], 'Consensus Loss: ', first_n=1000, summarize=1000)
-        consensus_loss = tf.mul(self.consensus_loss_weight, consensus_loss)
         return tf.add(model_loss, consensus_loss)
 
 
@@ -1312,7 +1314,7 @@ class ConsensusLearner(Learner):
             predict_postprocess=predict_postprocess,
             logging_level=logging_level)
         if self.trainable:
-            supported_consensus_methods = {'MAJ', 'HMAJ', 'RBM'}
+            supported_consensus_methods = {'MAJ', 'HMAJ', 'ME-HMAJ', 'RBM'}
             if consensus_method not in supported_consensus_methods:
                 raise ValueError('Unsupported consensus method "%s". Supported '
                                  'methods are: %s.'
@@ -1328,15 +1330,27 @@ class ConsensusLearner(Learner):
                 outputs = [model.outputs for model in self.models]
                 outputs = tf.pack(outputs, axis=1)  # B x M x O
                 if self.consensus_method == 'MAJ':
+                    # self.consensus = tf.reduce_mean(
+                    #     tf.exp(outputs), reduction_indices=[1])
                     self.consensus = tf.reduce_mean(
-                        tf.exp(outputs), reduction_indices=[1])
+                        outputs, reduction_indices=[1])
                 elif self.consensus_method == 'HMAJ':
                     # TODO: What about mutual-exclusivity in multi-class problems?
+                    # self.consensus = tf.reduce_mean(
+                    #     tf.exp(outputs), reduction_indices=[1])
                     self.consensus = tf.reduce_mean(
-                        tf.exp(outputs), reduction_indices=[1])
+                        outputs, reduction_indices=[1])
                     self.consensus = tf.select(
                         self.consensus >= 0.5, tf.ones_like(self.consensus),
                         tf.zeros_like(self.consensus))
+                elif self.consensus_method == 'ME-HMAJ':
+                    # self.consensus = tf.reduce_mean(
+                    #     tf.exp(outputs), reduction_indices=[1])
+                    self.consensus = tf.reduce_mean(
+                        outputs, reduction_indices=[1])
+                    self.consensus = tf.argmax(self.consensus, axis=1)
+                    self.consensus = tf.one_hot(
+                        self.consensus, self.num_outputs, axis=1)
                 elif self.consensus_method == 'RBM':
                     outputs = tf.unpack(outputs, axis=2)  # O x [B x M]
                     optimizer = lambda: tf.train.AdamOptimizer()
@@ -1345,7 +1359,8 @@ class ConsensusLearner(Learner):
                         'loss_chg_iter_below_tol': 5, 'grads_processor': None}
                     self.integrators = [
                         rbm.SemiSupervisedRBM(
-                            inputs=tf.stop_gradient(tf.exp(output)),
+                            # inputs=tf.stop_gradient(tf.exp(output)),
+                            inputs=tf.stop_gradient(output),
                             num_hidden=1, persistent=False, mean_field=True,
                             mean_field_cd=False, cd_steps=1, loss_summary=False,
                             optimizer=optimizer, optimizer_opts=optimizer_opts,
@@ -1435,9 +1450,9 @@ class ConsensusLearner(Learner):
                 unlabeled_pipelines = pipelines
             unlabeled_data = get_iterator(
                 data=unlabeled_data, cycle=True, pipelines=unlabeled_pipelines)
-        per_model_callbacks = [_process_callbacks(per_model_callbacks)
+        per_model_callbacks = [process_callbacks(per_model_callbacks)
                                for _ in self.models]
-        combined_model_callbacks = _process_callbacks(combined_model_callbacks)
+        combined_model_callbacks = process_callbacks(combined_model_callbacks)
         summary_writer = tf.summary.FileWriter(working_dir, self.graph)
         saver = tf.train.Saver(restore_sequentially=restore_sequentially)
         feed_dict = self._get_feed_dict(
@@ -1520,7 +1535,7 @@ class ConsensusLearner(Learner):
     def _train_integrators(self, labeled_data=None, unlabeled_data=None,
                            max_iter=100, abs_loss_chg_tol=1e-3,
                            rel_loss_chg_tol=1e-3, loss_chg_iter_below_tol=5):
-        if self.consensus_method in {'MAJ', 'HMAJ'}:
+        if self.consensus_method in {'MAJ', 'HMAJ', 'ME-HMAJ'}:
             return
         untrained_integrators = list(range(len(self.integrators)))
         prev_loss = [sys.float_info.max] * len(self.integrators)
