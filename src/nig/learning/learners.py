@@ -25,20 +25,16 @@ from contextlib import closing
 from multiprocessing.dummy import Pool as ThreadPool
 from six import with_metaclass
 
-from .metrics import Metric
-from .models import Model, CombinedModel, LinearCombinationModel
+from .models import Model
 from ..data.iterators import get_iterator
-from ..evaluation import rbm_integrator
 from ..math.statistics.cross_validation import KFold
-from ..models import rbm
 from ..utilities.functions import memoize
 from ..utilities.tensorflow import graph_context
 
 __author__ = 'eaplatanios'
 
 __all__ = ['Learner', 'SimpleLearner', 'ValidationSetLearner',
-           'CrossValidationLearner', 'TrustBasedLearnerLoss',
-           'TrustBasedLearner']
+           'CrossValidationLearner']
 
 __LEARNER_NOT_TRAINED_ERROR__ = 'The current learner has not been trained.'
 
@@ -991,612 +987,279 @@ class CrossValidationLearner(Learner):
 #             graph=self.graph)
 
 
-class TrustBasedLearnerLoss(Metric):
-    def __init__(self, model_index, models, trust, consensus_loss_weight=1.0,
-                 name='combined_loss'):
-        super(TrustBasedLearnerLoss, self).__init__(name=name)
-        self.model_index = model_index
-        self.model_loss = models[self.model_index].loss
-        # TODO: Exclude self outputs and trust.
-        self.model_outputs = [tf.exp(model.outputs) for model in models]
-        self.trust = trust[:, self.model_index, :]
-        self.consensus_loss_weight = consensus_loss_weight
-
-    def evaluate(self, outputs, train_outputs):
-        model_loss = self.model_loss(outputs, train_outputs)
-        model_output = self.model_outputs[self.model_index]
-        consensus = tf.mul(self.trust, tf.pack(self.model_outputs, axis=2))
-        consensus = tf.reduce_sum(consensus, reduction_indices=[2])
-        consensus_loss = tf.square(model_output - consensus)
-        consensus_loss = tf.reduce_sum(consensus_loss, reduction_indices=[0, 1])
-        consensus_loss *= self.consensus_loss_weight
-        return tf.add(model_loss, consensus_loss)
-
-
-class TrustBasedLearner(Learner):
-    def __init__(self, models, consensus_loss_weight=1.0,
-                 first_trust_update=10, trust_update_frequency=10,
-                 new_graph=False, session=None, predict_postprocess=None,
-                 logging_level=0):
-        if any(model.uses_external_optimizer for model in models):
-            raise ValueError('Only internal optimizers are supported for this '
-                             'learner.')
-        self.first_trust_update = first_trust_update
-        self.trust_update_frequency = trust_update_frequency
-        super(TrustBasedLearner, self).__init__(
-            models=models, new_graph=new_graph, session=session,
-            predict_postprocess=predict_postprocess,
-            logging_level=logging_level)
-        if self.trainable:
-            self.consensus_loss_weight = consensus_loss_weight
-            with self.graph.as_default(), tf.name_scope('nig_learner'):
-                self.num_models = len(self.models)
-                self.num_outputs = tf.shape(self.models[0].outputs)[1]
-                initial_trust = tf.constant(
-                    value=np.eye(self.num_models), name='initial_trust',
-                    dtype=tf.float32)
-                initial_trust = tf.reshape(
-                    initial_trust, shape=[1, self.num_models, self.num_models])
-                initial_trust = tf.tile(
-                    initial_trust, multiples=[self.num_outputs, 1, 1])
-                self.trust = tf.Variable(
-                    initial_value=initial_trust, trainable=False,
-                    validate_shape=False, name='trust', dtype=tf.float32)
-                # consensus_losses = self._consensus_losses()
-                for m in range(len(self.models)):
-                    # self.models[m].update_loss(
-                    #     loss=self.models[m].loss_op + consensus_losses[m])
-                    loss = TrustBasedLearnerLoss(
-                        model_index=m, models=self.models, trust=self.trust,
-                        consensus_loss_weight=self.consensus_loss_weight)
-                    self.models[m].update_loss(loss)
-        self.integrator = rbm_integrator.SemiSupervisedRBMIntegrator(
-            num_functions=self.num_models, estimate_errors=True,
-            working_dir=os.getcwd(), persistent=False)
-
-    # def _consensus_losses(self):
-    #     # TODO: Need to deal with other model outputs formats.
-    #     outputs = tf.pack([model.outputs for model in self.models], axis=-1)
-    #     outputs = tf.expand_dims(outputs, dim=-1)
-    #     outputs = tf.tile(outputs, multiples=[1, 1, 1, self.num_models])
-    #     disagreement = outputs - tf.transpose(outputs, perm=[0, 1, 3, 2])
-    #     disagreement = tf.square(disagreement)
-    #     trust = tf.reshape(self.trust, [-1, self.num_models, self.num_models])
-    #     loss = tf.einsum('ijkl,jlk->k', disagreement, trust)
-    #     loss /= tf.reduce_prod(
-    #         tf.cast(tf.shape(disagreement), dtype=tf.float32)[:-1])
-    #     loss = tf.reshape(loss, [self.num_models])
-    #     return tf.unpack(self.consensus_loss_weight * loss, axis=0)
-
-    def copy(self, new_graph=False):
-        return TrustBasedLearner(
-            models=self.models,
-            consensus_loss_weight=self.consensus_loss_weight,
-            new_graph=new_graph, session=self.initial_session,
-            predict_postprocess=self.predict_postprocess,
-            logging_level=self.logging_level)
-
-    def update_trust(self, trust):
-        return self.session.run(self.trust.assign(trust))
-
-    def _get_feed_dict(self, data, is_train=False):
-        feed_dict = dict()
-        for model in self.models:
-            feed_dict.update(model.get_feed_dict(data, is_train=is_train))
-        return feed_dict
-
-    @graph_context
-    def train(self, data, pipelines=None, init_option=-1,
-              per_model_callbacks=None, combined_model_callbacks=None,
-              working_dir=os.getcwd(), ckpt_file_prefix='ckpt',
-              restore_sequentially=False, save_trained=False,
-              labeled_data=None, unlabeled_data=None, unlabeled_pipelines=None):
-        if not self.trainable:
-            raise ValueError('At least one of the models is not trainable.')
-        models = self.models
-        batch_size = [model.optimizer_opts.get('batch_size', None)
-                      for model in models]
-        if any(size != batch_size[0] for size in batch_size):
-            raise ValueError('All batch sizes must match.')
-        batch_size = batch_size[0]
-        max_iter = [model.optimizer_opts.get('max_iter', 10000)
-                    for model in models]
-        abs_loss_chg_tol = [model.optimizer_opts.get('abs_loss_chg_tol', 1e-10)
-                            for model in models]
-        rel_loss_chg_tol = [model.optimizer_opts.get('rel_loss_chg_tol', 1e-3)
-                            for model in models]
-        loss_chg_iter_below_tol = [
-            model.optimizer_opts.get('loss_chg_iter_below_tol', 5)
-            for model in models]
-        data = get_iterator(
-            data=data, batch_size=batch_size, cycle=True, pipelines=pipelines)
-        if labeled_data is None:
-            labeled_data = get_iterator(
-                data=data, cycle=True, keep_last=False, pipelines=pipelines)
-        else:
-            labeled_data = get_iterator(
-                data=labeled_data, cycle=True, keep_last=False,
-                pipelines=pipelines)
-        if unlabeled_data is not None:
-            if unlabeled_pipelines is None:
-                unlabeled_pipelines = pipelines
-            unlabeled_data = get_iterator(
-                data=unlabeled_data, cycle=True, keep_last=False,
-                pipelines=unlabeled_pipelines)
-        per_model_callbacks = [process_callbacks(per_model_callbacks)
-                               for _ in self.models]
-        combined_model_callbacks = process_callbacks(combined_model_callbacks)
-        summary_writer = tf.summary.FileWriter(working_dir, self.graph)
-        saver = tf.train.Saver(restore_sequentially=restore_sequentially)
-        data_batch = data.next()
-        feed_dict = self._get_feed_dict(data_batch, is_train=True)
-        self.init_session(
-            option=init_option, saver=saver, working_dir=working_dir,
-            ckpt_file_prefix=ckpt_file_prefix, feed_dict=feed_dict)
-        for m, callbacks in enumerate(per_model_callbacks):
-            for callback in callbacks:
-                callback.initialize(
-                    self, self.models[m], 'model_%d' % m, working_dir,
-                    summary_writer)
-        for callback in combined_model_callbacks:
-            callback.initialize(
-                self, self.combined_model, 'combined_model', working_dir,
-                summary_writer)
-        untrained_models = list(range(len(models)))
-        prev_loss = [sys.float_info.max] * len(models)
-        iter_below_tol = [0] * len(models)
-        step = 0
-        while True:
-            if step >= self.first_trust_update \
-                    and (step - self.first_trust_update) \
-                    % self.trust_update_frequency == 0:
-                self.update_trust(self._estimate_trust(
-                    labeled_data=labeled_data, unlabeled_data=unlabeled_data))
-            fetches = [[models[m].train_op, models[m].loss_op]
-                       for m in untrained_models]
-            run_outputs = self.session.run(fetches=fetches, feed_dict=feed_dict)
-            losses = []
-            for i, m in enumerate(untrained_models[:]):
-                loss = run_outputs[i][1]
-                for callback in per_model_callbacks[m]:
-                    callback(
-                        self.session, feed_dict, loss, self.train_iteration[m])
-                loss_diff = abs(prev_loss[m] - loss)
-                if loss_diff < abs_loss_chg_tol[m] \
-                        or abs(loss_diff / prev_loss[m]) < rel_loss_chg_tol[m]:
-                    iter_below_tol[m] += 1
-                else:
-                    iter_below_tol[m] = 0
-                if iter_below_tol[m] >= loss_chg_iter_below_tol[m]:
-                    logger.info('Model %d finished training: Loss value '
-                                'converged.' % m)
-                    untrained_models.remove(m)
-                elif step >= max_iter[m] - 1:
-                    logger.info('Model %d finished training: Maximum number of '
-                                'iterations reached.' % m)
-                    untrained_models.remove(m)
-                prev_loss[m] = loss
-                self.train_iteration[m] += 1
-                losses.append(loss)
-            for callback in combined_model_callbacks:
-                callback(
-                    self.session, feed_dict, np.mean(losses),
-                    max(self.train_iteration))
-            if len(untrained_models) == 0:
-                logger.info('All models have finished training.')
-                break
-            data_batch = data.next()
-            feed_dict = self._get_feed_dict(data_batch, is_train=True)
-            step += 1
-        if save_trained:
-            Learner._save_checkpoint(
-                session=self.session, saver=saver, working_dir=working_dir,
-                file_prefix=ckpt_file_prefix, step=step)
-
-    def _estimate_error_rates(self, labeled_data=None, unlabeled_data=None,
-                              return_predictions=False):
-        labeled_predictions = None
-        labeled_truth = None
-        unlabeled_predictions = None
-        if labeled_data is not None:
-            labeled_fetches = [[model.outputs, model.train_outputs]
-                               for model in self.models]
-            labeled_feed_dict = self._get_feed_dict(
-                data=labeled_data.next(), is_train=True)
-            outputs = self.session.run(
-                fetches=labeled_fetches, feed_dict=labeled_feed_dict)
-            labeled_truth = outputs[0][1]
-            outputs = [o[0][:, None, :] for o in outputs]
-            labeled_predictions = np.exp(np.concatenate(outputs, axis=1))
-        if unlabeled_data is not None:
-            unlabeled_fetches = [model.outputs for model in self.models]
-            unlabeled_feed_dict = self._get_feed_dict(
-                data=unlabeled_data.next(), is_train=False)
-            outputs = self.session.run(
-                fetches=unlabeled_fetches, feed_dict=unlabeled_feed_dict)
-            outputs = [o[:, None, :] for o in outputs]
-            unlabeled_predictions = np.exp(np.concatenate(outputs, axis=1))
-        results = self.integrator.run(
-            labeled_predictions=labeled_predictions,
-            labeled_truth=labeled_truth,
-            unlabeled_predictions=unlabeled_predictions)
-        if return_predictions:
-            results = results, labeled_predictions, unlabeled_predictions
-        return results
-
-    def _estimate_trust(self, labeled_data=None, unlabeled_data=None):
-        results, labeled_predictions, unlabeled_predictions = \
-            self._estimate_error_rates(
-                labeled_data=labeled_data, unlabeled_data=unlabeled_data,
-                return_predictions=True)
-        integrated, errors = results
-        trust_shape = self.session.run(tf.shape(self.trust))
-        trust = np.zeros(shape=trust_shape)
-        method = 'uniform'
-        if method == 'uniform':
-            trust = np.repeat(
-                errors[:, None, :], repeats=self.num_models, axis=1)
-            # trust = -np.log(trust)
-            trust = 1 - trust
-            trust -= np.min(trust, axis=2, keepdims=True)
-            trust /= np.max(trust, axis=2, keepdims=True)
-        elif method == 'consensus_biased':
-            bias = 0.5
-            predictions = unlabeled_predictions
-            consensus = np.tile(
-                integrated[:, None, :], reps=[1, self.num_models, 1])
-            consensus = bias * predictions + (1 - bias) * consensus
-            consensus = np.transpose(consensus, [2, 1, 0])[:, None, :, :]
-            predictions = np.transpose(predictions, [2, 1, 0])[:, :, None, :]
-            consensus = np.tile(consensus, [1, self.num_models, 1, 1])
-            predictions = np.tile(predictions, [1, 1, self.num_models, 1])
-            agreement = np.abs(predictions - consensus)
-            agreement = 1 - np.mean(agreement, axis=-1)
-            trust = agreement
-            trust -= np.min(trust, axis=2, keepdims=True)
-            trust /= np.max(trust, axis=2, keepdims=True)
-            trust -= np.eye(self.num_models)[None]
-            # trust /= np.sum(trust, axis=2, keepdims=True)
-        logger.info(np.mean(trust, axis=1))
-        return trust
-
-    @property
-    @memoize
-    def combined_model(self):
-        weights = tf.reduce_mean(self.trust, reduction_indices=[1])
-        # weights = tf.Print(weights, [weights[1]], summarize=100)
-        return LinearCombinationModel(
-            models=self.models, weights=weights, graph=self.graph)
-
-
-class ConsensusLearnerLoss(Metric):
-    def __init__(self, model, consensus, consensus_loss_weight=1.0,
-                 consensus_loss_metric=None, name='combined_loss'):
-        super(ConsensusLearnerLoss, self).__init__(name=name)
-        self.model_loss = model.loss
-        self.consensus = consensus
-        self.consensus_loss_weight = consensus_loss_weight
-        self.consensus_loss_metric = consensus_loss_metric
-
-    def evaluate(self, outputs, train_outputs):
-        num_labeled = tf.shape(train_outputs)[0]
-        model_loss = self.model_loss(outputs[:num_labeled], train_outputs)
-        # model_loss = tf.mul(1-self.consensus_loss_weight, model_loss)
-        if self.consensus_loss_metric is None:
-            consensus_loss = self.model_loss(
-                outputs[num_labeled:], self.consensus[num_labeled:])
-        else:
-            consensus_loss = self.consensus_loss_metric(
-                outputs[num_labeled:], self.consensus[num_labeled:])
-        consensus_loss = tf.mul(self.consensus_loss_weight, consensus_loss)
-        # model_loss = tf.Print(model_loss, [model_loss], 'Model Loss: ', first_n=1000, summarize=1000)
-        # consensus_loss = tf.Print(consensus_loss, [consensus_loss], 'Consensus Loss: ', first_n=1000, summarize=1000)
-        return tf.add(model_loss, consensus_loss)
-
-
-class ConsensusLearner(Learner):
-    def __init__(self, models, consensus_loss_weight=1.0,
-                 consensus_method='RBM', consensus_loss_metric=None,
-                 first_consensus=10, first_consensus_max_iter=10000,
-                 consensus_update_frequency=10, consensus_update_max_iter=500,
-                 new_graph=False, session=None, predict_postprocess=None,
-                 logging_level=0):
-        if any(model.uses_external_optimizer for model in models):
-            raise ValueError('Only internal optimizers are supported for this '
-                             'learner.')
-        self.consensus_loss_metric = consensus_loss_metric
-        self.first_consensus = first_consensus
-        self.first_consensus_max_iter = first_consensus_max_iter
-        self.consensus_update_frequency = consensus_update_frequency
-        self.consensus_update_max_iter = consensus_update_max_iter
-        super(ConsensusLearner, self).__init__(
-            models=models, new_graph=new_graph, session=session,
-            predict_postprocess=predict_postprocess,
-            logging_level=logging_level)
-        if self.trainable:
-            supported_consensus_methods = {'MAJ', 'HMAJ', 'ME-HMAJ', 'RBM'}
-            if consensus_method not in supported_consensus_methods:
-                raise ValueError('Unsupported consensus method "%s". Supported '
-                                 'methods are: %s.'
-                                 % (consensus_method,
-                                    supported_consensus_methods))
-            self.consensus_method = consensus_method
-            with self.graph.as_default(), tf.name_scope('consensus_learner'):
-                self.consensus_loss_weight = consensus_loss_weight
-                self._consensus_loss_weight_var = tf.Variable(
-                    initial_value=0.0, trainable=False, dtype=tf.float32)
-                self.num_models = len(self.models)
-                self.num_outputs = tf.shape(self.models[0].outputs)[1]
-                outputs = [model.outputs for model in self.models]
-                outputs = tf.pack(outputs, axis=1)  # B x M x O
-                if self.consensus_method == 'MAJ':
-                    # self.consensus = tf.reduce_mean(
-                    #     tf.exp(outputs), reduction_indices=[1])
-                    self.consensus = tf.reduce_mean(
-                        outputs, reduction_indices=[1])
-                elif self.consensus_method == 'HMAJ':
-                    # TODO: What about mutual-exclusivity in multi-class problems?
-                    # self.consensus = tf.reduce_mean(
-                    #     tf.exp(outputs), reduction_indices=[1])
-                    self.consensus = tf.reduce_mean(
-                        outputs, reduction_indices=[1])
-                    self.consensus = tf.select(
-                        self.consensus >= 0.5, tf.ones_like(self.consensus),
-                        tf.zeros_like(self.consensus))
-                elif self.consensus_method == 'ME-HMAJ':
-                    # self.consensus = tf.reduce_mean(
-                    #     tf.exp(outputs), reduction_indices=[1])
-                    self.consensus = tf.reduce_mean(
-                        outputs, reduction_indices=[1])
-                    self.consensus = tf.argmax(self.consensus, axis=1)
-                    self.consensus = tf.one_hot(
-                        self.consensus, self.num_outputs, axis=1)
-                elif self.consensus_method == 'RBM':
-                    outputs = tf.unpack(outputs, axis=2)  # O x [B x M]
-                    optimizer = lambda: tf.train.AdamOptimizer()
-                    optimizer_opts = {
-                        'abs_loss_chg_tol': 1e-3, 'rel_loss_chg_tol': 1e-3,
-                        'loss_chg_iter_below_tol': 5, 'grads_processor': None}
-                    self.integrators = [
-                        rbm.SemiSupervisedRBM(
-                            # inputs=tf.stop_gradient(tf.exp(output)),
-                            inputs=tf.stop_gradient(output),
-                            num_hidden=1, persistent=False, mean_field=True,
-                            mean_field_cd=False, cd_steps=1, loss_summary=False,
-                            optimizer=optimizer, optimizer_opts=optimizer_opts,
-                            graph=None)
-                        for output in outputs]
-                    self.consensus = [i.outputs for i in self.integrators]
-                    self.consensus = tf.squeeze(tf.pack(self.consensus, axis=1))
-                self.consensus = tf.stop_gradient(self.consensus)
-                for m, model in enumerate(self.models):
-                    # metric = self.consensus_loss_metric
-                    # if metric is None:
-                    #     model_outputs = tf.exp(model.outputs)
-                    #     consensus_loss = model_outputs - self.consensus
-                    #     consensus_loss = tf.square(consensus_loss)
-                    #     consensus_loss = tf.reduce_mean(consensus_loss)
-                    # else:
-                    #     consensus_loss = metric(model.outputs, self.consensus)
-                    # consensus_loss *= self.consensus_loss_weight
-                    # consensus_loss *= self._consensus_loss_multiplier
-                    # model.update_loss(tf.add(model.loss_op, consensus_loss))
-                    loss = ConsensusLearnerLoss(
-                        model=model, consensus=self.consensus,
-                        consensus_loss_weight=self._consensus_loss_weight_var,
-                        consensus_loss_metric=self.consensus_loss_metric)
-                    model.update_loss(loss)
-        else:
-            raise ValueError('ConsensusLearner can only be used with trainable '
-                             'models.')
-
-    def copy(self, new_graph=False):
-        return ConsensusLearner(
-            models=self.models,
-            consensus_loss_weight=self.consensus_loss_weight,
-            consensus_method=self.consensus_method,
-            consensus_loss_metric=self.consensus_loss_metric,
-            first_consensus=self.first_consensus,
-            first_consensus_max_iter=self.first_consensus_max_iter,
-            consensus_update_frequency=self.consensus_update_frequency,
-            consensus_update_max_iter=self.consensus_update_max_iter,
-            new_graph=new_graph, session=self.initial_session,
-            predict_postprocess=self.predict_postprocess,
-            logging_level=self.logging_level)
-
-    def _get_feed_dict(self, labeled_data=None, unlabeled_data=None):
-        feed_dict = dict()
-        for model in self.models:
-            if labeled_data is not None:
-                model_feed_dict = model.get_feed_dict(
-                    data=labeled_data, is_train=True)
-            else:
-                model_feed_dict = None
-            if unlabeled_data is not None:
-                model_feed_dict = model.get_feed_dict(
-                    data=unlabeled_data, is_train=False,
-                    feed_dict=model_feed_dict)
-            feed_dict.update(model_feed_dict)
-        return feed_dict
-
-    @graph_context
-    def train(self, labeled_data, pipelines=None, init_option=-1,
-              per_model_callbacks=None, combined_model_callbacks=None,
-              working_dir=os.getcwd(), ckpt_file_prefix='ckpt',
-              restore_sequentially=False, save_trained=False,
-              unlabeled_data=None, unlabeled_pipelines=None):
-        if not self.trainable:
-            raise ValueError('At least one of the models is not trainable.')
-        models = self.models
-        batch_size = [model.optimizer_opts.get('batch_size', None)
-                      for model in models]
-        if any(size != batch_size[0] for size in batch_size):
-            raise ValueError('All batch sizes must match.')
-        batch_size = batch_size[0]
-        max_iter = [model.optimizer_opts.get('max_iter', 10000)
-                    for model in models]
-        abs_loss_chg_tol = [model.optimizer_opts.get('abs_loss_chg_tol', 1e-10)
-                            for model in models]
-        rel_loss_chg_tol = [model.optimizer_opts.get('rel_loss_chg_tol', 1e-3)
-                            for model in models]
-        loss_chg_iter_below_tol = [
-            model.optimizer_opts.get('loss_chg_iter_below_tol', 5)
-            for model in models]
-        labeled_data = get_iterator(
-            data=labeled_data, batch_size=batch_size, cycle=True,
-            pipelines=pipelines)
-        if unlabeled_data is not None:
-            if unlabeled_pipelines is None:
-                unlabeled_pipelines = pipelines
-            unlabeled_data = get_iterator(
-                data=unlabeled_data, cycle=True, pipelines=unlabeled_pipelines)
-        per_model_callbacks = [process_callbacks(per_model_callbacks)
-                               for _ in self.models]
-        combined_model_callbacks = process_callbacks(combined_model_callbacks)
-        summary_writer = tf.summary.FileWriter(working_dir, self.graph)
-        saver = tf.train.Saver(restore_sequentially=restore_sequentially)
-        feed_dict = self._get_feed_dict(
-            labeled_data=labeled_data.next(),
-            unlabeled_data=unlabeled_data.next())
-        self.init_session(
-            option=init_option, saver=saver, working_dir=working_dir,
-            ckpt_file_prefix=ckpt_file_prefix, feed_dict=feed_dict)
-        for m, callbacks in enumerate(per_model_callbacks):
-            for callback in callbacks:
-                callback.initialize(
-                    self, self.models[m], 'model_%d' % m, working_dir,
-                    summary_writer)
-        for callback in combined_model_callbacks:
-            callback.initialize(
-                self, self.combined_model, 'combined_model', working_dir,
-                summary_writer)
-        untrained_models = list(range(len(models)))
-        prev_loss = [sys.float_info.max] * len(models)
-        iter_below_tol = [0] * len(models)
-        step = 0
-        while True:
-            if step == self.first_consensus:
-                self._train_integrators(
-                    labeled_data=labeled_data, unlabeled_data=unlabeled_data,
-                    max_iter=self.first_consensus_max_iter)
-                self.session.run(fetches=self._consensus_loss_weight_var.assign(
-                    self.consensus_loss_weight))
-            elif step > self.first_consensus \
-                    and (step - self.first_consensus) \
-                    % self.consensus_update_frequency == 0:
-                self._train_integrators(
-                    labeled_data=labeled_data, unlabeled_data=unlabeled_data,
-                    max_iter=self.consensus_update_max_iter)
-            fetches = [[models[m].train_op, models[m].loss_op]
-                       for m in untrained_models]
-            run_outputs = self.session.run(fetches=fetches, feed_dict=feed_dict)
-            losses = []
-            for i, m in enumerate(untrained_models[:]):
-                loss = run_outputs[i][1]
-                for callback in per_model_callbacks[m]:
-                    callback(
-                        self.session, feed_dict, loss, self.train_iteration[m])
-                loss_diff = abs(prev_loss[m] - loss)
-                if loss_diff < abs_loss_chg_tol[m] \
-                        or abs(loss_diff / prev_loss[m]) < rel_loss_chg_tol[m]:
-                    iter_below_tol[m] += 1
-                else:
-                    iter_below_tol[m] = 0
-                if iter_below_tol[m] >= loss_chg_iter_below_tol[m]:
-                    logger.info('Model %d finished training: Loss value '
-                                'converged.' % m)
-                    untrained_models.remove(m)
-                elif step >= max_iter[m] - 1:
-                    logger.info('Model %d finished training: Maximum number of '
-                                'iterations reached.' % m)
-                    untrained_models.remove(m)
-                prev_loss[m] = loss
-                self.train_iteration[m] += 1
-                losses.append(loss)
-            for callback in combined_model_callbacks:
-                callback(
-                    self.session, feed_dict, np.mean(losses),
-                    max(self.train_iteration))
-            if len(untrained_models) == 0:
-                logger.info('All models have finished training.')
-                break
-            feed_dict = self._get_feed_dict(
-                labeled_data=labeled_data.next(),
-                unlabeled_data=unlabeled_data.next())
-            step += 1
-        self._train_integrators(
-            labeled_data=labeled_data, unlabeled_data=unlabeled_data,
-            max_iter=self.consensus_update_max_iter)
-        if save_trained:
-            Learner._save_checkpoint(
-                session=self.session, saver=saver, working_dir=working_dir,
-                file_prefix=ckpt_file_prefix, step=step)
-
-    def _train_integrators(self, labeled_data=None, unlabeled_data=None,
-                           max_iter=100, abs_loss_chg_tol=1e-3,
-                           rel_loss_chg_tol=1e-3, loss_chg_iter_below_tol=5):
-        if self.consensus_method in {'MAJ', 'HMAJ', 'ME-HMAJ'}:
-            return
-        untrained_integrators = list(range(len(self.integrators)))
-        prev_loss = [sys.float_info.max] * len(self.integrators)
-        iter_below_tol = [0] * len(self.integrators)
-        step = 0
-        while True:
-            fetches = [[self.integrators[i].train_op,
-                        self.integrators[i].loss_op]
-                       for i in untrained_integrators]
-            feed_dict = dict()
-            train_outputs = None
-            if labeled_data is not None:
-                labeled_data_batch = labeled_data.next()
-                feed_dict = self._get_feed_dict(labeled_data=labeled_data_batch)
-                train_outputs = [labeled_data_batch[-1][:, i]
-                                 for i in untrained_integrators]
-            if unlabeled_data is not None:
-                unlabeled_data_batch = unlabeled_data.next()
-                unlabeled_feed_dict = self._get_feed_dict(
-                    unlabeled_data=unlabeled_data_batch)
-                if train_outputs is not None:
-                    for k in unlabeled_feed_dict.keys():
-                        feed_dict[k] = np.concatenate(
-                            (feed_dict[k], unlabeled_feed_dict[k]), axis=0)
-                    missing_labels = -np.ones(unlabeled_data.batch_size)
-                    train_outputs = [np.concatenate((o, missing_labels), axis=0)
-                                     for o in train_outputs]
-                else:
-                    feed_dict = unlabeled_feed_dict
-            if train_outputs is not None:
-                feed_dict.update(
-                    {self.integrators[i].train_outputs: o
-                     for i, o in enumerate(train_outputs)})
-            run_outputs = self.session.run(fetches=fetches, feed_dict=feed_dict)
-            for i_index, i in enumerate(untrained_integrators[:]):
-                loss = run_outputs[i_index][1]
-                # if i_index == 0 and step % 10 == 0:
-                #     logger.info('Loss 0: %11.4e', loss)
-                loss_diff = abs(prev_loss[i] - loss)
-                if loss_diff < abs_loss_chg_tol \
-                        or abs(loss_diff / prev_loss[i]) < rel_loss_chg_tol:
-                    iter_below_tol[i] += 1
-                else:
-                    iter_below_tol[i] = 0
-                if iter_below_tol[i] >= loss_chg_iter_below_tol:
-                    # logger.info('Integrator %d finished training: Loss value '
-                    #             'converged.' % i)
-                    untrained_integrators.remove(i)
-                elif step >= max_iter - 1:
-                    # logger.info('Integrator %d finished training: Maximum '
-                    #             'number of iterations reached.' % i)
-                    untrained_integrators.remove(i)
-                prev_loss[i] = loss
-            if len(untrained_integrators) == 0:
-                # logger.info('All integrators have finished training.')
-                break
-            step += 1
-
-    @property
-    @memoize
-    def combined_model(self):
-        return CombinedModel(
-            models=self.models, combined_outputs=tf.log(self.consensus),
-            copy_models=False)
+# class TrustBasedLearnerLoss(Metric):
+#     def __init__(self, model_index, models, trust, consensus_loss_weight=1.0,
+#                  name='combined_loss'):
+#         super(TrustBasedLearnerLoss, self).__init__(name=name)
+#         self.model_index = model_index
+#         self.model_loss = models[self.model_index].loss
+#         # TODO: Exclude self outputs and trust.
+#         self.model_outputs = [tf.exp(model.outputs) for model in models]
+#         self.trust = trust[:, self.model_index, :]
+#         self.consensus_loss_weight = consensus_loss_weight
+#
+#     def evaluate(self, outputs, train_outputs):
+#         model_loss = self.model_loss(outputs, train_outputs)
+#         model_output = self.model_outputs[self.model_index]
+#         consensus = tf.mul(self.trust, tf.pack(self.model_outputs, axis=2))
+#         consensus = tf.reduce_sum(consensus, reduction_indices=[2])
+#         consensus_loss = tf.square(model_output - consensus)
+#         consensus_loss = tf.reduce_sum(consensus_loss, reduction_indices=[0, 1])
+#         consensus_loss *= self.consensus_loss_weight
+#         return tf.add(model_loss, consensus_loss)
+#
+#
+# class TrustBasedLearner(Learner):
+#     def __init__(self, models, consensus_loss_weight=1.0,
+#                  first_trust_update=10, trust_update_frequency=10,
+#                  new_graph=False, session=None, predict_postprocess=None,
+#                  logging_level=0):
+#         if any(model.uses_external_optimizer for model in models):
+#             raise ValueError('Only internal optimizers are supported for this '
+#                              'learner.')
+#         self.first_trust_update = first_trust_update
+#         self.trust_update_frequency = trust_update_frequency
+#         super(TrustBasedLearner, self).__init__(
+#             models=models, new_graph=new_graph, session=session,
+#             predict_postprocess=predict_postprocess,
+#             logging_level=logging_level)
+#         if self.trainable:
+#             self.consensus_loss_weight = consensus_loss_weight
+#             with self.graph.as_default(), tf.name_scope('nig_learner'):
+#                 self.num_models = len(self.models)
+#                 self.num_outputs = tf.shape(self.models[0].outputs)[1]
+#                 initial_trust = tf.constant(
+#                     value=np.eye(self.num_models), name='initial_trust',
+#                     dtype=tf.float32)
+#                 initial_trust = tf.reshape(
+#                     initial_trust, shape=[1, self.num_models, self.num_models])
+#                 initial_trust = tf.tile(
+#                     initial_trust, multiples=[self.num_outputs, 1, 1])
+#                 self.trust = tf.Variable(
+#                     initial_value=initial_trust, trainable=False,
+#                     validate_shape=False, name='trust', dtype=tf.float32)
+#                 # consensus_losses = self._consensus_losses()
+#                 for m in range(len(self.models)):
+#                     # self.models[m].update_loss(
+#                     #     loss=self.models[m].loss_op + consensus_losses[m])
+#                     loss = TrustBasedLearnerLoss(
+#                         model_index=m, models=self.models, trust=self.trust,
+#                         consensus_loss_weight=self.consensus_loss_weight)
+#                     self.models[m].update_loss(loss)
+#         self.integrator = rbm_integrator.SemiSupervisedRBMIntegrator(
+#             num_functions=self.num_models, estimate_errors=True,
+#             working_dir=os.getcwd(), persistent=False)
+#
+#     # def _consensus_losses(self):
+#     #     # TODO: Need to deal with other model outputs formats.
+#     #     outputs = tf.pack([model.outputs for model in self.models], axis=-1)
+#     #     outputs = tf.expand_dims(outputs, dim=-1)
+#     #     outputs = tf.tile(outputs, multiples=[1, 1, 1, self.num_models])
+#     #     disagreement = outputs - tf.transpose(outputs, perm=[0, 1, 3, 2])
+#     #     disagreement = tf.square(disagreement)
+#     #     trust = tf.reshape(self.trust, [-1, self.num_models, self.num_models])
+#     #     loss = tf.einsum('ijkl,jlk->k', disagreement, trust)
+#     #     loss /= tf.reduce_prod(
+#     #         tf.cast(tf.shape(disagreement), dtype=tf.float32)[:-1])
+#     #     loss = tf.reshape(loss, [self.num_models])
+#     #     return tf.unpack(self.consensus_loss_weight * loss, axis=0)
+#
+#     def copy(self, new_graph=False):
+#         return TrustBasedLearner(
+#             models=self.models,
+#             consensus_loss_weight=self.consensus_loss_weight,
+#             new_graph=new_graph, session=self.initial_session,
+#             predict_postprocess=self.predict_postprocess,
+#             logging_level=self.logging_level)
+#
+#     def update_trust(self, trust):
+#         return self.session.run(self.trust.assign(trust))
+#
+#     def _get_feed_dict(self, data, is_train=False):
+#         feed_dict = dict()
+#         for model in self.models:
+#             feed_dict.update(model.get_feed_dict(data, is_train=is_train))
+#         return feed_dict
+#
+#     @graph_context
+#     def train(self, data, pipelines=None, init_option=-1,
+#               per_model_callbacks=None, combined_model_callbacks=None,
+#               working_dir=os.getcwd(), ckpt_file_prefix='ckpt',
+#               restore_sequentially=False, save_trained=False,
+#               labeled_data=None, unlabeled_data=None, unlabeled_pipelines=None):
+#         if not self.trainable:
+#             raise ValueError('At least one of the models is not trainable.')
+#         models = self.models
+#         batch_size = [model.optimizer_opts.get('batch_size', None)
+#                       for model in models]
+#         if any(size != batch_size[0] for size in batch_size):
+#             raise ValueError('All batch sizes must match.')
+#         batch_size = batch_size[0]
+#         max_iter = [model.optimizer_opts.get('max_iter', 10000)
+#                     for model in models]
+#         abs_loss_chg_tol = [model.optimizer_opts.get('abs_loss_chg_tol', 1e-10)
+#                             for model in models]
+#         rel_loss_chg_tol = [model.optimizer_opts.get('rel_loss_chg_tol', 1e-3)
+#                             for model in models]
+#         loss_chg_iter_below_tol = [
+#             model.optimizer_opts.get('loss_chg_iter_below_tol', 5)
+#             for model in models]
+#         data = get_iterator(
+#             data=data, batch_size=batch_size, cycle=True, pipelines=pipelines)
+#         if labeled_data is None:
+#             labeled_data = get_iterator(
+#                 data=data, cycle=True, keep_last=False, pipelines=pipelines)
+#         else:
+#             labeled_data = get_iterator(
+#                 data=labeled_data, cycle=True, keep_last=False,
+#                 pipelines=pipelines)
+#         if unlabeled_data is not None:
+#             if unlabeled_pipelines is None:
+#                 unlabeled_pipelines = pipelines
+#             unlabeled_data = get_iterator(
+#                 data=unlabeled_data, cycle=True, keep_last=False,
+#                 pipelines=unlabeled_pipelines)
+#         per_model_callbacks = [process_callbacks(per_model_callbacks)
+#                                for _ in self.models]
+#         combined_model_callbacks = process_callbacks(combined_model_callbacks)
+#         summary_writer = tf.summary.FileWriter(working_dir, self.graph)
+#         saver = tf.train.Saver(restore_sequentially=restore_sequentially)
+#         data_batch = data.next()
+#         feed_dict = self._get_feed_dict(data_batch, is_train=True)
+#         self.init_session(
+#             option=init_option, saver=saver, working_dir=working_dir,
+#             ckpt_file_prefix=ckpt_file_prefix, feed_dict=feed_dict)
+#         for m, callbacks in enumerate(per_model_callbacks):
+#             for callback in callbacks:
+#                 callback.initialize(
+#                     self, self.models[m], 'model_%d' % m, working_dir,
+#                     summary_writer)
+#         for callback in combined_model_callbacks:
+#             callback.initialize(
+#                 self, self.combined_model, 'combined_model', working_dir,
+#                 summary_writer)
+#         untrained_models = list(range(len(models)))
+#         prev_loss = [sys.float_info.max] * len(models)
+#         iter_below_tol = [0] * len(models)
+#         step = 0
+#         while True:
+#             if step >= self.first_trust_update \
+#                     and (step - self.first_trust_update) \
+#                     % self.trust_update_frequency == 0:
+#                 self.update_trust(self._estimate_trust(
+#                     labeled_data=labeled_data, unlabeled_data=unlabeled_data))
+#             fetches = [[models[m].train_op, models[m].loss_op]
+#                        for m in untrained_models]
+#             run_outputs = self.session.run(fetches=fetches, feed_dict=feed_dict)
+#             losses = []
+#             for i, m in enumerate(untrained_models[:]):
+#                 loss = run_outputs[i][1]
+#                 for callback in per_model_callbacks[m]:
+#                     callback(
+#                         self.session, feed_dict, loss, self.train_iteration[m])
+#                 loss_diff = abs(prev_loss[m] - loss)
+#                 if loss_diff < abs_loss_chg_tol[m] \
+#                         or abs(loss_diff / prev_loss[m]) < rel_loss_chg_tol[m]:
+#                     iter_below_tol[m] += 1
+#                 else:
+#                     iter_below_tol[m] = 0
+#                 if iter_below_tol[m] >= loss_chg_iter_below_tol[m]:
+#                     logger.info('Model %d finished training: Loss value '
+#                                 'converged.' % m)
+#                     untrained_models.remove(m)
+#                 elif step >= max_iter[m] - 1:
+#                     logger.info('Model %d finished training: Maximum number of '
+#                                 'iterations reached.' % m)
+#                     untrained_models.remove(m)
+#                 prev_loss[m] = loss
+#                 self.train_iteration[m] += 1
+#                 losses.append(loss)
+#             for callback in combined_model_callbacks:
+#                 callback(
+#                     self.session, feed_dict, np.mean(losses),
+#                     max(self.train_iteration))
+#             if len(untrained_models) == 0:
+#                 logger.info('All models have finished training.')
+#                 break
+#             data_batch = data.next()
+#             feed_dict = self._get_feed_dict(data_batch, is_train=True)
+#             step += 1
+#         if save_trained:
+#             Learner._save_checkpoint(
+#                 session=self.session, saver=saver, working_dir=working_dir,
+#                 file_prefix=ckpt_file_prefix, step=step)
+#
+#     def _estimate_error_rates(self, labeled_data=None, unlabeled_data=None,
+#                               return_predictions=False):
+#         labeled_predictions = None
+#         labeled_truth = None
+#         unlabeled_predictions = None
+#         if labeled_data is not None:
+#             labeled_fetches = [[model.outputs, model.train_outputs]
+#                                for model in self.models]
+#             labeled_feed_dict = self._get_feed_dict(
+#                 data=labeled_data.next(), is_train=True)
+#             outputs = self.session.run(
+#                 fetches=labeled_fetches, feed_dict=labeled_feed_dict)
+#             labeled_truth = outputs[0][1]
+#             outputs = [o[0][:, None, :] for o in outputs]
+#             labeled_predictions = np.exp(np.concatenate(outputs, axis=1))
+#         if unlabeled_data is not None:
+#             unlabeled_fetches = [model.outputs for model in self.models]
+#             unlabeled_feed_dict = self._get_feed_dict(
+#                 data=unlabeled_data.next(), is_train=False)
+#             outputs = self.session.run(
+#                 fetches=unlabeled_fetches, feed_dict=unlabeled_feed_dict)
+#             outputs = [o[:, None, :] for o in outputs]
+#             unlabeled_predictions = np.exp(np.concatenate(outputs, axis=1))
+#         results = self.integrator.run(
+#             labeled_predictions=labeled_predictions,
+#             labeled_truth=labeled_truth,
+#             unlabeled_predictions=unlabeled_predictions)
+#         if return_predictions:
+#             results = results, labeled_predictions, unlabeled_predictions
+#         return results
+#
+#     def _estimate_trust(self, labeled_data=None, unlabeled_data=None):
+#         results, labeled_predictions, unlabeled_predictions = \
+#             self._estimate_error_rates(
+#                 labeled_data=labeled_data, unlabeled_data=unlabeled_data,
+#                 return_predictions=True)
+#         integrated, errors = results
+#         trust_shape = self.session.run(tf.shape(self.trust))
+#         trust = np.zeros(shape=trust_shape)
+#         method = 'uniform'
+#         if method == 'uniform':
+#             trust = np.repeat(
+#                 errors[:, None, :], repeats=self.num_models, axis=1)
+#             # trust = -np.log(trust)
+#             trust = 1 - trust
+#             trust -= np.min(trust, axis=2, keepdims=True)
+#             trust /= np.max(trust, axis=2, keepdims=True)
+#         elif method == 'consensus_biased':
+#             bias = 0.5
+#             predictions = unlabeled_predictions
+#             consensus = np.tile(
+#                 integrated[:, None, :], reps=[1, self.num_models, 1])
+#             consensus = bias * predictions + (1 - bias) * consensus
+#             consensus = np.transpose(consensus, [2, 1, 0])[:, None, :, :]
+#             predictions = np.transpose(predictions, [2, 1, 0])[:, :, None, :]
+#             consensus = np.tile(consensus, [1, self.num_models, 1, 1])
+#             predictions = np.tile(predictions, [1, 1, self.num_models, 1])
+#             agreement = np.abs(predictions - consensus)
+#             agreement = 1 - np.mean(agreement, axis=-1)
+#             trust = agreement
+#             trust -= np.min(trust, axis=2, keepdims=True)
+#             trust /= np.max(trust, axis=2, keepdims=True)
+#             trust -= np.eye(self.num_models)[None]
+#             # trust /= np.sum(trust, axis=2, keepdims=True)
+#         logger.info(np.mean(trust, axis=1))
+#         return trust
+#
+#     @property
+#     @memoize
+#     def combined_model(self):
+#         weights = tf.reduce_mean(self.trust, reduction_indices=[1])
+#         # weights = tf.Print(weights, [weights[1]], summarize=100)
+#         return LinearCombinationModel(
+#             models=self.models, weights=weights, graph=self.graph)

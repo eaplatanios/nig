@@ -387,7 +387,7 @@ class ConsensusLearner(learners.Learner):
                     self.consensus_loss_weight))
             elif step > self.first_consensus \
                     and (step - self.first_consensus) \
-                            % self.consensus_update_frequency == 0:
+                    % self.consensus_update_frequency == 0:
                 self.consensus_method.train(
                     state=self.consensus_state, session=self.session,
                     labeled_data=labeled_data, unlabeled_data=unlabeled_data,
