@@ -421,7 +421,7 @@ class ConsensusLearner(learners.Learner):
             for callback in combined_model_callbacks:
                 callback(
                     self.session, feed_dict, np.mean(losses),
-                    max(self.train_iteration))
+                    max(self.train_iteration) - 1)
             if len(untrained_models) == 0:
                 logger.info('All models have finished training.')
                 break

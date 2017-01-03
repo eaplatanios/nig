@@ -61,8 +61,8 @@ class Callback(with_metaclass(abc.ABCMeta, object)):
 
 class LoggerCallback(Callback):
     def __init__(self, frequency=100, name='logger_callback',
-                 log_format='{:>20} - | {:>10d} | {:>11.4e} |',
-                 header='{:>20} - | {:>10} | {:>11} |'
+                 log_format='{:>20} - | {:>10d} | {:>15.4e} |',
+                 header='{:>20} - | {:>10} | {:>15} |'
                         .format('logger_callback', 'Step', 'Loss'),
                  header_frequency=sys.maxsize, stored_values=None):
         """
@@ -104,7 +104,7 @@ class LoggerCallback(Callback):
         pass
 
     def execute(self, session, feed_dict, loss, global_step):
-        if global_step % self.header_frequency == 0:
+        if (global_step + 1) % self.header_frequency == 0 or global_step == 0:
             logger.info(self.header)
         if self.stored_values is not None:
             self.stored_values.append((global_step + 1, loss))
@@ -302,9 +302,9 @@ class EvaluationCallback(Callback):
         self.aggregating_function = aggregating_function
         self.name = name
         self.log_format = log_format if log_format is not None \
-            else '{:>20} - | {:>10d} | {:>11.4e} |' * len(self.metrics)
+            else '{:>20} - | {:>10d} | {:>15.4e} |' * len(self.metrics)
         self.header = header if header is not None \
-            else ('{:>20} - | {:>10} | {:>11} |' * len(self.metrics)) \
+            else ('{:>20} - | {:>10} | {:>15} |' * len(self.metrics)) \
             .format(name, 'Step', *[str(metric)
                                     for metric in self.metrics])
         self.header_frequency = header_frequency
@@ -375,7 +375,7 @@ class EvaluationCallback(Callback):
                 else:
                     self.stored_values[str(self.metrics[index])].append(
                         (global_step + 1, value))
-        if global_step % self.header_frequency == 0:
+        if (global_step + 1) % self.header_frequency == 0 or global_step == 0:
             logger.info(self.header)
         logger.info(self.log_format.format(self.name, global_step+1, *metrics))
         if self.summary:
