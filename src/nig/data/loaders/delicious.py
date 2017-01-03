@@ -24,7 +24,7 @@ __author__ = 'alshedivat'
 SOURCE_URL = 'https://dl.dropboxusercontent.com/u/17460940/data/delicious.npz'
 
 TRAIN_SIZE = 12920
-VALIDATION_SIZE = 3000
+# VALIDATION_SIZE = 3000
 TEST_SIZE = 3185
 NB_FEATURES = 500
 NB_LABELS = 983
@@ -48,10 +48,12 @@ def load(working_dir):
     assert data['X_test'].shape == (TEST_SIZE, NB_FEATURES)
     assert data['Y_test'].shape == (TEST_SIZE, NB_LABELS)
     # Split the data
-    train_data = (data['X_train'][:-VALIDATION_SIZE],
-                  data['Y_train'][:-VALIDATION_SIZE])
-    val_data = (data['X_train'][-VALIDATION_SIZE:],
-                data['Y_train'][-VALIDATION_SIZE:])
+    # train_data = (data['X_train'][:-VALIDATION_SIZE],
+    #               data['Y_train'][:-VALIDATION_SIZE])
+    # val_data = (data['X_train'][-VALIDATION_SIZE:],
+    #             data['Y_train'][-VALIDATION_SIZE:])
+    train_data = (data['X_train'], data['Y_train'])
     test_data = (data['X_test'], data['Y_test'])
     labels_order = data['labels_order']
-    return train_data, val_data, test_data, labels_order
+    # return train_data, val_data, test_data, labels_order
+    return train_data, test_data, labels_order
