@@ -391,11 +391,11 @@ class DeliciousExperiment(ExperimentBase):
             'grads_processor': gradients_processor}
         models = [nig.MultiLayerPerceptron(
             500, 983, architecture, activation=activation, softmax_output=False,
-            sigmoid_output=True, log_output=True, train_outputs_one_hot=True,
+            sigmoid_output=True, log_output=False, train_outputs_one_hot=True,
             loss=loss, loss_summary=False, optimizer=optimizer,
             optimizer_opts=optimizer_opts)
                   for architecture in self.architectures]
-        eval_metric = nig.HammingLoss()
+        eval_metric = nig.HammingLoss(log_predictions=False)
         super(DeliciousExperiment, self).__init__(
             models=models, eval_metric=eval_metric,
             labeled_batch_size=labeled_batch_size,

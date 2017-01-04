@@ -13,28 +13,28 @@ __author__ = 'eaplatanios'
 logger = logging.getLogger(__name__)
 
 seed = 9999
-architectures = [[16], [512], [1024], [512, 256], [2048, 1024], [4096, 2048, 1024]]
+architectures = [[16], [256], [512, 256], [1024, 512, 256]]
 use_one_hot_encoding = True
 activation = nig.leaky_relu(0.01)
 labeled_batch_size = 128
 unlabeled_batch_size = 128
 test_data_proportion = 0.95
-max_iter = 100
+max_iter = 10000
 abs_loss_chg_tol = 1e-6
 rel_loss_chg_tol = 1e-6
 loss_chg_iter_below_tol = 5
 logging_frequency = 10
 summary_frequency = -1
 checkpoint_frequency = -1
-evaluation_frequency = 20
+evaluation_frequency = 50
 variable_statistics_frequency = -1
 run_meta_data_frequency = -1
 working_dir = os.path.join(os.getcwd(), 'working', 'delicious')
 checkpoint_file_prefix = 'ckpt'
 restore_sequentially = False
 save_trained = False
-optimizer = lambda: tf.train.GradientDescentOptimizer(0.1)
-gradients_processor = None  # processors.norm_clipping(clip_norm=0.1)
+optimizer = lambda: nig.gradient_descent(1e-1, decay_rate=0.99)
+gradients_processor = None  # lambda g: tf.clip_by_norm(g, 1e1)
 
 # optimizer = tf.contrib.opt.ScipyOptimizerInterface
 # optimizer_opts = {'options': {'maxiter': 10000}}
@@ -47,24 +47,40 @@ gradients_processor = None  # processors.norm_clipping(clip_norm=0.1)
 #     return metric
 consensus_loss_metric = None
 
-consensus_configurations = {
-    'Majority 0.0': {'consensus_method': nig.MajorityVote(),
-                     'consensus_loss_weight': 0.0,
-                     'consensus_loss_metric': None,
-                     'first_consensus': 10},
-    'Majority 0.1': {'consensus_method': nig.MajorityVote(),
-                     'consensus_loss_weight': 0.1,
-                     'consensus_loss_metric': None,
-                     'first_consensus': 10},
-    'Majority 0.5': {'consensus_method': nig.MajorityVote(),
-                     'consensus_loss_weight': 0.5,
-                     'consensus_loss_metric': None,
-                     'first_consensus': 10},
-    'Majority 1.0': {'consensus_method': nig.MajorityVote(),
-                     'consensus_loss_weight': 1.0,
-                     'consensus_loss_metric': None,
-                     'first_consensus': 10}
-}
+consensus_configurations = [
+    ('Majority 0.0', {'consensus_method': nig.MajorityVote(),
+                      'consensus_loss_weight': 0.0,
+                      'consensus_loss_metric': None,
+                      'first_consensus': 10}),
+    ('Majority 0.1', {'consensus_method': nig.MajorityVote(),
+                      'consensus_loss_weight': 0.1,
+                      'consensus_loss_metric': None,
+                      'first_consensus': 10}),
+    ('Majority 0.5', {'consensus_method': nig.MajorityVote(),
+                      'consensus_loss_weight': 0.5,
+                      'consensus_loss_metric': None,
+                      'first_consensus': 10}),
+    ('Majority 1.0', {'consensus_method': nig.MajorityVote(),
+                      'consensus_loss_weight': 1.0,
+                      'consensus_loss_metric': None,
+                      'first_consensus': 10}),
+    # ('Hard Majority 0.0', {'consensus_method': nig.HardMajorityVote(),
+    #                        'consensus_loss_weight': 0.0,
+    #                        'consensus_loss_metric': None,
+    #                        'first_consensus': 10}),
+    # ('Hard Majority 0.1', {'consensus_method': nig.HardMajorityVote(),
+    #                        'consensus_loss_weight': 0.1,
+    #                        'consensus_loss_metric': None,
+    #                        'first_consensus': 10}),
+    # ('Hard Majority 0.5', {'consensus_method': nig.HardMajorityVote(),
+    #                        'consensus_loss_weight': 0.5,
+    #                        'consensus_loss_metric': None,
+    #                        'first_consensus': 10}),
+    # ('Hard Majority 1.0', {'consensus_method': nig.HardMajorityVote(),
+    #                        'consensus_loss_weight': 1.0,
+    #                        'consensus_loss_metric': None,
+    #                        'first_consensus': 10}),
+]
 
 with tf.device('/cpu:0'):
     experiment = experiments.DeliciousExperiment(
@@ -84,7 +100,7 @@ with tf.device('/cpu:0'):
         restore_sequentially=restore_sequentially, save_trained=save_trained,
         optimizer=optimizer, gradients_processor=gradients_processor)
     learners = []
-    for name, configuration in consensus_configurations.items():
+    for name, configuration in consensus_configurations:
         learner = partial(nig.ConsensusLearner, **configuration)
         learners.append((name, learner))
     learners = OrderedDict(learners)

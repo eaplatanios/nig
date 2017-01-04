@@ -33,7 +33,7 @@ working_dir = os.path.join(os.getcwd(), 'working', 'mnist')
 checkpoint_file_prefix = 'ckpt'
 restore_sequentially = False
 save_trained = False
-optimizer = lambda: tf.train.GradientDescentOptimizer(0.1)
+optimizer = lambda: nig.gradient_descent(1e0, decay_rate=0.99)
 gradients_processor = None  # lambda g: tf.clip_by_norm(g, 0.1)
 
 # optimizer = tf.contrib.opt.ScipyOptimizerInterface
