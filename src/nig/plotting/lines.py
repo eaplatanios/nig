@@ -33,7 +33,7 @@ def plot_lines(lines, names=None, style='ggplot', colormap='viridis',
     if names is None and isinstance(lines, dict):
         names = list(lines.keys())
         lines = list(lines.values())
-    else:
+    elif isinstance(lines, dict):
         if set(names) != set(lines.keys()):
             raise ValueError('The provided names are inconsistent with the '
                              'provided lines.')

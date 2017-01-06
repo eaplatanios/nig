@@ -257,16 +257,18 @@ class ExperimentBase(with_metaclass(abc.ABCMeta, object)):
             return losses, train_evals, test_evals
 
         if isinstance(learners, list):
-            learners = OrderedDict([(str(learner), learner)
-                                    for learner in learners])
-        losses = dict()
-        train_evals = dict()
-        test_evals = dict()
-        for name, learner in learners.items():
+            names = [str(learner) for learner in learners]
+        elif isinstance(learners, dict) or isinstance(learners, OrderedDict):
+            names = list(learners.keys())
+            learners = list(learners.values())
+        losses = []
+        train_evals = []
+        test_evals = []
+        for name, learner in zip(names, learners):
             results = _run_learner(learner)
-            losses[name] = results[0]
-            train_evals[name] = results[1]
-            test_evals[name] = results[2]
+            losses.append(results[0])
+            train_evals.append(results[1])
+            test_evals.append(results[2])
         if show_plots or plots_folder is not None:
             if plots_folder is not None:
                 plots_folder = os.path.join(self.working_dir, plots_folder)
@@ -278,18 +280,18 @@ class ExperimentBase(with_metaclass(abc.ABCMeta, object)):
                 train_filename = None
                 test_filename = None
             nig.plot_lines(
-                lines=losses, style='ggplot', xlabel='Iteration',
+                lines=losses, names=names, style='ggplot', xlabel='Iteration',
                 ylabel='Loss Value', title='Loss Function Value',
                 include_legend=True, show_plot=show_plots,
                 save_filename=loss_filename, dpi=300)
             nig.plot_lines(
-                lines=train_evals, style='ggplot', xlabel='Iteration',
-                ylabel=str(self.eval_metric),
+                lines=train_evals, names=names, style='ggplot',
+                xlabel='Iteration', ylabel=str(self.eval_metric),
                 title=str(self.eval_metric) + ' Value', include_legend=True,
                 show_plot=show_plots, save_filename=train_filename, dpi=300)
             nig.plot_lines(
-                lines=test_evals, style='ggplot', xlabel='Iteration',
-                ylabel=str(self.eval_metric),
+                lines=test_evals, names=names, style='ggplot',
+                xlabel='Iteration', ylabel=str(self.eval_metric),
                 title=str(self.eval_metric) + ' Value', include_legend=True,
                 show_plot=show_plots, save_filename=test_filename, dpi=300)
         return losses, train_evals, test_evals
