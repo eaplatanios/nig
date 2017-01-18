@@ -15,6 +15,7 @@
 from __future__ import absolute_import, division, print_function
 
 import abc
+import numpy as np
 import tensorflow as tf
 
 from six import with_metaclass
@@ -26,6 +27,8 @@ __author__ = 'eaplatanios'
 __all__ = [
     'Metric', 'CombinedMetric', 'L2Loss', 'Accuracy', 'Precision', 'Recall',
     'F1Score', 'HammingLoss', 'CrossEntropy']
+
+__EPS__ = np.finfo(np.float32).eps
 
 
 class Metric(with_metaclass(abc.ABCMeta, object)):
@@ -99,11 +102,23 @@ class _ClassificationMetric(Metric):
         nominator, denominator = self._nominator_denominator(
             outputs=outputs, train_outputs=train_outputs)
         if self.macro_average:
+            nominator = tf.select(
+                tf.equal(denominator, 0.0),
+                tf.fill(tf.shape(nominator), __EPS__), nominator)
+            denominator = tf.select(
+                tf.equal(denominator, 0.0),
+                tf.fill(tf.shape(denominator), __EPS__), denominator)
             metric = tf.div(nominator, denominator)
             metric = tf.reduce_mean(metric, reduction_indices=[-1])
         else:
             nominator = tf.reduce_sum(nominator)
             denominator = tf.reduce_sum(denominator)
+            nominator = tf.select(
+                tf.equal(denominator, 0.0),
+                tf.fill(tf.shape(nominator), __EPS__), nominator)
+            denominator = tf.select(
+                tf.equal(denominator, 0.0),
+                tf.fill(tf.shape(denominator), __EPS__), denominator)
             metric = tf.div(nominator, denominator)
         return metric
 
