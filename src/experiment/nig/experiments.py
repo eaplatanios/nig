@@ -390,14 +390,26 @@ class MNISTExperiment(ExperimentBase):
             'grads_processor': gradients_processor}
         models = [nig.MultiLayerPerceptron(
             784, 10, architecture, activation=activation,
-            softmax_output=use_one_hot_encoding,
+            softmax_output=True,
             # log_output=use_one_hot_encoding,
             log_output=False,
             train_outputs_one_hot=use_one_hot_encoding, loss=self.loss,
             loss_summary=False, optimizer=optimizer,
             optimizer_opts=optimizer_opts)
                   for architecture in self.architectures]
-        eval_metric = nig.Accuracy(one_hot_truth=self.use_one_hot_encoding)
+        eval_metrics = [
+            nig.Accuracy(
+                log_outputs=False, scaled_outputs=True,
+                one_hot_train_outputs=True, thresholds=0.5, macro_average=True),
+            nig.Precision(
+                log_outputs=False, scaled_outputs=True,
+                one_hot_train_outputs=True, thresholds=0.5, macro_average=True),
+            nig.Recall(
+                log_outputs=False, scaled_outputs=True,
+                one_hot_train_outputs=True, thresholds=0.5, macro_average=True),
+            nig.F1Score(
+                log_outputs=False, scaled_outputs=True,
+                one_hot_train_outputs=True, thresholds=0.5, macro_average=True)]
         predict_postprocess = lambda l: tf.argmax(l, 1)
         inputs_pipeline = nig.ColumnsExtractor(list(range(784)))
         outputs_pipeline = nig.ColumnsExtractor(784)
@@ -406,7 +418,7 @@ class MNISTExperiment(ExperimentBase):
                                nig.DataTypeEncoder(np.int8) | \
                                nig.OneHotEncoder(10)
         super(MNISTExperiment, self).__init__(
-            models=models, eval_metrics=eval_metric,
+            models=models, eval_metrics=eval_metrics,
             predict_postprocess=predict_postprocess,
             inputs_pipeline=inputs_pipeline, outputs_pipeline=outputs_pipeline,
             labeled_batch_size=labeled_batch_size,
@@ -469,9 +481,22 @@ class DeliciousExperiment(ExperimentBase):
             loss=self.loss, loss_summary=False, optimizer=optimizer,
             optimizer_opts=optimizer_opts)
                   for architecture in self.architectures]
-        eval_metric = nig.HammingLoss(log_predictions=False)
+        # eval_metric = nig.HammingLoss(log_predictions=False)
+        eval_metrics = [
+            nig.Accuracy(
+                log_outputs=False, scaled_outputs=True,
+                one_hot_train_outputs=True, thresholds=0.5, macro_average=True),
+            nig.Precision(
+                log_outputs=False, scaled_outputs=True,
+                one_hot_train_outputs=True, thresholds=0.5, macro_average=True),
+            nig.Recall(
+                log_outputs=False, scaled_outputs=True,
+                one_hot_train_outputs=True, thresholds=0.5, macro_average=True),
+            nig.F1Score(
+                log_outputs=False, scaled_outputs=True,
+                one_hot_train_outputs=True, thresholds=0.5, macro_average=True)]
         super(DeliciousExperiment, self).__init__(
-            models=models, eval_metrics=eval_metric,
+            models=models, eval_metrics=eval_metrics,
             labeled_batch_size=labeled_batch_size,
             unlabeled_batch_size=unlabeled_batch_size,
             test_data_proportion=test_data_proportion,
