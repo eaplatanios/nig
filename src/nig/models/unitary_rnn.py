@@ -23,7 +23,7 @@ __author__ = 'eaplatanios'
 __all__ = ['URNNCell']
 
 
-class URNNCell(tf.nn.rnn_cell.RNNCell):
+class URNNCell(tf.contrib.rnn.RNNCell):
     def __init__(self, num_units, state_is_tuple=True):
         self._num_units = num_units
         self._state_is_tuple = state_is_tuple
