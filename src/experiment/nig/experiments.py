@@ -100,13 +100,17 @@ def _approximate_hypergeometric_mode(label_counts, num_samples, seed=None):
     return floored.astype(np.int)
 
 
-def plot_results(results):
+def plot_results(results, metrics=None):
     for experiment_name, experiments_results in results.items():
         for experiment_info, experiment_results in experiments_results.items():
             names = list(experiment_results.keys())
             values = list(experiment_results.values())
-            eval_metrics = list(values[0]['evaluations'].keys())
-            num_rows = len(eval_metrics) + 1
+            data_metrics = list(values[0]['evaluations'].keys())
+            if metrics is not None:
+                metrics = [m for m in metrics if m in data_metrics]
+            else:
+                metrics = data_metrics
+            num_rows = len(metrics) + 1
             with plt.style.context('ggplot'):
                 figure = plt.figure()
                 figure.suptitle(experiment_name.upper(), fontsize=20)
@@ -119,7 +123,7 @@ def plot_results(results):
                     include_legend=True, show_plot=False, save_filename=None,
                     dpi=300, figure=figure, axes=loss_axes)
                 subplot_index = 3
-                for metric in eval_metrics:
+                for metric in metrics:
                     train_evaluations = [v['evaluations'][metric][0]
                                          for v in values]
                     train_eval_axes = figure.add_subplot(
