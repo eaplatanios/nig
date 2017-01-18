@@ -16,8 +16,8 @@ seed = 9999
 architectures = [[16], [128], [128, 64, 32], [512, 256, 128], [1024]]
 use_one_hot_encoding = True
 activation = nig.leaky_relu(0.01)
-labeled_batch_size = 512
-unlabeled_batch_size = 512
+labeled_batch_size = 128
+unlabeled_batch_size = 128
 test_data_proportion = 0.95
 max_iter = 500
 abs_loss_chg_tol = 1e-6
@@ -48,26 +48,70 @@ gradients_processor = None  # lambda g: tf.clip_by_norm(g, 0.1)
 #     return metric
 consensus_loss_metric = None
 
-consensus_configurations = {
-    'Majority 0.0': {'consensus_method': nig.MajorityVote(),
-                     'consensus_loss_weight': 0.0,
-                     'consensus_loss_metric': None,
-                     'first_consensus': 10},
-    'Majority 0.1': {'consensus_method': nig.MajorityVote(),
-                     'consensus_loss_weight': 0.1,
-                     'consensus_loss_metric': None,
-                     'first_consensus': 10},
-    'Majority 0.5': {'consensus_method': nig.MajorityVote(),
-                     'consensus_loss_weight': 0.5,
-                     'consensus_loss_metric': None,
-                     'first_consensus': 10},
-    'Majority 1.0': {'consensus_method': nig.MajorityVote(),
-                     'consensus_loss_weight': 1.0,
-                     'consensus_loss_metric': None,
-                     'first_consensus': 10}
-}
+consensus_configurations = [
+    ('Majority 0.0', {'consensus_method': nig.MajorityVote(),
+                      'consensus_loss_weight': 0.0,
+                      'consensus_loss_metric': None,
+                      'first_consensus': 10}),
+    ('Majority 0.1', {'consensus_method': nig.MajorityVote(),
+                      'consensus_loss_weight': 0.1,
+                      'consensus_loss_metric': None,
+                      'first_consensus': 10}),
+    # ('Majority 0.5', {'consensus_method': nig.MajorityVote(),
+    #                   'consensus_loss_weight': 0.5,
+    #                   'consensus_loss_metric': None,
+    #                   'first_consensus': 10}),
+    ('Majority 1.0', {'consensus_method': nig.MajorityVote(),
+                      'consensus_loss_weight': 1.0,
+                      'consensus_loss_metric': None,
+                      'first_consensus': 10}),
+    # ('ArgMax Majority 0.0', {'consensus_method': nig.ArgMaxMajorityVote(),
+    #                          'consensus_loss_weight': 0.0,
+    #                          'consensus_loss_metric': None,
+    #                          'first_consensus': 10}),
+    # ('ArgMax Majority 0.1', {'consensus_method': nig.ArgMaxMajorityVote(),
+    #                          'consensus_loss_weight': 0.1,
+    #                          'consensus_loss_metric': None,
+    #                          'first_consensus': 10}),
+    # ('ArgMax Majority 0.5', {'consensus_method': nig.ArgMaxMajorityVote(),
+    #                          'consensus_loss_weight': 0.5,
+    #                          'consensus_loss_metric': None,
+    #                          'first_consensus': 10}),
+    # ('ArgMax Majority 1.0', {'consensus_method': nig.ArgMaxMajorityVote(),
+    #                          'consensus_loss_weight': 1.0,
+    #                          'consensus_loss_metric': None,
+    #                          'first_consensus': 10}),
+    # ('RBM 0.0', {'consensus_method': nig.RBMConsensus(),
+    #              'consensus_loss_weight': 0.0,
+    #              'consensus_loss_metric': None,
+    #              'first_consensus': 10,
+    #              'first_consensus_max_iter': 10000,
+    #              'consensus_update_frequency': 10,
+    #              'consensus_update_max_iter': 500}),
+    # ('RBM 0.1', {'consensus_method': nig.RBMConsensus(),
+    #              'consensus_loss_weight': 0.1,
+    #              'consensus_loss_metric': None,
+    #              'first_consensus': 10,
+    #              'first_consensus_max_iter': 10000,
+    #              'consensus_update_frequency': 10,
+    #              'consensus_update_max_iter': 500}),
+    # ('RBM 0.5', {'consensus_method': nig.RBMConsensus(),
+    #              'consensus_loss_weight': 0.5,
+    #              'consensus_loss_metric': None,
+    #              'first_consensus': 10,
+    #              'first_consensus_max_iter': 10000,
+    #              'consensus_update_frequency': 10,
+    #              'consensus_update_max_iter': 500}),
+    # ('RBM 1.0', {'consensus_method': nig.RBMConsensus(),
+    #              'consensus_loss_weight': 1.0,
+    #              'consensus_loss_metric': None,
+    #              'first_consensus': 10,
+    #              'first_consensus_max_iter': 10000,
+    #              'consensus_update_frequency': 10,
+    #              'consensus_update_max_iter': 500}),
+]
 
-with tf.device('/cpu:0'):
+with nig.dummy():  # tf.device('/cpu:0'):
     experiment = experiments.MNISTExperiment(
         architectures=architectures, use_one_hot_encoding=use_one_hot_encoding,
         activation=activation, labeled_batch_size=labeled_batch_size,
@@ -85,11 +129,11 @@ with tf.device('/cpu:0'):
         restore_sequentially=restore_sequentially, save_trained=save_trained,
         optimizer=optimizer, gradients_processor=gradients_processor, seed=seed)
     learners = []
-    for name, configuration in consensus_configurations.items():
+    for name, configuration in consensus_configurations:
         learner = partial(nig.ConsensusLearner, **configuration)
         learners.append((name, learner))
     learners = OrderedDict(learners)
-    experiment.run(learners, show_plots=True, plots_folder=None)
+    results = experiment.run(learners)
 
     # maj_trust_based_learner = partial(nig.TrustBasedLearner, first_trust_update=max_iter + 1)
     # trust_based_learner = partial(
@@ -100,3 +144,10 @@ with tf.device('/cpu:0'):
     #     ckpt_file_prefix=checkpoint_file_prefix)
     # test_truth = test_data[:, -1]
     # logger.info(np.mean(test_predictions == test_truth))
+
+experiments.save_results(
+    results, filename=os.path.join(os.getcwd(), 'working', 'results.pk'),
+    update=True, use_backup=True, delete_backup=False)
+# results = experiments.load_results(
+#     filename=os.path.join(working_dir, 'results.pk'))
+experiments.plot_results(results)

@@ -4,9 +4,11 @@ import abc
 import nig
 import numpy as np
 import os
+import shutil
 import tensorflow as tf
 
 from collections import OrderedDict
+from matplotlib import pyplot as plt
 from nig.data import loaders
 from six import with_metaclass
 
@@ -98,8 +100,82 @@ def _approximate_hypergeometric_mode(label_counts, num_samples, seed=None):
     return floored.astype(np.int)
 
 
+def plot_results(results):
+    for experiment_name, experiments_results in results.items():
+        for experiment_info, experiment_results in experiments_results.items():
+            names = list(experiment_results.keys())
+            values = list(experiment_results.values())
+            eval_metrics = list(values[0]['evaluations'].keys())
+            num_rows = len(eval_metrics) + 1
+            with plt.style.context('ggplot'):
+                figure = plt.figure()
+                figure.suptitle(experiment_name.upper(), fontsize=20)
+                losses = [v['losses'] for v in values]
+                loss_axes = figure.add_subplot(num_rows, 1, 1)
+                nig.plot_lines(
+                    lines=losses, names=names, style='ggplot',
+                    xlabel='Iteration', ylabel='Loss Value',
+                    title='Loss Function Value', font_size=12,
+                    include_legend=True, show_plot=False, save_filename=None,
+                    dpi=300, figure=figure, axes=loss_axes)
+                subplot_index = 3
+                for metric in eval_metrics:
+                    train_evaluations = [v['evaluations'][metric][0]
+                                         for v in values]
+                    train_eval_axes = figure.add_subplot(
+                        num_rows, 2, subplot_index)
+                    subplot_index += 1
+                    nig.plot_lines(
+                        lines=train_evaluations, names=names, style='ggplot',
+                        xlabel='Iteration', ylabel=metric.title(),
+                        title='Train ' + metric.title() + ' Value',
+                        font_size=12, include_legend=False, show_plot=False,
+                        save_filename=None, dpi=300, figure=figure,
+                        axes=train_eval_axes)
+                    test_evaluations = [v['evaluations'][metric][1]
+                                        for v in values]
+                    test_eval_axes = figure.add_subplot(
+                        num_rows, 2, subplot_index, sharey=train_eval_axes)
+                    subplot_index += 1
+                    nig.plot_lines(
+                        lines=test_evaluations, names=names, style='ggplot',
+                        xlabel='Iteration',  # ylabel=metric.title(),
+                        title='Test ' + metric.title() + ' Value',
+                        font_size=12, include_legend=False, show_plot=False,
+                        save_filename=None, dpi=300, figure=figure,
+                        axes=test_eval_axes)
+                    plt.setp(test_eval_axes.get_yticklabels(), visible=False)
+            plt.tight_layout(rect=[0, 0, 1, 0.95])
+            plt.show()
+
+
+def save_results(results, filename, update=True, use_backup=True,
+                 delete_backup=False):
+    if update and os.path.isfile(filename):
+        if use_backup:
+            shutil.copy2(filename, filename + '.bak')
+        old_results = nig.deserialize_data(filename)
+        results = merge_results(results, old_results)
+    nig.serialize_data(results, filename)
+    if use_backup and delete_backup:
+        os.remove(filename + '.bak')
+
+
+def load_results(filename):
+    return nig.deserialize_data(filename)
+
+
+def merge_results(results_1, results_2):
+    merged_results = results_1.copy()
+    for experiment_name, experiment_results in results_2.items():
+        results = merged_results.get(experiment_name, dict())
+        results.update(experiment_results)
+        merged_results[experiment_name] = results
+    return merged_results
+
+
 class ExperimentBase(with_metaclass(abc.ABCMeta, object)):
-    def __init__(self, models, eval_metric, predict_postprocess=None,
+    def __init__(self, models, eval_metrics, predict_postprocess=None,
                  inputs_pipeline=None, outputs_pipeline=None,
                  labeled_batch_size=100, unlabeled_batch_size=100,
                  test_data_proportion=0.1, logging_frequency=10,
@@ -116,7 +192,9 @@ class ExperimentBase(with_metaclass(abc.ABCMeta, object)):
         if outputs_pipeline is None and inputs_pipeline is not None:
             outputs_pipeline = lambda x: x
         self.models = models
-        self.eval_metric = eval_metric
+        if not isinstance(eval_metrics, list):
+            eval_metrics = [eval_metrics]
+        self.eval_metrics = eval_metrics
         self.predict_postprocess = predict_postprocess
         self.inputs_pipeline = inputs_pipeline
         self.outputs_pipeline = outputs_pipeline
@@ -134,6 +212,14 @@ class ExperimentBase(with_metaclass(abc.ABCMeta, object)):
         self.restore_sequentially = restore_sequentially
         self.save_trained = save_trained
         self.seed = seed
+
+    @abc.abstractmethod
+    def __str__(self):
+        pass
+
+    @abc.abstractmethod
+    def experiment_information(self):
+        pass
 
     @abc.abstractmethod
     def load_data(self, test_proportion=None):
@@ -194,16 +280,17 @@ class ExperimentBase(with_metaclass(abc.ABCMeta, object)):
             callbacks.append(nig.CheckpointWriterCallback(
                 frequency=self.checkpoint_frequency,
                 file_prefix=self.checkpoint_file_prefix))
-        if self.evaluation_frequency > 0 and train_data is not None:
-            callbacks.append(nig.EvaluationCallback(
-                frequency=self.evaluation_frequency,
-                data=self._get_iterator(train_data), metrics=self.eval_metric,
-                name='eval/train', stored_values=eval_train_values))
-        if self.evaluation_frequency > 0 and test_data is not None:
-            callbacks.append(nig.EvaluationCallback(
-                frequency=self.evaluation_frequency,
-                data=self._get_iterator(test_data), metrics=self.eval_metric,
-                name='eval/test', stored_values=eval_test_values))
+        for i, metric in enumerate(self.eval_metrics):
+            if self.evaluation_frequency > 0 and train_data is not None:
+                callbacks.append(nig.EvaluationCallback(
+                    frequency=self.evaluation_frequency,
+                    data=self._get_iterator(train_data), metrics=metric,
+                    name='eval/train', stored_values=eval_train_values[i]))
+            if self.evaluation_frequency > 0 and test_data is not None:
+                callbacks.append(nig.EvaluationCallback(
+                    frequency=self.evaluation_frequency,
+                    data=self._get_iterator(test_data), metrics=metric,
+                    name='eval/test', stored_values=eval_test_values[i]))
         if self.variable_statistics_frequency > 0:
             callbacks.append(nig.VariableStatisticsSummaryWriterCallback(
                 frequency=self.variable_statistics_frequency,
@@ -214,14 +301,21 @@ class ExperimentBase(with_metaclass(abc.ABCMeta, object)):
                 trace_level=tf.RunOptions.FULL_TRACE))
         return callbacks
 
-    def run(self, learners, show_plots=True, plots_folder=None):
+    def run(self, learners):
+        if isinstance(learners, list):
+            names = [str(learner) for learner in learners]
+        elif isinstance(learners, dict) or isinstance(learners, OrderedDict):
+            names = list(learners.keys())
+            learners = list(learners.values())
+        else:
+            raise TypeError('Unsupported learners type %s.' % type(learners))
         train_data, test_data = self.load_data(
             test_proportion=self.test_data_proportion)
 
         def _run_learner(learner):
             losses = []
-            train_evals = []
-            test_evals = []
+            train_evals = [[] for _ in self.eval_metrics]
+            test_evals = [[] for _ in self.eval_metrics]
             callbacks = self._callbacks(
                 train_data=train_data, test_data=test_data, loss_values=losses,
                 eval_train_values=train_evals, eval_test_values=test_evals)
@@ -256,45 +350,16 @@ class ExperimentBase(with_metaclass(abc.ABCMeta, object)):
                 save_trained=self.save_trained, unlabeled_data=unlabeled_data)
             return losses, train_evals, test_evals
 
-        if isinstance(learners, list):
-            names = [str(learner) for learner in learners]
-        elif isinstance(learners, dict) or isinstance(learners, OrderedDict):
-            names = list(learners.keys())
-            learners = list(learners.values())
-        losses = []
-        train_evals = []
-        test_evals = []
+        results = dict()
         for name, learner in zip(names, learners):
-            results = _run_learner(learner)
-            losses.append(results[0])
-            train_evals.append(results[1])
-            test_evals.append(results[2])
-        if show_plots or plots_folder is not None:
-            if plots_folder is not None:
-                plots_folder = os.path.join(self.working_dir, plots_folder)
-                loss_filename = os.path.join(plots_folder, 'loss.pdf')
-                train_filename = os.path.join(plots_folder, 'train_eval.pdf')
-                test_filename = os.path.join(plots_folder, 'test_eval.pdf')
-            else:
-                loss_filename = None
-                train_filename = None
-                test_filename = None
-            nig.plot_lines(
-                lines=losses, names=names, style='ggplot', xlabel='Iteration',
-                ylabel='Loss Value', title='Loss Function Value',
-                include_legend=True, show_plot=show_plots,
-                save_filename=loss_filename, dpi=300)
-            nig.plot_lines(
-                lines=train_evals, names=names, style='ggplot',
-                xlabel='Iteration', ylabel=str(self.eval_metric),
-                title=str(self.eval_metric) + ' Value', include_legend=True,
-                show_plot=show_plots, save_filename=train_filename, dpi=300)
-            nig.plot_lines(
-                lines=test_evals, names=names, style='ggplot',
-                xlabel='Iteration', ylabel=str(self.eval_metric),
-                title=str(self.eval_metric) + ' Value', include_legend=True,
-                show_plot=show_plots, save_filename=test_filename, dpi=300)
-        return losses, train_evals, test_evals
+            learner_results = _run_learner(learner)
+            results[name] = {
+                'losses': learner_results[0],
+                'evaluations': {
+                    str(metric): (learner_results[1][i], learner_results[2][i])
+                    for i, metric in enumerate(self.eval_metrics)}}
+        information = frozenset(self.experiment_information().items())
+        return {str(self): {information: results}}
 
 
 class MNISTExperiment(ExperimentBase):
@@ -312,8 +377,8 @@ class MNISTExperiment(ExperimentBase):
                  gradients_processor=None, seed=None):
         self.architectures = architectures
         self.use_one_hot_encoding = use_one_hot_encoding
-        loss = nig.L2Loss()
-        # loss = nig.CrossEntropy(
+        self.loss = nig.L2Loss()
+        # self.loss = nig.CrossEntropy(
         #     log_predictions=self.use_one_hot_encoding,
         #     one_hot_truth=self.use_one_hot_encoding)
         optimizer_opts = {
@@ -328,7 +393,7 @@ class MNISTExperiment(ExperimentBase):
             softmax_output=use_one_hot_encoding,
             # log_output=use_one_hot_encoding,
             log_output=False,
-            train_outputs_one_hot=use_one_hot_encoding, loss=loss,
+            train_outputs_one_hot=use_one_hot_encoding, loss=self.loss,
             loss_summary=False, optimizer=optimizer,
             optimizer_opts=optimizer_opts)
                   for architecture in self.architectures]
@@ -341,7 +406,7 @@ class MNISTExperiment(ExperimentBase):
                                nig.DataTypeEncoder(np.int8) | \
                                nig.OneHotEncoder(10)
         super(MNISTExperiment, self).__init__(
-            models=models, eval_metric=eval_metric,
+            models=models, eval_metrics=eval_metric,
             predict_postprocess=predict_postprocess,
             inputs_pipeline=inputs_pipeline, outputs_pipeline=outputs_pipeline,
             labeled_batch_size=labeled_batch_size,
@@ -357,6 +422,13 @@ class MNISTExperiment(ExperimentBase):
             checkpoint_file_prefix=checkpoint_file_prefix,
             restore_sequentially=restore_sequentially,
             save_trained=save_trained, seed=seed)
+
+    def __str__(self):
+        return 'mnist'
+
+    def experiment_information(self):
+        return {'architectures': str(self.architectures),
+                'loss': str(self.loss)}
 
     def load_data(self, test_proportion=None):
         train_data, test_data = loaders.mnist.load(
@@ -382,8 +454,8 @@ class DeliciousExperiment(ExperimentBase):
                  save_trained=True, optimizer=lambda: tf.train.AdamOptimizer(),
                  gradients_processor=None):
         self.architectures = architectures
-        loss = nig.L2Loss()
-        # loss = nig.CrossEntropy(log_predictions=True, one_hot_truth=True)
+        self.loss = nig.L2Loss()
+        # self.loss = nig.CrossEntropy(log_predictions=True, one_hot_truth=True)
         optimizer_opts = {
             'batch_size': labeled_batch_size,
             'max_iter': max_iter,
@@ -394,12 +466,12 @@ class DeliciousExperiment(ExperimentBase):
         models = [nig.MultiLayerPerceptron(
             500, 983, architecture, activation=activation, softmax_output=False,
             sigmoid_output=True, log_output=False, train_outputs_one_hot=True,
-            loss=loss, loss_summary=False, optimizer=optimizer,
+            loss=self.loss, loss_summary=False, optimizer=optimizer,
             optimizer_opts=optimizer_opts)
                   for architecture in self.architectures]
         eval_metric = nig.HammingLoss(log_predictions=False)
         super(DeliciousExperiment, self).__init__(
-            models=models, eval_metric=eval_metric,
+            models=models, eval_metrics=eval_metric,
             labeled_batch_size=labeled_batch_size,
             unlabeled_batch_size=unlabeled_batch_size,
             test_data_proportion=test_data_proportion,
@@ -414,9 +486,17 @@ class DeliciousExperiment(ExperimentBase):
             restore_sequentially=restore_sequentially,
             save_trained=save_trained)
 
+    def __str__(self):
+        return 'delicious'
+
+    def experiment_information(self):
+        return {'architectures': str(self.architectures),
+                'loss': str(self.loss)}
+
     def load_data(self, test_proportion=None):
         train_data, test_data, _ = loaders.delicious.load(
             os.path.join(self.working_dir, 'data'))
         if test_proportion is None:
             return train_data, test_data
+        # TODO: Use test_proportion.
         return train_data, test_data

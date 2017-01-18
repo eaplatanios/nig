@@ -56,10 +56,10 @@ consensus_configurations = [
                       'consensus_loss_weight': 0.1,
                       'consensus_loss_metric': None,
                       'first_consensus': 10}),
-    ('Majority 0.5', {'consensus_method': nig.MajorityVote(),
-                      'consensus_loss_weight': 0.5,
-                      'consensus_loss_metric': None,
-                      'first_consensus': 10}),
+    # ('Majority 0.5', {'consensus_method': nig.MajorityVote(),
+    #                   'consensus_loss_weight': 0.5,
+    #                   'consensus_loss_metric': None,
+    #                   'first_consensus': 10}),
     ('Majority 1.0', {'consensus_method': nig.MajorityVote(),
                       'consensus_loss_weight': 1.0,
                       'consensus_loss_metric': None,
@@ -80,9 +80,37 @@ consensus_configurations = [
     #                        'consensus_loss_weight': 1.0,
     #                        'consensus_loss_metric': None,
     #                        'first_consensus': 10}),
+    # ('RBM 0.0', {'consensus_method': nig.RBMConsensus(),
+    #              'consensus_loss_weight': 0.0,
+    #              'consensus_loss_metric': None,
+    #              'first_consensus': 10,
+    #              'first_consensus_max_iter': 10000,
+    #              'consensus_update_frequency': 10,
+    #              'consensus_update_max_iter': 500}),
+    # ('RBM 0.1', {'consensus_method': nig.RBMConsensus(),
+    #              'consensus_loss_weight': 0.1,
+    #              'consensus_loss_metric': None,
+    #              'first_consensus': 10,
+    #              'first_consensus_max_iter': 10000,
+    #              'consensus_update_frequency': 10,
+    #              'consensus_update_max_iter': 500}),
+    # ('RBM 0.5', {'consensus_method': nig.RBMConsensus(),
+    #              'consensus_loss_weight': 0.5,
+    #              'consensus_loss_metric': None,
+    #              'first_consensus': 10,
+    #              'first_consensus_max_iter': 10000,
+    #              'consensus_update_frequency': 10,
+    #              'consensus_update_max_iter': 500}),
+    # ('RBM 1.0', {'consensus_method': nig.RBMConsensus(),
+    #              'consensus_loss_weight': 1.0,
+    #              'consensus_loss_metric': None,
+    #              'first_consensus': 10,
+    #              'first_consensus_max_iter': 10000,
+    #              'consensus_update_frequency': 10,
+    #              'consensus_update_max_iter': 500}),
 ]
 
-with tf.device('/cpu:0'):
+with nig.dummy():  # tf.device('/cpu:0'):
     experiment = experiments.DeliciousExperiment(
         architectures=architectures, activation=activation,
         labeled_batch_size=labeled_batch_size,
@@ -104,4 +132,10 @@ with tf.device('/cpu:0'):
         learner = partial(nig.ConsensusLearner, **configuration)
         learners.append((name, learner))
     learners = OrderedDict(learners)
-    experiment.run(learners, show_plots=True, plots_folder=None)
+    results = experiment.run(learners)
+experiments.save_results(
+    results, filename=os.path.join(os.getcwd(), 'working', 'results.pk'),
+    update=True, use_backup=True, delete_backup=False)
+# results = experiments.load_results(
+#     filename=os.path.join(working_dir, 'results.pk'))
+experiments.plot_results(results)

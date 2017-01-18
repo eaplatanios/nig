@@ -17,7 +17,6 @@ from __future__ import absolute_import, division, print_function
 import numpy as np
 
 from matplotlib import pyplot as plt
-from matplotlib.style import context
 
 __author__ = 'eaplatanios'
 
@@ -26,10 +25,11 @@ __all__ = ['plot_lines']
 
 def plot_lines(lines, names=None, style='ggplot', colormap='viridis',
                xscale='linear', xlabel=None, yscale='linear', ylabel=None,
-               title=None, alpha=1.0, linestyle='-', linewidth=2.0, marker=None,
-               markersize=0.0, include_legend=True, legend_location='best',
-               show_plot=False, save_filename=None, dpi=None, transparent=True,
-               bbox_inches='tight', pad_inches=0.1):
+               title=None, font_size=16, alpha=1.0, linestyle='-',
+               linewidth=2.0, marker=None, markersize=0.0, include_legend=True,
+               legend_location='best', show_plot=False, save_filename=None,
+               dpi=None, transparent=True, bbox_inches='tight', pad_inches=0.1,
+               figure=None, axes=None):
     if names is None and isinstance(lines, dict):
         names = list(lines.keys())
         lines = list(lines.values())
@@ -38,31 +38,34 @@ def plot_lines(lines, names=None, style='ggplot', colormap='viridis',
             raise ValueError('The provided names are inconsistent with the '
                              'provided lines.')
         lines = [lines[name] for name in names]
-    if save_filename is None and not show_plot:
-        show_plot = True
-    with context(style):
+    # if save_filename is None and not show_plot:
+    #     show_plot = True
+    with plt.style.context(style):
         colormap = plt.get_cmap(colormap)
         colors = colormap(np.linspace(0, 1, len(lines)))
-        fig = plt.figure()
+        if figure is None and axes is None:
+            figure, axes = plt.subplots()
+        elif figure is None:
+            figure = plt.figure()
         for name, line, color in zip(names, lines, colors):
             x, y = zip(*line)
-            plt.plot(
-                x, y, label=name, color=color, alpha=alpha,
-                linestyle=linestyle, linewidth=linewidth, marker=marker,
-                markersize=markersize, markeredgewidth=0.0)
-        plt.xscale(xscale)
-        plt.yscale(yscale)
+            axes.plot(
+                x, y, label=name, color=color, alpha=alpha, linestyle=linestyle,
+                linewidth=linewidth, marker=marker, markersize=markersize,
+                markeredgewidth=0.0)
+        axes.set_xscale(xscale)
+        axes.set_yscale(yscale)
         if xlabel is not None:
-            plt.xlabel(xlabel)
+            axes.set_xlabel(xlabel, fontdict={'fontsize': font_size})
         if ylabel is not None:
-            plt.ylabel(ylabel)
+            axes.set_ylabel(ylabel, fontdict={'fontsize': font_size})
         if title is not None:
-            plt.title(title)
+            axes.set_title(title, fontdict={'fontsize': font_size + 2}, y=1.03)
         if include_legend:
-            plt.legend(loc=legend_location)
+            axes.legend(loc=legend_location, fontsize=font_size - 2)
         if show_plot:
             plt.show()
         if save_filename is not None:
-            fig.savefig(
+            figure.savefig(
                 save_filename, dpi=dpi, transparent=transparent,
                 bbox_inches=bbox_inches, pad_inches=pad_inches)
