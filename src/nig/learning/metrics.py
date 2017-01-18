@@ -182,7 +182,7 @@ class F1Score(_ClassificationMetric):
             train_outputs, reduction_indices=[0])
         precision = tf.div(true_positives, all_positives)
         recall = tf.div(true_positives, all_train_positives)
-        nominator = tf.mul(2, tf.mul(precision, recall))
+        nominator = tf.mul(2.0, tf.mul(precision, recall))
         denominator = tf.add(precision, recall)
         return nominator, denominator
 
