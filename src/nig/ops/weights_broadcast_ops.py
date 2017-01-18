@@ -12,6 +12,9 @@
 # License for the specific language governing permissions and limitations under
 # the License.
 
+"""The ops included in this module were borrowed from the TensorFlow repository
+and refactored slightly."""
+
 from __future__ import absolute_import, division, print_function
 
 import tensorflow as tf
