@@ -155,7 +155,7 @@ def save_results(results, filename, update=True, use_backup=True,
         if use_backup:
             shutil.copy2(filename, filename + '.bak')
         old_results = nig.deserialize_data(filename)
-        results = merge_results(results, old_results)
+        results = merge_results(old_results, results)
     nig.serialize_data(results, filename)
     if use_backup and delete_backup:
         os.remove(filename + '.bak')
@@ -350,16 +350,17 @@ class ExperimentBase(with_metaclass(abc.ABCMeta, object)):
                 save_trained=self.save_trained, unlabeled_data=unlabeled_data)
             return losses, train_evals, test_evals
 
-        results = dict()
+        results = []
         for name, learner in zip(names, learners):
             learner_results = _run_learner(learner)
-            results[name] = {
+            results.append((name, {
                 'losses': learner_results[0],
-                'evaluations': {
-                    str(metric): (learner_results[1][i], learner_results[2][i])
-                    for i, metric in enumerate(self.eval_metrics)}}
+                'evaluations': OrderedDict(
+                    [(str(metric), (learner_results[1][i],
+                                    learner_results[2][i]))
+                     for i, metric in enumerate(self.eval_metrics)])}))
         information = frozenset(self.experiment_information().items())
-        return {str(self): {information: results}}
+        return {str(self): {information: OrderedDict(results)}}
 
 
 class MNISTExperiment(ExperimentBase):
