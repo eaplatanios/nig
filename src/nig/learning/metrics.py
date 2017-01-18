@@ -124,7 +124,7 @@ class Accuracy(_ClassificationMetric):
     def _nominator_denominator(self, outputs, train_outputs):
         temp_outputs = tf.cast(tf.equal(outputs, train_outputs), tf.float32)
         nominator = tf.reduce_sum(temp_outputs, reduction_indices=[0])
-        denominator = tf.shape(outputs)[0]
+        denominator = tf.cast(tf.shape(outputs)[0], tf.float32)
         return nominator, denominator
 
 
