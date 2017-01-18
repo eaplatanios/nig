@@ -179,28 +179,54 @@ class Recall(_ClassificationMetric):
         return nominator, denominator
 
 
-class F1Score(_ClassificationMetric):
-    def __init__(self, log_outputs=True, scaled_outputs=False,
+class FScore(_ClassificationMetric):
+    def __init__(self, beta=1.0, log_outputs=True, scaled_outputs=False,
                  one_hot_train_outputs=False, thresholds=0.5,
-                 macro_average=True, name='f1 score'):
-        super(F1Score, self).__init__(
+                 macro_average=True, name=None):
+        if name is None:
+            name = 'f-%.4f score' % beta
+        super(FScore, self).__init__(
             log_outputs=log_outputs, scaled_outputs=scaled_outputs,
             one_hot_train_outputs=one_hot_train_outputs,
             thresholds=thresholds, macro_average=macro_average, name=name)
+        self.beta = beta
 
     def _nominator_denominator(self, outputs, train_outputs):
         true_positives = tf.select(
             tf.equal(outputs, 1.0),
             tf.cast(tf.equal(outputs, train_outputs), tf.float32), outputs)
         true_positives = tf.reduce_sum(true_positives, reduction_indices=[0])
-        all_positives = tf.reduce_sum(outputs, reduction_indices=[0])
-        all_train_positives = tf.reduce_sum(
+        output_positives = tf.reduce_sum(outputs, reduction_indices=[0])
+        total_positives = tf.reduce_sum(
             train_outputs, reduction_indices=[0])
-        precision = tf.div(true_positives, all_positives)
-        recall = tf.div(true_positives, all_train_positives)
-        nominator = tf.mul(2.0, tf.mul(precision, recall))
-        denominator = tf.add(precision, recall)
+        true_positives_precision = tf.select(
+            tf.equal(output_positives, 0.0),
+            tf.fill(tf.shape(true_positives), __EPS__), true_positives)
+        output_positives = tf.select(
+            tf.equal(output_positives, 0.0),
+            tf.fill(tf.shape(output_positives), __EPS__), output_positives)
+        true_positives_recall = tf.select(
+            tf.equal(total_positives, 0.0),
+            tf.fill(tf.shape(true_positives), __EPS__), true_positives)
+        total_positives = tf.select(
+            tf.equal(total_positives, 0.0),
+            tf.fill(tf.shape(total_positives), __EPS__), total_positives)
+        precision = tf.div(true_positives_precision, output_positives)
+        recall = tf.div(true_positives_recall, total_positives)
+        beta_squared = self.beta * self.beta
+        nominator = tf.mul(1.0 + beta_squared, tf.mul(precision, recall))
+        denominator = tf.add(tf.mul(beta_squared, precision), recall)
         return nominator, denominator
+
+
+class F1Score(FScore):
+    def __init__(self, log_outputs=True, scaled_outputs=False,
+                 one_hot_train_outputs=False, thresholds=0.5,
+                 macro_average=True, name='f1 score'):
+        super(F1Score, self).__init__(
+            beta=1.0, log_outputs=log_outputs, scaled_outputs=scaled_outputs,
+            one_hot_train_outputs=one_hot_train_outputs,
+            thresholds=thresholds, macro_average=macro_average, name=name)
 
 
 class HammingLoss(Metric):
