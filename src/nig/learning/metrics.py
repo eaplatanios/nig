@@ -192,6 +192,7 @@ class F1Score(_ClassificationMetric):
         true_positives = tf.select(
             tf.equal(outputs, 1.0),
             tf.cast(tf.equal(outputs, train_outputs), tf.float32), outputs)
+        true_positives = tf.reduce_sum(true_positives, reduction_indices=[0])
         all_positives = tf.reduce_sum(outputs, reduction_indices=[0])
         all_train_positives = tf.reduce_sum(
             train_outputs, reduction_indices=[0])
