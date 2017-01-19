@@ -49,11 +49,11 @@ gradients_processor = None  # lambda g: tf.clip_by_norm(g, 0.1)
 consensus_loss_metric = None
 
 consensus_configurations = [
-    ('Majority 0.0', {'consensus_method': nig.MajorityVote(),
+    ('Majority 0.0', {'consensus_method': nig.Vote(),
                       'consensus_loss_weight': 0.0,
                       'consensus_loss_metric': None,
                       'first_consensus': 10}),
-    ('Majority 0.1', {'consensus_method': nig.MajorityVote(),
+    ('Majority 0.1', {'consensus_method': nig.Vote(),
                       'consensus_loss_weight': 0.1,
                       'consensus_loss_metric': None,
                       'first_consensus': 10}),
@@ -61,7 +61,7 @@ consensus_configurations = [
     #                   'consensus_loss_weight': 0.5,
     #                   'consensus_loss_metric': None,
     #                   'first_consensus': 10}),
-    ('Majority 1.0', {'consensus_method': nig.MajorityVote(),
+    ('Majority 1.0', {'consensus_method': nig.Vote(),
                       'consensus_loss_weight': 1.0,
                       'consensus_loss_metric': None,
                       'first_consensus': 10}),

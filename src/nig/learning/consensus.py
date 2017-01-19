@@ -31,7 +31,7 @@ from ..utilities.functions import memoize
 
 __author__ = 'eaplatanios'
 
-__all__ = ['Consensus', 'MajorityVote', 'HardMajorityVote',
+__all__ = ['Consensus', 'Vote', 'HardMajorityVote',
            'ArgMaxMajorityVote', 'RBMConsensus', 'ConsensusLearnerLoss',
            'ConsensusLearner']
 
@@ -90,13 +90,32 @@ class Consensus(with_metaclass(abc.ABCMeta, object)):
         pass
 
 
-class MajorityVote(Consensus):
-    def __init__(self, log_outputs=False, log_consensus=False, trainable=False,
-                 loss=None, loss_summary=False, optimizer=None,
-                 optimizer_opts=None):
-        super(MajorityVote, self).__init__()
+class Vote(Consensus):
+    def __init__(self, log_outputs=False, log_consensus=False, hard_vote=False,
+                 argmax_vote=False, trainable=False, loss=None,
+                 loss_summary=False, optimizer=None, optimizer_opts=None):
+        """
+        Notes:
+            The model outputs need to have dimensions `[B x M x O]`, where `B`
+            is the batch size, `M` is the number of models, and `O` is the
+            number of labels.
+
+        Args:
+            log_outputs:
+            log_consensus:
+            hard_vote:
+            argmax_vote:
+            trainable:
+            loss:
+            loss_summary:
+            optimizer:
+            optimizer_opts:
+        """
+        super(Vote, self).__init__()
         self.log_outputs = log_outputs
         self.log_consensus = log_consensus
+        self.hard_vote = hard_vote
+        self.argmax_vote = argmax_vote
         self.trainable = trainable
         if self.trainable:
             if loss is None:
@@ -116,20 +135,28 @@ class MajorityVote(Consensus):
         outputs = [model.outputs for model in models]
         outputs = tf.stack(outputs, axis=1)  # B x M x O
         outputs = tf.exp(outputs) if self.log_outputs else outputs
-        if not self.trainable:
+        if self.trainable:
+            integrator = common.LinearCombination(
+                inputs=outputs, axis=1, convex=True, loss=self.loss,
+                loss_summary=self.loss_summary, optimizer=self.optimizer,
+                optimizer_opts=self.optimizer_opts)
+            consensus = integrator.outputs
+        else:
             consensus = tf.reduce_mean(outputs, axis=1)
-            if self.log_consensus:
-                consensus = tf.log(consensus)
-            return consensus, None
-        integrator = common.LinearCombination(
-            inputs=outputs, axis=1, convex=True, loss=self.loss,
-            loss_summary=self.loss_summary, optimizer=self.optimizer,
-            optimizer_opts=self.optimizer_opts)
-        consensus = integrator.outputs
         if self.log_consensus:
             consensus = tf.log(consensus)
-        state = (models, integrator)
-        return consensus, state
+        if self.argmax_vote:
+            consensus = tf.argmax(consensus, axis=1)
+            consensus = tf.one_hot(consensus, tf.shape(outputs)[2], axis=1)
+        elif self.hard_vote:
+            consensus = tf.where(
+                consensus >= 0.5,
+                tf.ones_like(consensus),
+                tf.zeros_like(consensus))
+        if self.trainable:
+            state = (models, integrator)
+            return consensus, state
+        return consensus, None
 
     def train(self, state, session, labeled_data=None, unlabeled_data=None,
               max_iter=100):
@@ -166,42 +193,6 @@ class MajorityVote(Consensus):
                 break
             prev_loss = loss
             step += 1
-
-
-class HardMajorityVote(Consensus):
-    def __init__(self, log_outputs=False):
-        super(HardMajorityVote, self).__init__()
-        self.log_outputs = log_outputs
-
-    def _combine_outputs(self, models):
-        outputs = [model.outputs for model in models]
-        outputs = tf.stack(outputs, axis=1)  # B x M x O
-        outputs = tf.exp(outputs) if self.log_outputs else outputs
-        consensus = tf.reduce_mean(outputs, axis=1)
-        consensus = tf.where(
-            consensus >= 0.5, tf.ones_like(consensus), tf.zeros_like(consensus))
-        return consensus, None
-
-
-class ArgMaxMajorityVote(Consensus):
-    """
-    Note:
-        The model outputs in this case need to have dimensions `[B x M x O]`,
-        where `B` is the batch size, `M` is the number of models, and `O` is
-        the number of labels.
-    """
-    def __init__(self, log_outputs=False):
-        super(ArgMaxMajorityVote, self).__init__()
-        self.log_outputs = log_outputs
-
-    def _combine_outputs(self, models):
-        outputs = [model.outputs for model in models]
-        outputs = tf.stack(outputs, axis=1)  # B x M x O
-        outputs = tf.exp(outputs) if self.log_outputs else outputs
-        consensus = tf.reduce_mean(outputs, axis=1)
-        consensus = tf.argmax(consensus, axis=1)
-        consensus = tf.one_hot(consensus, tf.shape(outputs)[2], axis=1)
-        return consensus, None
 
 
 class RBMConsensus(Consensus):
