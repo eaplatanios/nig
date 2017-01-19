@@ -88,7 +88,7 @@ def dynamic_hierarchical_rnn(cells, periods, inputs, sequence_length=None,
     else:
         time_axis = 0
 
-    unpacked_inputs = tf.unpack(inputs, axis=time_axis)
+    unpacked_inputs = tf.unstack(inputs, axis=time_axis)
     level_outputs = []
     level_states = []
     for level_index, cell, period, in_levels, initial_state \
@@ -114,19 +114,18 @@ def dynamic_hierarchical_rnn(cells, periods, inputs, sequence_length=None,
             else:
                 step = period
                 outputs = unpacked_inputs
-            return tf.pack(outputs[::step], axis=time_axis)
+            return tf.stack(outputs[::step], axis=time_axis)
         if isinstance(in_levels, list):
             if inputs_reduction is None:
-                inputs_ = tf.concat(
-                    concat_dim=2,
-                    values=[_get_level_output(l) for l in in_levels])
+                inputs_ = tf.concat_v2(
+                    axis=2, values=[_get_level_output(l) for l in in_levels])
             else:
-                inputs_ = tf.pack(
+                inputs_ = tf.stack(
                     [_get_level_output(l) for l in in_levels], axis=0)
-                inputs_ = inputs_reduction(inputs_, reduction_indices=0)
+                inputs_ = inputs_reduction(inputs_, axis=0)
         else:
             inputs_ = _get_level_output(in_levels)
-        sequence_length_ = tf.div(sequence_length, period)
+        sequence_length_ = tf.divide(sequence_length, period)
 
         # Create RNN for the current level
         output, state = tf.nn.dynamic_rnn(
@@ -134,9 +133,9 @@ def dynamic_hierarchical_rnn(cells, periods, inputs, sequence_length=None,
             initial_state=initial_state, dtype=dtype,
             parallel_iterations=parallel_iterations, swap_memory=swap_memory,
             time_major=time_major, scope=scope + '/level_%d' % level_index)
-        level_outputs.append(tf.unpack(output, axis=time_axis))
+        level_outputs.append(tf.unstack(output, axis=time_axis))
         level_states.append(state)
-    return [tf.pack(o, axis=time_axis) for o in level_outputs], level_states
+    return [tf.stack(o, axis=time_axis) for o in level_outputs], level_states
 
 
 def rolling_window_rnn(cells, window_length, window_offset, inputs,
@@ -170,15 +169,16 @@ def rolling_window_rnn(cells, window_length, window_offset, inputs,
     else:
         time_axis = 0
 
-    unpacked_inputs = tf.unpack(inputs, axis=time_axis)
+    unpacked_inputs = tf.unstack(inputs, axis=time_axis)
     window_outputs = []
     window_states = []
     for window_index in range(num_windows):
         # Obtain the inputs for the current cell
         time_first_index = window_index * window_offset
         time_first_index_next = time_first_index + window_length
-        cell_input = tf.pack(unpacked_inputs[
-                             time_first_index:time_first_index_next], axis=time_axis)
+        cell_input = tf.stack(
+            unpacked_inputs[time_first_index:time_first_index_next],
+            axis=time_axis)
         output, state = tf.nn.dynamic_rnn(
             cell=cells[window_index], inputs=cell_input,
             sequence_length=tf.ones_like(sequence_length) *
@@ -186,7 +186,7 @@ def rolling_window_rnn(cells, window_length, window_offset, inputs,
             initial_state=initial_states[window_index], dtype=dtype,
             parallel_iterations=parallel_iterations, swap_memory=swap_memory,
             time_major=time_major, scope=scope + '/window_%d' % window_index)
-        window_outputs.append(tf.unpack(output, axis=time_axis))
+        window_outputs.append(tf.unstack(output, axis=time_axis))
         window_states.append(state)
 
-    return [tf.pack(o, axis=time_axis) for o in window_outputs], window_states
+    return [tf.stack(o, axis=time_axis) for o in window_outputs], window_states

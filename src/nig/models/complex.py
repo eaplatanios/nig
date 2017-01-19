@@ -75,7 +75,7 @@ def complex_mul_real(complex, real):
 
 def complex_normalize(tensor):
     norm = tf.reduce_sum(
-        input_tensor=complex_magnitude(tensor), reduction_indices=-1)
+        input_tensor=complex_magnitude(tensor), axis=-1)
     return tf.transpose(complex_mul_real(
         tf.transpose(tensor), 1.0 / (1e-5 + tf.transpose(norm))))
 
@@ -91,7 +91,7 @@ def mod_relu(inputs, bias, eps=1e-5):
         raise ValueError('inputs must be a complex tensor.')
     if bias.dtype.is_complex:
         raise ValueError('bias must be a complex tensor.')
-    mag = tf.complex_abs(inputs)
+    mag = tf.abs(inputs)
     return complex_mul_real(inputs, (tf.nn.relu(mag + bias) / (mag + eps)))
 
 

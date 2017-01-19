@@ -68,7 +68,7 @@ class L2Loss(Metric):
 
     @name_scope_context
     def evaluate(self, outputs, train_outputs):
-        metric = tf.square(tf.sub(outputs, train_outputs))
+        metric = tf.square(tf.subtract(outputs, train_outputs))
         num_samples = tf.cast(tf.shape(metric)[0], tf.float32)
         return tf.reduce_sum(metric) / num_samples
 
@@ -99,31 +99,35 @@ class _ClassificationMetric(Metric):
         else:
             thresholds = self.thresholds
         outputs = tf.nn.relu(tf.sign(outputs - thresholds))
-        nominator, denominator = self._nominator_denominator(
+        numerator, denominator = self._numerator_denominator(
             outputs=outputs, train_outputs=train_outputs)
         if self.macro_average:
-            nominator = tf.select(
+            numerator = tf.where(
                 tf.equal(denominator, 0.0),
-                tf.fill(tf.shape(nominator), __EPS__), nominator)
-            denominator = tf.select(
+                tf.fill(tf.shape(numerator), __EPS__),
+                numerator)
+            denominator = tf.where(
                 tf.equal(denominator, 0.0),
-                tf.fill(tf.shape(denominator), __EPS__), denominator)
-            metric = tf.div(nominator, denominator)
-            metric = tf.reduce_mean(metric, reduction_indices=[-1])
+                tf.fill(tf.shape(denominator), __EPS__),
+                denominator)
+            metric = tf.divide(numerator, denominator)
+            metric = tf.reduce_mean(metric, axis=-1)
         else:
-            nominator = tf.reduce_sum(nominator)
+            numerator = tf.reduce_sum(numerator)
             denominator = tf.reduce_sum(denominator)
-            nominator = tf.select(
+            numerator = tf.where(
                 tf.equal(denominator, 0.0),
-                tf.fill(tf.shape(nominator), __EPS__), nominator)
-            denominator = tf.select(
+                tf.fill(tf.shape(numerator), __EPS__),
+                numerator)
+            denominator = tf.where(
                 tf.equal(denominator, 0.0),
-                tf.fill(tf.shape(denominator), __EPS__), denominator)
-            metric = tf.div(nominator, denominator)
+                tf.fill(tf.shape(denominator), __EPS__),
+                denominator)
+            metric = tf.divide(numerator, denominator)
         return metric
 
     @abc.abstractmethod
-    def _nominator_denominator(self, outputs, train_outputs):
+    def _numerator_denominator(self, outputs, train_outputs):
         pass
 
 
@@ -136,11 +140,11 @@ class Accuracy(_ClassificationMetric):
             one_hot_train_outputs=one_hot_train_outputs,
             thresholds=thresholds, macro_average=macro_average, name=name)
 
-    def _nominator_denominator(self, outputs, train_outputs):
+    def _numerator_denominator(self, outputs, train_outputs):
         temp_outputs = tf.cast(tf.equal(outputs, train_outputs), tf.float32)
-        nominator = tf.reduce_sum(temp_outputs, reduction_indices=[0])
+        numerator = tf.reduce_sum(temp_outputs, axis=0)
         denominator = tf.cast(tf.shape(outputs)[0], tf.float32)
-        return nominator, denominator
+        return numerator, denominator
 
 
 class Precision(_ClassificationMetric):
@@ -152,13 +156,13 @@ class Precision(_ClassificationMetric):
             one_hot_train_outputs=one_hot_train_outputs,
             thresholds=thresholds, macro_average=macro_average, name=name)
 
-    def _nominator_denominator(self, outputs, train_outputs):
-        true_positives = tf.select(
+    def _numerator_denominator(self, outputs, train_outputs):
+        true_positives = tf.where(
             tf.equal(outputs, 1.0),
             tf.cast(tf.equal(outputs, train_outputs), tf.float32), outputs)
-        nominator = tf.reduce_sum(true_positives, reduction_indices=[0])
-        denominator = tf.reduce_sum(outputs, reduction_indices=[0])
-        return nominator, denominator
+        numerator = tf.reduce_sum(true_positives, axis=0)
+        denominator = tf.reduce_sum(outputs, axis=0)
+        return numerator, denominator
 
 
 class Recall(_ClassificationMetric):
@@ -170,13 +174,13 @@ class Recall(_ClassificationMetric):
             one_hot_train_outputs=one_hot_train_outputs,
             thresholds=thresholds, macro_average=macro_average, name=name)
 
-    def _nominator_denominator(self, outputs, train_outputs):
-        true_positives = tf.select(
+    def _numerator_denominator(self, outputs, train_outputs):
+        true_positives = tf.where(
             tf.equal(outputs, 1.0),
             tf.cast(tf.equal(outputs, train_outputs), tf.float32), outputs)
-        nominator = tf.reduce_sum(true_positives, reduction_indices=[0])
-        denominator = tf.reduce_sum(train_outputs, reduction_indices=[0])
-        return nominator, denominator
+        numerator = tf.reduce_sum(true_positives, axis=0)
+        denominator = tf.reduce_sum(train_outputs, axis=0)
+        return numerator, denominator
 
 
 class FScore(_ClassificationMetric):
@@ -191,32 +195,33 @@ class FScore(_ClassificationMetric):
             thresholds=thresholds, macro_average=macro_average, name=name)
         self.beta = beta
 
-    def _nominator_denominator(self, outputs, train_outputs):
-        true_positives = tf.select(
+    def _numerator_denominator(self, outputs, train_outputs):
+        true_positives = tf.where(
             tf.equal(outputs, 1.0),
             tf.cast(tf.equal(outputs, train_outputs), tf.float32), outputs)
-        true_positives = tf.reduce_sum(true_positives, reduction_indices=[0])
-        output_positives = tf.reduce_sum(outputs, reduction_indices=[0])
+        true_positives = tf.reduce_sum(true_positives, axis=0)
+        output_positives = tf.reduce_sum(outputs, axis=0)
         total_positives = tf.reduce_sum(
-            train_outputs, reduction_indices=[0])
-        true_positives_precision = tf.select(
+            train_outputs, axis=0)
+        true_positives_precision = tf.where(
             tf.equal(output_positives, 0.0),
             tf.fill(tf.shape(true_positives), __EPS__), true_positives)
-        output_positives = tf.select(
+        output_positives = tf.where(
             tf.equal(output_positives, 0.0),
             tf.fill(tf.shape(output_positives), __EPS__), output_positives)
-        true_positives_recall = tf.select(
+        true_positives_recall = tf.where(
             tf.equal(total_positives, 0.0),
             tf.fill(tf.shape(true_positives), __EPS__), true_positives)
-        total_positives = tf.select(
+        total_positives = tf.where(
             tf.equal(total_positives, 0.0),
             tf.fill(tf.shape(total_positives), __EPS__), total_positives)
-        precision = tf.div(true_positives_precision, output_positives)
-        recall = tf.div(true_positives_recall, total_positives)
+        precision = tf.divide(true_positives_precision, output_positives)
+        recall = tf.divide(true_positives_recall, total_positives)
         beta_squared = self.beta * self.beta
-        nominator = tf.mul(1.0 + beta_squared, tf.mul(precision, recall))
-        denominator = tf.add(tf.mul(beta_squared, precision), recall)
-        return nominator, denominator
+        numerator = tf.multiply(
+            1.0 + beta_squared, tf.multiply(precision, recall))
+        denominator = tf.add(tf.multiply(beta_squared, precision), recall)
+        return numerator, denominator
 
 
 class F1Score(FScore):
@@ -255,7 +260,7 @@ class HammingLoss(Metric):
             thresholds = self.thresholds
         outputs = tf.nn.relu(tf.sign(outputs - thresholds))
         metric = tf.cast(tf.not_equal(outputs, train_outputs), tf.float32)
-        metric = tf.reduce_sum(metric, reduction_indices=[1])
+        metric = tf.reduce_sum(metric, axis=1)
         return tf.reduce_mean(metric)
 
 
@@ -274,7 +279,7 @@ class CrossEntropy(Metric):
         if self.one_hot_train_outputs:
             if self.scaled_predictions:
                 metric = train_outputs * outputs
-                metric = -tf.reduce_sum(metric, reduction_indices=[1])
+                metric = -tf.reduce_sum(metric, axis=1)
             else:
                 metric = tf.nn.softmax_cross_entropy_with_logits(
                     logits=outputs, labels=train_outputs)

@@ -98,9 +98,9 @@ class MajorityVote(Consensus):
 
     def _combine_outputs(self, models):
         outputs = [model.outputs for model in models]
-        outputs = tf.pack(outputs, axis=1)  # B x M x O
+        outputs = tf.stack(outputs, axis=1)  # B x M x O
         outputs = tf.exp(outputs) if self.log_outputs else outputs
-        consensus = tf.reduce_mean(outputs, reduction_indices=[1])
+        consensus = tf.reduce_mean(outputs, axis=1)
         if self.log_consensus:
             consensus = tf.log(consensus)
         return consensus, None
@@ -127,7 +127,7 @@ class TrainableMajorityVote(Consensus):
 
     def _combine_outputs(self, models):
         outputs = [model.outputs for model in models]
-        outputs = tf.pack(outputs, axis=1)  # B x M x O
+        outputs = tf.stack(outputs, axis=1)  # B x M x O
         outputs = tf.exp(outputs) if self.log_outputs else outputs
         integrator = common.LinearCombination(
             inputs_shape=tf.shape(outputs)[1:], axis=1, loss=self.loss,
@@ -155,6 +155,8 @@ class TrainableMajorityVote(Consensus):
                 labeled_data_batch = labeled_data.next()
                 feed_dict = _get_feed_dict(
                     models=models, labeled_data=labeled_data_batch)
+                feed_dict.update({integrator.train_outputs:
+                                  feed_dict[models[0].train_outputs]})
             _, loss = session.run(
                 fetches=[integrator.train_op, integrator.loss_op],
                 feed_dict=feed_dict)
@@ -179,9 +181,9 @@ class HardMajorityVote(Consensus):
 
     def _combine_outputs(self, models):
         outputs = [model.outputs for model in models]
-        outputs = tf.pack(outputs, axis=1)  # B x M x O
+        outputs = tf.stack(outputs, axis=1)  # B x M x O
         outputs = tf.exp(outputs) if self.log_outputs else outputs
-        consensus = tf.reduce_mean(outputs, reduction_indices=[1])
+        consensus = tf.reduce_mean(outputs, axis=1)
         consensus = tf.where(
             consensus >= 0.5, tf.ones_like(consensus), tf.zeros_like(consensus))
         return consensus, None
@@ -200,9 +202,9 @@ class ArgMaxMajorityVote(Consensus):
 
     def _combine_outputs(self, models):
         outputs = [model.outputs for model in models]
-        outputs = tf.pack(outputs, axis=1)  # B x M x O
+        outputs = tf.stack(outputs, axis=1)  # B x M x O
         outputs = tf.exp(outputs) if self.log_outputs else outputs
-        consensus = tf.reduce_mean(outputs, reduction_indices=[1])
+        consensus = tf.reduce_mean(outputs, axis=1)
         consensus = tf.argmax(consensus, axis=1)
         consensus = tf.one_hot(consensus, tf.shape(outputs)[2], axis=1)
         return consensus, None
@@ -222,9 +224,9 @@ class RBMConsensus(Consensus):
 
     def _combine_outputs(self, models):
         outputs = [model.outputs for model in models]
-        outputs = tf.pack(outputs, axis=1)  # B x M x O
+        outputs = tf.stack(outputs, axis=1)  # B x M x O
         outputs = tf.exp(outputs) if self.log_outputs else outputs
-        outputs = tf.unpack(outputs, axis=2)  # O x [B x M]
+        outputs = tf.unstack(outputs, axis=2)  # O x [B x M]
         optimizer = lambda: tf.train.AdamOptimizer()
         optimizer_opts = {
             'abs_loss_chg_tol': 1e-3, 'rel_loss_chg_tol': 1e-3,
@@ -238,7 +240,7 @@ class RBMConsensus(Consensus):
                 graph=None)
             for output in outputs]
         consensus = [i.outputs for i in integrators]
-        consensus = tf.squeeze(tf.pack(consensus, axis=1))
+        consensus = tf.squeeze(tf.stack(consensus, axis=1))
         if self.log_consensus:
             consensus = tf.log(consensus)
         state = (models, integrators)
@@ -320,14 +322,14 @@ class ConsensusLearnerLoss(metrics.Metric):
     def evaluate(self, outputs, train_outputs):
         num_labeled = tf.shape(train_outputs)[0]
         model_loss = self.model_loss(outputs[:num_labeled], train_outputs)
-        # model_loss = tf.mul(1-self.consensus_loss_weight, model_loss)
+        # model_loss = tf.multiply(1-self.consensus_loss_weight, model_loss)
         if self.consensus_loss_metric is None:
             consensus_loss = self.model_loss(
                 outputs[num_labeled:], self.consensus[num_labeled:])
         else:
             consensus_loss = self.consensus_loss_metric(
                 outputs[num_labeled:], self.consensus[num_labeled:])
-        consensus_loss = tf.mul(self.consensus_loss_weight, consensus_loss)
+        consensus_loss = tf.multiply(self.consensus_loss_weight, consensus_loss)
         # model_loss = tf.Print(model_loss, [model_loss], 'Model Loss: ', first_n=1000, summarize=1000)
         # consensus_loss = tf.Print(consensus_loss, [consensus_loss], 'Consensus Loss: ', first_n=1000, summarize=1000)
         return tf.add(model_loss, consensus_loss)

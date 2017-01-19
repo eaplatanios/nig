@@ -51,7 +51,8 @@ class LinearCombination(Model):
 
     def _output_op(self, inputs):
         weights = tf.Variable(tf.fill(
-            [self._weights_shape], tf.div(1.0, self._weights_shape[self.axis])),
+            [self._weights_shape],
+            tf.divide(1.0, self._weights_shape[self.axis])),
             name='weights')
         outputs = tf.multiply(inputs, weights)
         outputs = tf.reduce_sum(outputs, axis=self.axis)

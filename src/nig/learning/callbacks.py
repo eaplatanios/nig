@@ -173,8 +173,8 @@ class VariableStatisticsSummaryWriterCallback(Callback):
                     tag = scope + '/variables/' + variable.name + '/histogram'
                     tag = tf.get_default_graph().unique_name(
                         name=tag, mark_as_used=False)
-                    summaries.append(tf.histogram_summary(
-                        tag=tag, values=variable, name=tag.replace(':', '_')))
+                    summaries.append(tf.summary.histogram(
+                        name=tag.replace(':', '_'), values=variable))
             return tf.summary.merge(summaries, name='variables' + self.name)
 
     def initialize(self, learner, model, model_name, working_dir,

@@ -80,7 +80,7 @@ class ADIOS(Model):
                 )
                 biases = tf.Variable(tf.zeros([hidden_size]), name='b')
                 hidden = self.activation(tf.matmul(inputs, weights) + biases)
-                current = tf.concat(1, [current, hidden])
+                current = tf.concat_v2(1, [current, hidden])
 
         # Add the rest of hidden layers
         input_size = current.get_shape().dims[-1].value

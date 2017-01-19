@@ -37,7 +37,7 @@ class RBMLoss(Metric):
         v_sample = self.rbm._contrastive_divergence(self.rbm.cd_steps)
         v_free_energy = self.rbm._free_energy(self.rbm.inputs)
         v_sample_free_energy = self.rbm._free_energy(v_sample)
-        return tf.reduce_mean(tf.sub(v_free_energy, v_sample_free_energy))
+        return tf.reduce_mean(tf.subtract(v_free_energy, v_sample_free_energy))
 
 
 class RBM(Model):
@@ -60,7 +60,7 @@ class RBM(Model):
                 'rel_loss_chg_tol': 1e-3, 'loss_chg_iter_below_tol': 5,
                 'grads_processor': None}
         with self.graph.as_default():
-            # p = tf.reduce_mean(self.inputs, reduction_indices=[0])
+            # p = tf.reduce_mean(self.inputs, axis=0)
             # self.vb = tf.Variable(
             #     initial_value=tf.log(p / (1 - p)), name='vb')
             self.vb = tf.Variable(tf.zeros(
@@ -117,8 +117,7 @@ class RBM(Model):
     @graph_context
     def _free_energy(self, v):
         cond_term = tf.log(1 + tf.exp(tf.add(self.hb, tf.matmul(v, self.w))))
-        cond_term = -tf.reduce_sum(
-            cond_term, reduction_indices=[1], keep_dims=True)
+        cond_term = -tf.reduce_sum(cond_term, axis=1, keep_dims=True)
         bias_term = -tf.matmul(v, tf.transpose(self.vb[None]))
         return tf.add(cond_term, bias_term)
 
@@ -136,8 +135,8 @@ class RBM(Model):
                     v_sample = self._sample_binary(v_p)
                     h_p = self._conditional_h_given_v(v_sample)
                     h_samples.append(h_sample)
-                h_samples = tf.pack(h_samples, axis=0)
-                return tf.reduce_mean(h_samples, reduction_indices=[0])
+                h_samples = tf.stack(h_samples, axis=0)
+                return tf.reduce_mean(h_samples, axis=0)
 
 
 class SemiSupervisedRBMLoss(Metric):
@@ -242,8 +241,7 @@ class SemiSupervisedRBM(Model):
         if h is None:
             h_given_v_term = tf.add(self.hb, tf.matmul(v, self.w))
             cond_term = tf.log(1 + tf.exp(h_given_v_term))
-            cond_term = tf.reduce_sum(
-                cond_term, reduction_indices=[1], keep_dims=True)
+            cond_term = tf.reduce_sum(cond_term, axis=1, keep_dims=True)
             bias_term = tf.matmul(v, self.vb[:, None])
             return -tf.add(cond_term, bias_term)
         v_bias_term = tf.matmul(v, self.vb[:, None])
@@ -269,7 +267,7 @@ class SemiSupervisedRBM(Model):
                 k=self.cd_steps, initial_v=unlabeled_inputs)
         data_free_energy = self._free_energy(unlabeled_inputs)
         sample_free_energy = self._free_energy(v_sample)
-        return tf.reduce_sum(tf.sub(data_free_energy, sample_free_energy))
+        return tf.reduce_sum(tf.subtract(data_free_energy, sample_free_energy))
 
     @graph_context
     def _labeled_loss(self, labeled_inputs, labels):
@@ -282,7 +280,7 @@ class SemiSupervisedRBM(Model):
                 k=self.cd_steps, initial_v=labeled_inputs)
         data_free_energy = self._free_energy(labeled_inputs, labels)
         sample_free_energy = self._free_energy(v_sample, h_sample)
-        return tf.reduce_sum(tf.sub(data_free_energy, sample_free_energy))
+        return tf.reduce_sum(tf.subtract(data_free_energy, sample_free_energy))
 
     @graph_context
     def _combined_loss(self):
@@ -316,5 +314,5 @@ class SemiSupervisedRBM(Model):
                     v_sample = self._sample_binary(v_p)
                     h_p = self._conditional_h_given_v(v_sample)
                     h_samples.append(h_sample)
-                h_samples = tf.pack(h_samples, axis=0)
-                return tf.reduce_mean(h_samples, reduction_indices=[0])
+                h_samples = tf.stack(h_samples, axis=0)
+                return tf.reduce_mean(h_samples, axis=0)

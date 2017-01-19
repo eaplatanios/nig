@@ -61,8 +61,8 @@ class RBMIntegrator(object):
                         integrated = tf.tile(
                             input=model.outputs,
                             multiples=[1, self.num_functions])
-                        e = tf.abs(tf.sub(integrated, inputs))
-                        e = tf.reduce_mean(e, reduction_indices=[0])
+                        e = tf.abs(tf.subtract(integrated, inputs))
+                        e = tf.reduce_mean(e, axis=0)
                         predict_postprocess = lambda o, e_op=e: [o, e_op]
                     else:
                         predict_postprocess = None
@@ -140,8 +140,8 @@ class SemiSupervisedRBMIntegrator(object):
                         integrated = tf.tile(
                             input=model.outputs,
                             multiples=[1, self.num_functions])
-                        e = tf.abs(tf.sub(integrated, inputs))
-                        e = tf.reduce_mean(e, reduction_indices=[0])
+                        e = tf.abs(tf.subtract(integrated, inputs))
+                        e = tf.reduce_mean(e, axis=0)
                         predict_postprocess = lambda o, e_op=e: [o, e_op]
                     else:
                         predict_postprocess = None

@@ -84,7 +84,7 @@ def dynamic_raw_rnn(cell, inputs, sequence_length=None, initial_state=None,
         # Shape validation for sequence_length
         def _assert_has_shape(tensor, shape):
             tensor_shape = tf.shape(tensor)
-            packed_shape = tf.pack(shape)
+            packed_shape = tf.stack(shape)
             return tf.Assert(
                 tf.reduce_all(tf.equal(tensor_shape, packed_shape)),
                 ['Expected shape for Tensor ', tensor.name, ' is ',
@@ -201,7 +201,7 @@ def dynamic_hierarchical_rnn(cells, periods, inputs, sequence_length=None,
         # Shape validation for sequence_length
         def _assert_has_shape(tensor, shape):
             tensor_shape = tf.shape(tensor)
-            packed_shape = tf.pack(shape)
+            packed_shape = tf.stack(shape)
             return tf.Assert(
                 tf.reduce_all(tf.equal(tensor_shape, packed_shape)),
                 ['Expected shape for Tensor ', tensor.name, ' is ',
@@ -298,7 +298,7 @@ def dynamic_rnn(cell, inputs, sequence_length=None, initial_state=None,
         # Shape validation for sequence_length
         def _assert_has_shape(tensor, shape):
             tensor_shape = tf.shape(tensor)
-            packed_shape = tf.pack(shape)
+            packed_shape = tf.stack(shape)
             return tf.Assert(
                 tf.reduce_all(tf.equal(tensor_shape, packed_shape)),
                 ['Expected shape for Tensor ', tensor.name, ' is ',
@@ -362,8 +362,8 @@ def _dynamic_rnn_loop(cell, inputs, initial_state, parallel_iterations,
 
     # Prepare dynamic conditional copying of state & output
     def _create_zero_arrays(size):
-        size = tf.nn.rnn_cell._state_size_with_prefix(size, prefix=[batch_size])
-        return tf.zeros(tf.pack(size), _infer_state_dtype(dtype, state))
+        size = tf.contrib.rnn._state_size_with_prefix(size, prefix=[batch_size])
+        return tf.zeros(tf.stack(size), _infer_state_dtype(dtype, state))
     flat_zero_output = tuple(_create_zero_arrays(output)
                              for output in flat_output_size)
     zero_output = tf.nest.pack_sequence_as(
@@ -434,7 +434,7 @@ def _dynamic_rnn_step(time, sequence_length, min_sequence_length,
     flat_zero_output = tf.nest.flatten(zero_output)
 
     def _copy_one_through(output, new_output):
-        return tf.select(time >= sequence_length, output, new_output)
+        return tf.where(time >= sequence_length, output, new_output)
 
     def _copy_some_through(flat_new_output, flat_new_state):
         # Use broadcasting select to determine which values should get the
@@ -518,8 +518,8 @@ def raw_rnn(cell, loop_function, parallel_iterations=None, swap_memory=False,
           time=time + 1, cell_output=output, cell_state=cell_state,
           loop_state=loop_state)
       # Emit zeros and copy forward state for minibatch entries that are finished.
-      state = tf.select(finished, state, next_state)
-      emit = tf.select(finished, tf.zeros_like(emit), emit)
+      state = tf.where(finished, state, next_state)
+      emit = tf.where(finished, tf.zeros_like(emit), emit)
       emit_ta = emit_ta.write(time, emit)
       # If any new minibatch entries are marked as finished, mark these
       finished = tf.logical_or(finished, next_finished)
@@ -736,7 +736,7 @@ def raw_rnn(cell, loop_function, parallel_iterations=None, swap_memory=False,
             def _copy_some_through(current, candidate):
                 current_flat = tf.nest.flatten(current)
                 candidate_flat = tf.nest.flatten(candidate)
-                result_flat = [tf.select(finished, curr, cand)
+                result_flat = [tf.where(finished, curr, cand)
                                for curr, cand
                                in zip(current_flat, candidate_flat)]
                 return tf.nest.pack_sequence_as(

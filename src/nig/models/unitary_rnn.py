@@ -57,8 +57,8 @@ class URNNCell(tf.contrib.rnn.RNNCell):
                 tf.get_variable(
                     name='B', dtype=tf.float32, shape=[self._num_units],
                     initializer=tf.constant_initializer(0.0)))
-            out = tf.concat(
-                concat_dim=1, values=[tf.real(next_state), tf.imag(next_state)])
+            out = tf.concat_v2(
+                axis=1, values=[tf.real(next_state), tf.imag(next_state)])
             w_out = tf.get_variable(
                 name='W_out', shape=[self._num_units * 2, self.output_size])
             b_out = tf.get_variable(
@@ -111,7 +111,7 @@ class URNNCell(tf.contrib.rnn.RNNCell):
 #         if len(args) == 1:
 #             res = tf.matmul(args[0], matrix)
 #         else:
-#             res = tf.matmul(tf.concat(1, args), matrix)
+#             res = tf.matmul(tf.concat_v2(args, 1), matrix)
 #         if not bias:
 #             return res
 #         bias_term = tf.get_variable(
