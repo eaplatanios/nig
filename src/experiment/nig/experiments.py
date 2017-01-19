@@ -276,7 +276,8 @@ class ExperimentBase(with_metaclass(abc.ABCMeta, object)):
         callbacks = []
         if self.logging_frequency > 0:
             callbacks.append(nig.LoggerCallback(
-                frequency=self.logging_frequency, stored_values=loss_values))
+                frequency=self.logging_frequency, stored_values=loss_values,
+                name='loss'))
         if self.summary_frequency > 0:
             callbacks.append(nig.SummaryWriterCallback(
                 frequency=self.summary_frequency))
@@ -289,12 +290,14 @@ class ExperimentBase(with_metaclass(abc.ABCMeta, object)):
                 callbacks.append(nig.EvaluationCallback(
                     frequency=self.evaluation_frequency,
                     data=self._get_iterator(train_data), metrics=metric,
-                    name='eval/train', stored_values=eval_train_values[i]))
+                    name='eval/train/' + str(metric),
+                    stored_values=eval_train_values[i]))
             if self.evaluation_frequency > 0 and test_data is not None:
                 callbacks.append(nig.EvaluationCallback(
                     frequency=self.evaluation_frequency,
                     data=self._get_iterator(test_data), metrics=metric,
-                    name='eval/test', stored_values=eval_test_values[i]))
+                    name='eval/test/' + str(metric),
+                    stored_values=eval_test_values[i]))
         if self.variable_statistics_frequency > 0:
             callbacks.append(nig.VariableStatisticsSummaryWriterCallback(
                 frequency=self.variable_statistics_frequency,

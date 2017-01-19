@@ -31,8 +31,7 @@ from ..utilities.functions import memoize
 
 __author__ = 'eaplatanios'
 
-__all__ = ['Consensus', 'Vote', 'HardMajorityVote',
-           'ArgMaxMajorityVote', 'RBMConsensus', 'ConsensusLearnerLoss',
+__all__ = ['Consensus', 'Vote', 'RBMConsensus', 'ConsensusLearnerLoss',
            'ConsensusLearner']
 
 logger = logging.getLogger(__name__)

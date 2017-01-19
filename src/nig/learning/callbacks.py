@@ -60,7 +60,7 @@ class Callback(with_metaclass(abc.ABCMeta, object)):
 
 
 class LoggerCallback(Callback):
-    def __init__(self, frequency=100, name='logger_callback',
+    def __init__(self, frequency=100, name='logger',
                  log_format='{:>20} - | {:>10d} | {:>15.4e} |',
                  header='{:>20} - | {:>10} | {:>15} |'
                         .format('logger_callback', 'Step', 'Loss'),
@@ -137,7 +137,7 @@ class SummaryWriterCallback(Callback):
 
 class VariableStatisticsSummaryWriterCallback(Callback):
     def __init__(self, frequency=100, variables='trainable', statistics=None,
-                 histogram=True, name='variable_stats_writer_callback'):
+                 histogram=True, name='variable_stats_writer'):
         super(VariableStatisticsSummaryWriterCallback, self).__init__(frequency)
         self.variables = variables
         if statistics is None:
@@ -288,7 +288,7 @@ class CheckpointWriterCallback(Callback):
 class EvaluationCallback(Callback):
     def __init__(self, frequency, data, metrics, predict_postprocess=None,
                  number_of_batches=-1, aggregating_function=np.mean,
-                 name='eval_callback', log_format=None, header=None,
+                 name='evaluation', log_format=None, header=None,
                  header_frequency=sys.maxsize, summary=False,
                  stored_values=None):
         super(EvaluationCallback, self).__init__(frequency)
