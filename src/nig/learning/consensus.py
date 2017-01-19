@@ -31,9 +31,9 @@ from ..utilities.functions import memoize
 
 __author__ = 'eaplatanios'
 
-__all__ = ['Consensus', 'MajorityVote', 'TrainableMajorityVote',
-           'HardMajorityVote', 'ArgMaxMajorityVote', 'RBMConsensus',
-           'ConsensusLearnerLoss', 'ConsensusLearner']
+__all__ = ['Consensus', 'MajorityVote', 'HardMajorityVote',
+           'ArgMaxMajorityVote', 'RBMConsensus', 'ConsensusLearnerLoss',
+           'ConsensusLearner']
 
 logger = logging.getLogger(__name__)
 
@@ -91,44 +91,36 @@ class Consensus(with_metaclass(abc.ABCMeta, object)):
 
 
 class MajorityVote(Consensus):
-    def __init__(self, log_outputs=False, log_consensus=False):
+    def __init__(self, log_outputs=False, log_consensus=False, trainable=False,
+                 loss=None, loss_summary=False, optimizer=None,
+                 optimizer_opts=None):
         super(MajorityVote, self).__init__()
         self.log_outputs = log_outputs
         self.log_consensus = log_consensus
+        self.trainable = trainable
+        if self.trainable:
+            if loss is None:
+                loss = metrics.L2Loss()
+            self.loss = loss
+            self.loss_summary = loss_summary
+            if optimizer is None:
+                optimizer = lambda: tf.train.AdamOptimizer()
+            self.optimizer = optimizer
+            if optimizer_opts is None:
+                optimizer_opts = {
+                    'abs_loss_chg_tol': 1e-3, 'rel_loss_chg_tol': 1e-3,
+                    'loss_chg_iter_below_tol': 5, 'grads_processor': None}
+            self.optimizer_opts = optimizer_opts
 
     def _combine_outputs(self, models):
         outputs = [model.outputs for model in models]
         outputs = tf.stack(outputs, axis=1)  # B x M x O
         outputs = tf.exp(outputs) if self.log_outputs else outputs
-        consensus = tf.reduce_mean(outputs, axis=1)
-        if self.log_consensus:
-            consensus = tf.log(consensus)
-        return consensus, None
-
-
-class TrainableMajorityVote(Consensus):
-    def __init__(self, log_outputs=False, log_consensus=False, loss=None,
-                 loss_summary=False, optimizer=None, optimizer_opts=None):
-        super(TrainableMajorityVote, self).__init__()
-        self.log_outputs = log_outputs
-        self.log_consensus = log_consensus
-        if loss is None:
-            loss = metrics.L2Loss()
-        self.loss = loss
-        self.loss_summary = loss_summary
-        if optimizer is None:
-            optimizer = lambda: tf.train.AdamOptimizer()
-        self.optimizer = optimizer
-        if optimizer_opts is None:
-            optimizer_opts = {
-                'abs_loss_chg_tol': 1e-3, 'rel_loss_chg_tol': 1e-3,
-                'loss_chg_iter_below_tol': 5, 'grads_processor': None}
-        self.optimizer_opts = optimizer_opts
-
-    def _combine_outputs(self, models):
-        outputs = [model.outputs for model in models]
-        outputs = tf.stack(outputs, axis=1)  # B x M x O
-        outputs = tf.exp(outputs) if self.log_outputs else outputs
+        if not self.trainable:
+            consensus = tf.reduce_mean(outputs, axis=1)
+            if self.log_consensus:
+                consensus = tf.log(consensus)
+            return consensus, None
         integrator = common.LinearCombination(
             inputs=outputs, axis=1, loss=self.loss,
             loss_summary=self.loss_summary, optimizer=self.optimizer,
@@ -141,6 +133,8 @@ class TrainableMajorityVote(Consensus):
 
     def train(self, state, session, labeled_data=None, unlabeled_data=None,
               max_iter=100):
+        if not self.trainable:
+            return
         models, integrator = state
         prev_loss = sys.float_info.max
         iter_below_tol = 0
@@ -156,7 +150,7 @@ class TrainableMajorityVote(Consensus):
                 feed_dict = _get_feed_dict(
                     models=models, labeled_data=labeled_data_batch)
                 feed_dict.update({integrator.train_outputs:
-                                  feed_dict[models[0].train_outputs]})
+                                      feed_dict[models[0].train_outputs]})
             _, loss = session.run(
                 fetches=[integrator.train_op, integrator.loss_op],
                 feed_dict=feed_dict)
