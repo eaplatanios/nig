@@ -25,22 +25,27 @@ __all__ = ['LinearCombination', 'MultiLayerPerceptron']
 
 
 class LinearCombination(Model):
-    def __init__(self, inputs_shape, axis, loss=None, loss_summary=False,
+    def __init__(self, inputs, axis, loss=None, loss_summary=False,
                  optimizer=None, optimizer_opts=None):
-        if not isinstance(inputs_shape, list):
-            inputs_shape = list(inputs_shape)
-        inputs_shape = [None] + inputs_shape
-        self.axis = axis + 1
-        self._weights_shape = inputs_shape
+        self.axis = axis
+        if isinstance(inputs, tf.Tensor):
+            _train_outputs_shape = inputs.get_shape().as_list()
+            _train_outputs_shape.pop(self.axis)
+        elif not isinstance(inputs, list):
+            _train_outputs_shape = list(inputs)
+        else:
+            _train_outputs_shape = inputs
+        self._weights_shape = _train_outputs_shape.copy()
         for axis in range(len(self._weights_shape)):
             if axis != self.axis:
                 self._weights_shape[axis] = 1
         with tf.name_scope('linear'):
-            inputs = tf.placeholder(
-                tf.float32, shape=[None] + inputs_shape, name='inputs')
+            if not isinstance(inputs, tf.Tensor):
+                inputs = tf.placeholder(
+                    tf.float32, shape=inputs.get_shape(), name='inputs')
             outputs = self._output_op(inputs)
             train_outputs = tf.placeholder(
-                tf.float32, shape=[None] + inputs_shape, name='train_outputs')
+                tf.float32, shape=_train_outputs_shape, name='train_outputs')
         super(LinearCombination, self).__init__(
             inputs=inputs, outputs=outputs, train_outputs=train_outputs,
             loss=loss, loss_summary=loss_summary, optimizer=optimizer,
@@ -51,7 +56,7 @@ class LinearCombination(Model):
 
     def _output_op(self, inputs):
         weights = tf.Variable(tf.fill(
-            [self._weights_shape],
+            self._weights_shape,
             tf.divide(1.0, self._weights_shape[self.axis])),
             name='weights')
         outputs = tf.multiply(inputs, weights)

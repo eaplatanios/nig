@@ -130,7 +130,7 @@ class TrainableMajorityVote(Consensus):
         outputs = tf.stack(outputs, axis=1)  # B x M x O
         outputs = tf.exp(outputs) if self.log_outputs else outputs
         integrator = common.LinearCombination(
-            inputs_shape=tf.shape(outputs)[1:], axis=1, loss=self.loss,
+            inputs=outputs, axis=1, loss=self.loss,
             loss_summary=self.loss_summary, optimizer=self.optimizer,
             optimizer_opts=self.optimizer_opts)
         consensus = integrator.outputs
