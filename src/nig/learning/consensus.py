@@ -122,7 +122,7 @@ class MajorityVote(Consensus):
                 consensus = tf.log(consensus)
             return consensus, None
         integrator = common.LinearCombination(
-            inputs=outputs, axis=1, loss=self.loss,
+            inputs=outputs, axis=1, convex=True, loss=self.loss,
             loss_summary=self.loss_summary, optimizer=self.optimizer,
             optimizer_opts=self.optimizer_opts)
         consensus = integrator.outputs
@@ -150,7 +150,7 @@ class MajorityVote(Consensus):
                 feed_dict = _get_feed_dict(
                     models=models, labeled_data=labeled_data_batch)
                 feed_dict.update({integrator.train_outputs:
-                                      feed_dict[models[0].train_outputs]})
+                                  feed_dict[models[0].train_outputs]})
             _, loss = session.run(
                 fetches=[integrator.train_op, integrator.loss_op],
                 feed_dict=feed_dict)

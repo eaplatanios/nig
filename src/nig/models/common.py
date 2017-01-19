@@ -25,17 +25,19 @@ __all__ = ['LinearCombination', 'MultiLayerPerceptron']
 
 
 class LinearCombination(Model):
-    def __init__(self, inputs, axis, loss=None, loss_summary=False,
+    def __init__(self, inputs, axis, convex=True, loss=None, loss_summary=False,
                  optimizer=None, optimizer_opts=None):
         self.axis = axis
+        self.convex = convex
         if isinstance(inputs, tf.Tensor):
-            _train_outputs_shape = inputs.get_shape().as_list()
-            _train_outputs_shape.pop(self.axis)
+            _inputs_shape = inputs.get_shape().as_list()
         elif not isinstance(inputs, list):
-            _train_outputs_shape = list(inputs)
+            _inputs_shape = list(inputs)
         else:
-            _train_outputs_shape = inputs
-        self._weights_shape = _train_outputs_shape.copy()
+            _inputs_shape = inputs
+        self._weights_shape = _inputs_shape.copy()
+        _inputs_shape.pop(self.axis)
+        _train_outputs_shape = _inputs_shape
         for axis in range(len(self._weights_shape)):
             if axis != self.axis:
                 self._weights_shape[axis] = 1
@@ -55,10 +57,10 @@ class LinearCombination(Model):
         return 'LinearCombination[{}]'.format(self.inputs.get_shape()[1])
 
     def _output_op(self, inputs):
-        weights = tf.Variable(tf.fill(
-            self._weights_shape,
-            tf.divide(1.0, self._weights_shape[self.axis])),
-            name='weights')
+        weights = tf.Variable(tf.ones(self._weights_shape), name='weight')
+        if self.convex:
+            weights = tf.square(weights)
+            weights = tf.divide(weights, tf.reduce_sum(weights))
         outputs = tf.multiply(inputs, weights)
         outputs = tf.reduce_sum(outputs, axis=self.axis)
         return outputs
