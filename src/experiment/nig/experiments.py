@@ -290,13 +290,13 @@ class ExperimentBase(with_metaclass(abc.ABCMeta, object)):
                 callbacks.append(nig.EvaluationCallback(
                     frequency=self.evaluation_frequency,
                     data=self._get_iterator(train_data), metrics=metric,
-                    name='eval/train/' + str(metric),
+                    name='eval/train/' + metric.name_scope,
                     stored_values=eval_train_values[i]))
             if self.evaluation_frequency > 0 and test_data is not None:
                 callbacks.append(nig.EvaluationCallback(
                     frequency=self.evaluation_frequency,
                     data=self._get_iterator(test_data), metrics=metric,
-                    name='eval/test/' + str(metric),
+                    name='eval/test/' + metric.name_scope,
                     stored_values=eval_test_values[i]))
         if self.variable_statistics_frequency > 0:
             callbacks.append(nig.VariableStatisticsSummaryWriterCallback(
