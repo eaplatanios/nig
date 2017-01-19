@@ -21,7 +21,41 @@ from ..learning.models import Model
 
 __author__ = 'eaplatanios'
 
-__all__ = ['MultiLayerPerceptron']
+__all__ = ['LinearCombination', 'MultiLayerPerceptron']
+
+
+class LinearCombination(Model):
+    def __init__(self, inputs_shape, axis, loss=None, loss_summary=False,
+                 optimizer=None, optimizer_opts=None):
+        if not isinstance(inputs_shape, list):
+            inputs_shape = list(inputs_shape)
+        inputs_shape = [None] + inputs_shape
+        self.axis = axis + 1
+        self._weights_shape = inputs_shape
+        for axis in range(len(self._weights_shape)):
+            if axis != self.axis:
+                self._weights_shape[axis] = 1
+        with tf.name_scope('linear'):
+            inputs = tf.placeholder(
+                tf.float32, shape=[None] + inputs_shape, name='inputs')
+            outputs = self._output_op(inputs)
+            train_outputs = tf.placeholder(
+                tf.float32, shape=[None] + inputs_shape, name='train_outputs')
+        super(LinearCombination, self).__init__(
+            inputs=inputs, outputs=outputs, train_outputs=train_outputs,
+            loss=loss, loss_summary=loss_summary, optimizer=optimizer,
+            optimizer_opts=optimizer_opts)
+
+    def __str__(self):
+        return 'LinearCombination[{}]'.format(self.inputs.get_shape()[1])
+
+    def _output_op(self, inputs):
+        weights = tf.Variable(tf.fill(
+            [self._weights_shape], tf.div(1.0, self._weights_shape[self.axis])),
+            name='weights')
+        outputs = tf.multiply(inputs, weights)
+        outputs = tf.reduce_sum(outputs, axis=self.axis)
+        return outputs
 
 
 class MultiLayerPerceptron(Model):
