@@ -36,7 +36,7 @@ working_dir = os.path.join(os.getcwd(), 'working', 'delicious')
 checkpoint_file_prefix = 'ckpt'
 restore_sequentially = False
 save_trained = False
-optimizer = lambda: tf.train.AdagradOptimizer(0.1)  # nig.gradient_descent(1e-1, decay_rate=0.99)
+optimizer = lambda: tf.train.AdamOptimizer()  # nig.gradient_descent(1e-1, decay_rate=0.99)
 gradients_processor = None  # lambda g: tf.clip_by_norm(g, 1e1)
 
 # optimizer = tf.contrib.opt.ScipyOptimizerInterface

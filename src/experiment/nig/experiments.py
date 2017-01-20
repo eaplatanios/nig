@@ -476,7 +476,7 @@ class DeliciousExperiment(ExperimentBase):
         self.architectures = architectures
         # self.loss = nig.L2Loss()
         self.loss = nig.CrossEntropy(
-            log_outputs=True, one_hot_train_outputs=True)
+            log_outputs=False, one_hot_train_outputs=True)
         optimizer_opts = {
             'batch_size': labeled_batch_size,
             'max_iter': max_iter,
