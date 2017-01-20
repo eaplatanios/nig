@@ -123,4 +123,6 @@ class MultiLayerPerceptron(Model):
             return tf.log(tf.sigmoid(outputs))
         elif self.log_output:
             return tf.log(outputs)
+        elif self.sigmoid_output:
+            return tf.sigmoid(outputs)
         return outputs
