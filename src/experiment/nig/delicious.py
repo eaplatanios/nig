@@ -22,7 +22,7 @@ activation = nig.leaky_relu(0.01)
 labeled_batch_size = 128
 unlabeled_batch_size = 128
 test_data_proportion = 0.95
-max_iter = 10000
+max_iter = 1000
 abs_loss_chg_tol = 1e-6
 rel_loss_chg_tol = 1e-6
 loss_chg_iter_below_tol = 5
@@ -51,11 +51,11 @@ gradients_processor = None  # lambda g: tf.clip_by_norm(g, 1e1)
 consensus_loss_metric = None
 
 consensus_configurations = [
-    # ('Majority 0.0', {'consensus_method': nig.Vote(
-    #     trainable=False, hard_vote=False, argmax_vote=False),
-    #                   'consensus_loss_weight': 0.0,
-    #                   'consensus_loss_metric': None,
-    #                   'first_consensus': 10}),
+    ('Majority 0.0', {'consensus_method': nig.Vote(
+        trainable=False, hard_vote=False, argmax_vote=False),
+                      'consensus_loss_weight': 0.0,
+                      'consensus_loss_metric': None,
+                      'first_consensus': 10}),
     # ('Majority 0.1', {'consensus_method': nig.Vote(trainable=False),
     #                   'consensus_loss_weight': 0.1,
     #                   'consensus_loss_metric': None,
@@ -65,19 +65,19 @@ consensus_configurations = [
     #                   'consensus_loss_weight': 0.5,
     #                   'consensus_loss_metric': None,
     #                   'first_consensus': 10}),
-    # ('Majority 1.0', {'consensus_method': nig.Vote(
-    #     trainable=False, hard_vote=False, argmax_vote=False),
-    #                   'consensus_loss_weight': 1.0,
-    #                   'consensus_loss_metric': None,
-    #                   'first_consensus': 10}),
-    # ('Trainable Majority 0.0', {'consensus_method': nig.Vote(
-    #     trainable=True, hard_vote=False, argmax_vote=False),
-    #                             'consensus_loss_weight': 0.0,
-    #                             'consensus_loss_metric': None,
-    #                             'first_consensus': 10,
-    #                             'first_consensus_max_iter': 1000,
-    #                             'consensus_update_frequency': 10,
-    #                             'consensus_update_max_iter': 500}),
+    ('Majority 1.0', {'consensus_method': nig.Vote(
+        trainable=False, hard_vote=False, argmax_vote=False),
+                      'consensus_loss_weight': 1.0,
+                      'consensus_loss_metric': None,
+                      'first_consensus': 10}),
+    ('Trainable Majority 0.0', {'consensus_method': nig.Vote(
+        trainable=True, hard_vote=False, argmax_vote=False),
+                                'consensus_loss_weight': 0.0,
+                                'consensus_loss_metric': None,
+                                'first_consensus': 10,
+                                'first_consensus_max_iter': 1000,
+                                'consensus_update_frequency': 10,
+                                'consensus_update_max_iter': 500}),
     # ('Trainable Majority 0.1', {'consensus_method': nig.Vote(
     #     trainable=True, hard_vote=False, argmax_vote=False),
     #                             'consensus_loss_weight': 0.1,
