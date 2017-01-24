@@ -80,12 +80,12 @@ def _assert_broadcastable(weights, values, name=None):
             weights = tf.convert_to_tensor(weights, name=weights_scope)
             weights_shape = tf.shape(weights, name='shape')
             weights_rank = tf.rank(weights, name='rank')
-        weights_rank_static = tf.tensor_util.constant_value(weights_rank)
+        weights_rank_static = tf.contrib.util.constant_value(weights_rank)
         with tf.name_scope(None, 'values', (values,)) as values_scope:
             values = tf.convert_to_tensor(values, name=values_scope)
             values_shape = tf.shape(values, name='shape')
             values_rank = tf.rank(values, name='rank')
-        values_rank_static = tf.tensor_util.constant_value(values_rank)
+        values_rank_static = tf.contrib.util.constant_value(values_rank)
 
         if weights_rank_static is not None and values_rank_static is not None:
             # Use static shape if known.
@@ -96,8 +96,8 @@ def _assert_broadcastable(weights, values, name=None):
                     '%s (values.rank=%s, weights.rank=%s).' % (
                         __ASSERT_BROADCASTABLE_ERROR_PREFIX__,
                         values_rank_static, weights_rank_static))
-            weights_shape_static = tf.tensor_util.constant_value(weights_shape)
-            values_shape_static = tf.tensor_util.constant_value(values_shape)
+            weights_shape_static = tf.contrib.util.constant_value(weights_shape)
+            values_shape_static = tf.contrib.util.constant_value(values_shape)
             if weights_shape_static is not None \
                     and values_shape_static is not None:
                 # Sanity checking. This should always be true since we checked

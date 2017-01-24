@@ -26,7 +26,7 @@ def create_local(shape, name, trainable=False, collections=None,
     """Creates a new local variable.
 
     Args:
-        shape (tuple): Shape of the variable.
+        shape (tuple, list): Shape of the variable.
         name (str): Name of the new variable.
         trainable (bool, optional): Optional boolean value indicating whether
             the new variable is trainable or not. Defaults to `False`.

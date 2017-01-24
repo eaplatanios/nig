@@ -20,6 +20,7 @@ import tensorflow as tf
 
 from six import with_metaclass
 
+from ..ops.classification_ops import accuracy
 from ..utilities.tensorflow import name_scope_context
 
 __author__ = 'eaplatanios'
@@ -71,6 +72,37 @@ class L2Loss(Metric):
         metric = tf.square(tf.subtract(outputs, train_outputs))
         num_samples = tf.cast(tf.shape(metric)[0], tf.float32)
         return tf.reduce_sum(metric) / num_samples
+
+
+class Accuracy(Metric):
+    def __init__(self, log_outputs=True, scaled_outputs=False,
+                 one_hot_train_outputs=False, thresholds=0.5,
+                 macro_average=True, name='accuracy'):
+        super(Accuracy, self).__init__(name=name)
+        self.log_outputs = log_outputs
+        self.scaled_outputs = scaled_outputs
+        self.one_hot_train_outputs = one_hot_train_outputs
+        self.thresholds = thresholds
+        self.macro_average = macro_average
+
+    @name_scope_context
+    def evaluate(self, outputs, train_outputs):
+        if not self.scaled_outputs:
+            if self.log_outputs:
+                outputs = tf.nn.log_softmax(outputs)
+            else:
+                outputs = tf.nn.softmax(outputs)
+        if not self.one_hot_train_outputs:
+            train_outputs = tf.one_hot(
+                indices=train_outputs, depth=tf.shape(outputs)[1])
+        if self.log_outputs:
+            thresholds = tf.log(self.thresholds)
+        else:
+            thresholds = self.thresholds
+        return accuracy(
+            predictions=outputs, labels=train_outputs, thresholds=thresholds,
+            weights=None, macro_average=self.macro_average,
+            requested_ops='value')
 
 
 class _ClassificationMetric(Metric):
@@ -129,22 +161,6 @@ class _ClassificationMetric(Metric):
     @abc.abstractmethod
     def _numerator_denominator(self, outputs, train_outputs):
         pass
-
-
-class Accuracy(_ClassificationMetric):
-    def __init__(self, log_outputs=True, scaled_outputs=False,
-                 one_hot_train_outputs=False, thresholds=0.5,
-                 macro_average=True, name='accuracy'):
-        super(Accuracy, self).__init__(
-            log_outputs=log_outputs, scaled_outputs=scaled_outputs,
-            one_hot_train_outputs=one_hot_train_outputs,
-            thresholds=thresholds, macro_average=macro_average, name=name)
-
-    def _numerator_denominator(self, outputs, train_outputs):
-        temp_outputs = tf.cast(tf.equal(outputs, train_outputs), tf.float32)
-        numerator = tf.reduce_sum(temp_outputs, axis=0)
-        denominator = tf.cast(tf.shape(outputs)[0], tf.float32)
-        return numerator, denominator
 
 
 class Precision(_ClassificationMetric):
@@ -268,18 +284,17 @@ class CrossEntropy(Metric):
     def __init__(self, log_outputs=True, scaled_outputs=False,
                  one_hot_train_outputs=False, name='cross entropy'):
         super(CrossEntropy, self).__init__(name=name)
-        self.log_predictions = log_outputs
-        self.scaled_predictions = scaled_outputs
+        self.log_outputs = log_outputs
+        self.scaled_outputs = scaled_outputs
         self.one_hot_train_outputs = one_hot_train_outputs
 
     @name_scope_context
     def evaluate(self, outputs, train_outputs):
-        if not self.log_predictions:
+        if not self.log_outputs:
             outputs = tf.log(outputs)
         if self.one_hot_train_outputs:
-            if self.scaled_predictions:
-                metric = train_outputs * outputs
-                metric = -tf.reduce_sum(metric, axis=1)
+            if self.scaled_outputs:
+                metric = -tf.reduce_sum(train_outputs * outputs, axis=1)
             else:
                 metric = tf.nn.softmax_cross_entropy_with_logits(
                     logits=outputs, labels=train_outputs)
