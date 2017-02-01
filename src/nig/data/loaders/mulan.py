@@ -23,6 +23,7 @@ import patoolib
 import xml.etree.ElementTree
 
 from . import utilities
+from ..utilities import serialize_data, deserialize_data
 
 __author__ = 'eaplatanios'
 
@@ -64,8 +65,7 @@ def extract_data(filename):
         label_indices = [i in labels for i in label_indices]
         data_indices = [not i for i in label_indices]
         data = np.array(data['data'], dtype=np.float32)
-        data = data[:, data_indices], data[:, label_indices]
-        return np.column_stack(data)
+        return data[:, data_indices], data[:, label_indices]
 
     logger.info('Extracting ' + filename)
     directory = os.path.dirname(filename)
@@ -101,9 +101,9 @@ def load(working_dir, data_set):
             filename=filename, working_dir=working_dir,
             source_url=SOURCE_URL + filename)
         train_data, test_data = extract_data(local_file)
-        np.save(train_data_file, train_data)
-        np.save(test_data_file, test_data)
+        serialize_data(data=train_data, path=train_data_file)
+        serialize_data(data=test_data, path=test_data_file)
     else:
-        train_data = np.load(train_data_file)
-        test_data = np.load(test_data_file)
+        train_data = deserialize_data(path=train_data_file)
+        test_data = deserialize_data(path=test_data_file)
     return train_data, test_data

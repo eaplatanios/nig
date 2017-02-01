@@ -534,3 +534,78 @@ class DeliciousExperiment(ExperimentBase):
             return train_data, test_data
         # TODO: Use test_proportion.
         return train_data, test_data
+
+
+class EmotionsExperiment(ExperimentBase):
+    def __init__(self, architectures, activation=tf.nn.relu,
+                 labeled_batch_size=100, unlabeled_batch_size=100,
+                 test_data_proportion=0.1, max_iter=1000, abs_loss_chg_tol=1e-6,
+                 rel_loss_chg_tol=1e-6, loss_chg_iter_below_tol=5,
+                 logging_frequency=10, summary_frequency=100,
+                 checkpoint_frequency=1000, evaluation_frequency=10,
+                 variable_statistics_frequency=-1, run_meta_data_frequency=-1,
+                 working_dir=os.path.join(os.getcwd(), 'working'),
+                 checkpoint_file_prefix='ckpt', restore_sequentially=False,
+                 save_trained=True, optimizer=lambda: tf.train.AdamOptimizer(),
+                 gradients_processor=None):
+        self.architectures = architectures
+        self.loss = nig.L2Loss()
+        # self.loss = nig.CrossEntropy(
+        #     log_outputs=False, one_hot_train_outputs=True)
+        optimizer_opts = {
+            'batch_size': labeled_batch_size,
+            'max_iter': max_iter,
+            'abs_loss_chg_tol': abs_loss_chg_tol,
+            'rel_loss_chg_tol': rel_loss_chg_tol,
+            'loss_chg_iter_below_tol': loss_chg_iter_below_tol,
+            'grads_processor': gradients_processor}
+        models = [nig.MultiLayerPerceptron(
+            72, 6, architecture, activation=activation, softmax_output=False,
+            sigmoid_output=True, log_output=False, train_outputs_one_hot=True,
+            loss=self.loss, loss_summary=False, optimizer=optimizer,
+            optimizer_opts=optimizer_opts)
+                  for architecture in self.architectures]
+        # eval_metric = nig.HammingLoss(log_predictions=False)
+        eval_metrics = [
+            nig.Accuracy(
+                log_outputs=False, scaled_outputs=True,
+                one_hot_train_outputs=True, thresholds=0.5, macro_average=True),
+            nig.Precision(
+                log_outputs=False, scaled_outputs=True,
+                one_hot_train_outputs=True, thresholds=0.5, macro_average=True),
+            nig.Recall(
+                log_outputs=False, scaled_outputs=True,
+                one_hot_train_outputs=True, thresholds=0.5, macro_average=True),
+            nig.F1Score(
+                log_outputs=False, scaled_outputs=True,
+                one_hot_train_outputs=True, thresholds=0.5, macro_average=True)]
+        super(EmotionsExperiment, self).__init__(
+            models=models, eval_metrics=eval_metrics,
+            labeled_batch_size=labeled_batch_size,
+            unlabeled_batch_size=unlabeled_batch_size,
+            test_data_proportion=test_data_proportion,
+            logging_frequency=logging_frequency,
+            summary_frequency=summary_frequency,
+            checkpoint_frequency=checkpoint_frequency,
+            evaluation_frequency=evaluation_frequency,
+            variable_statistics_frequency=variable_statistics_frequency,
+            run_meta_data_frequency=run_meta_data_frequency,
+            working_dir=working_dir,
+            checkpoint_file_prefix=checkpoint_file_prefix,
+            restore_sequentially=restore_sequentially,
+            save_trained=save_trained)
+
+    def __str__(self):
+        return 'delicious'
+
+    def experiment_information(self):
+        return {'architectures': str(self.architectures),
+                'loss': str(self.loss)}
+
+    def load_data(self, test_proportion=None):
+        train_data, test_data = loaders.mulan.load(
+            os.path.join(self.working_dir, 'data'), 'emotions')
+        if test_proportion is None:
+            return train_data, test_data
+        # TODO: Use test_proportion.
+        return train_data, test_data
