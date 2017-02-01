@@ -475,8 +475,8 @@ class DeliciousExperiment(ExperimentBase):
                  gradients_processor=None):
         self.architectures = architectures
         # self.loss = nig.L2Loss()
-        self.loss = nig.CrossEntropy(
-            log_outputs=False, one_hot_train_outputs=True, binary=True)
+        self.loss = nig.BinaryCrossEntropy(
+            log_outputs=False, one_hot_train_outputs=True)
         optimizer_opts = {
             'batch_size': labeled_batch_size,
             'max_iter': max_iter,
@@ -532,7 +532,17 @@ class DeliciousExperiment(ExperimentBase):
             os.path.join(self.working_dir, 'data'))
         if test_proportion is None:
             return train_data, test_data
-        # TODO: Use test_proportion.
+        data = (np.concatenate([train_data[0], test_data[0]], axis=0),
+                np.concatenate([train_data[1], test_data[1]], axis=0))
+        if isinstance(self.seed, np.random.RandomState):
+            rng = self.seed
+        else:
+            rng = np.random.RandomState(self.seed)
+        indices = rng.permutation(np.arange(data[0].shape[0]))
+        num_samples = len(indices)
+        num_test = int(num_samples * test_proportion)
+        train_data = tuple(d[indices[:-num_test]] for d in data)
+        test_data = tuple(d[indices[-num_test:]] for d in data)
         return train_data, test_data
 
 
@@ -549,9 +559,9 @@ class EmotionsExperiment(ExperimentBase):
                  save_trained=True, optimizer=lambda: tf.train.AdamOptimizer(),
                  gradients_processor=None):
         self.architectures = architectures
-        self.loss = nig.L2Loss()
-        # self.loss = nig.CrossEntropy(
-        #     log_outputs=False, one_hot_train_outputs=True, binary=True)
+        # self.loss = nig.L2Loss()
+        self.loss = nig.BinaryCrossEntropy(
+            log_outputs=False, one_hot_train_outputs=True)
         optimizer_opts = {
             'batch_size': labeled_batch_size,
             'max_iter': max_iter,
@@ -607,5 +617,15 @@ class EmotionsExperiment(ExperimentBase):
             os.path.join(self.working_dir, 'data'), 'emotions')
         if test_proportion is None:
             return train_data, test_data
-        # TODO: Use test_proportion.
+        data = (np.concatenate([train_data[0], test_data[0]], axis=0),
+                np.concatenate([train_data[1], test_data[1]], axis=0))
+        if isinstance(self.seed, np.random.RandomState):
+            rng = self.seed
+        else:
+            rng = np.random.RandomState(self.seed)
+        indices = rng.permutation(np.arange(data[0].shape[0]))
+        num_samples = len(indices)
+        num_test = int(num_samples * test_proportion)
+        train_data = tuple(d[indices[:-num_test]] for d in data)
+        test_data = tuple(d[indices[-num_test:]] for d in data)
         return train_data, test_data
