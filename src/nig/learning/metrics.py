@@ -320,10 +320,11 @@ class CrossEntropy(Metric):
         if self.log_outputs and self.scaled_outputs:
             outputs = tf.exp(outputs)
         elif self.log_outputs:
-            logsumexp = tf.reduce_logsumexp(outputs, axis=1)
+            logsumexp = tf.reduce_logsumexp(outputs, axis=1, keep_dims=True)
             outputs = tf.exp(tf.subtract(outputs, logsumexp))
         elif not self.scaled_outputs:
-            outputs = tf.divide(outputs, tf.reduce_sum(outputs, axis=1))
+            outputs = tf.divide(outputs, tf.reduce_sum(
+                outputs, axis=1, keep_dims=True))
         neg_outputs = tf.log(tf.subtract(1.0, outputs))
         outputs = tf.log(outputs)
         if not self.one_hot_train_outputs:
