@@ -282,14 +282,25 @@ class HammingLoss(Metric):
 
 class CrossEntropy(Metric):
     def __init__(self, log_outputs=True, scaled_outputs=False,
-                 one_hot_train_outputs=False, name='cross entropy'):
+                 one_hot_train_outputs=False, binary=False,
+                 name='cross entropy'):
         super(CrossEntropy, self).__init__(name=name)
         self.log_outputs = log_outputs
         self.scaled_outputs = scaled_outputs
         self.one_hot_train_outputs = one_hot_train_outputs
+        self.binary = binary
 
     @name_scope_context
     def evaluate(self, outputs, train_outputs):
+        if self.binary:
+            metric = self._binary_evaluate(
+                outputs=outputs, train_outputs=train_outputs)
+        else:
+            metric = self._normal_evaluate(
+                outputs=outputs, train_outputs=train_outputs)
+        return tf.reduce_mean(metric)
+
+    def _normal_evaluate(self, outputs, train_outputs):
         if not self.log_outputs:
             outputs = tf.log(outputs)
         if self.one_hot_train_outputs:
@@ -303,4 +314,23 @@ class CrossEntropy(Metric):
             train_outputs = tf.to_int64(tf.squeeze(train_outputs))
             metric = tf.nn.sparse_softmax_cross_entropy_with_logits(
                 logits=outputs, labels=train_outputs)
-        return tf.reduce_mean(metric)
+        return metric
+
+    def _binary_evaluate(self, outputs, train_outputs):
+        if self.log_outputs and self.scaled_outputs:
+            outputs = tf.exp(outputs)
+        elif self.log_outputs:
+            logsumexp = tf.reduce_logsumexp(outputs, axis=1)
+            outputs = tf.exp(tf.subtract(outputs, logsumexp))
+        elif not self.scaled_outputs:
+            outputs = tf.divide(outputs, tf.reduce_sum(outputs, axis=1))
+        neg_outputs = tf.log(tf.subtract(1.0, outputs))
+        outputs = tf.log(outputs)
+        if not self.one_hot_train_outputs:
+            train_outputs = tf.to_int64(tf.squeeze(train_outputs))
+            train_outputs = tf.one_hot(
+                indices=train_outputs, depth=tf.shape(outputs)[1], axis=-1)
+        neg_train_outputs = tf.subtract(1.0, train_outputs)
+        return tf.add(
+            -tf.reduce_sum(train_outputs * outputs, axis=1),
+            -tf.reduce_sum(neg_train_outputs * neg_outputs, axis=1))
