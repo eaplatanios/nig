@@ -18,8 +18,6 @@ import csv
 import logging
 import numpy as np
 import os
-import shutil
-import tempfile
 
 from six.moves import urllib
 
@@ -53,11 +51,8 @@ def maybe_download(filename, working_dir, source_url):
         os.makedirs(working_dir)
     filepath = os.path.join(working_dir, filename)
     if not os.path.isfile(filepath):
-        with tempfile.NamedTemporaryFile() as tmp_file:
-            tmp_filename = tmp_file.name
-            urllib.request.urlretrieve(source_url, tmp_filename)
-            shutil.copyfile(tmp_filename, filepath)
-            size = os.path.getsize(filepath)
-            logger.info('Successfully downloaded ' + filename +
-                        ' (' + str(size) + ' bytes).')
+        urllib.request.urlretrieve(source_url, filepath)
+        size = os.path.getsize(filepath)
+        logger.info('Successfully downloaded ' + filename +
+                    ' (' + str(size) + ' bytes).')
     return filepath
