@@ -308,17 +308,22 @@ class CrossEntropy(Metric):
 
 class BinaryCrossEntropy(Metric):
     def __init__(self, log_outputs=True, one_hot_train_outputs=False,
-                 name='binary cross entropy'):
+                 numerically_robust=False, name='binary cross entropy'):
         super(BinaryCrossEntropy, self).__init__(name=name)
         self.log_outputs = log_outputs
         self.one_hot_train_outputs = one_hot_train_outputs
+        self.numerically_robust = numerically_robust
 
     @name_scope_context
     def evaluate(self, outputs, train_outputs):
         if self.log_outputs:
             outputs = tf.exp(outputs)
-        neg_outputs = tf.log(tf.subtract(1.0, outputs))
-        outputs = tf.log(outputs)
+        if self.numerically_robust:
+            neg_outputs = tf.log(tf.subtract(np.float32(1.0 + __EPS__), outputs))
+            outputs = tf.log(tf.add(__EPS__, outputs))
+        else:
+            neg_outputs = tf.log(tf.subtract(1.0, outputs))
+            outputs = tf.log(outputs)
         if not self.one_hot_train_outputs:
             train_outputs = tf.to_int64(tf.squeeze(train_outputs))
             train_outputs = tf.one_hot(

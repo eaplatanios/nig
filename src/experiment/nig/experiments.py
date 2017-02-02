@@ -561,7 +561,8 @@ class EmotionsExperiment(ExperimentBase):
         self.architectures = architectures
         # self.loss = nig.L2Loss()
         self.loss = nig.BinaryCrossEntropy(
-            log_outputs=False, one_hot_train_outputs=True)
+            log_outputs=False, one_hot_train_outputs=True,
+            numerically_robust=True)
         optimizer_opts = {
             'batch_size': labeled_batch_size,
             'max_iter': max_iter,
@@ -606,7 +607,7 @@ class EmotionsExperiment(ExperimentBase):
             save_trained=save_trained)
 
     def __str__(self):
-        return 'delicious'
+        return 'emotions'
 
     def experiment_information(self):
         return {'architectures': str(self.architectures),
