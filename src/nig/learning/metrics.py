@@ -307,29 +307,24 @@ class CrossEntropy(Metric):
 
 
 class BinaryCrossEntropy(Metric):
-    def __init__(self, log_outputs=True, one_hot_train_outputs=False,
-                 numerically_robust=False, name='binary cross entropy'):
+    def __init__(self, logit_outputs=True, one_hot_train_outputs=False,
+                 name='binary cross entropy'):
         super(BinaryCrossEntropy, self).__init__(name=name)
-        self.log_outputs = log_outputs
+        self.logit_outputs = logit_outputs
         self.one_hot_train_outputs = one_hot_train_outputs
-        self.numerically_robust = numerically_robust
+        # self.numerically_robust = numerically_robust
 
     @name_scope_context
     def evaluate(self, outputs, train_outputs):
-        if self.log_outputs:
-            outputs = tf.exp(outputs)
-        if self.numerically_robust:
-            neg_outputs = tf.log(tf.subtract(np.float32(1.0 + __EPS__), outputs))
-            outputs = tf.log(tf.add(__EPS__, outputs))
-        else:
-            neg_outputs = tf.log(tf.subtract(1.0, outputs))
-            outputs = tf.log(outputs)
+        if not self.logit_outputs:
+            epsilon = tf.convert_to_tensor(
+                __EPS__, dtype=outputs.dtype.base_dtype)
+            outputs = tf.clip_by_value(outputs, epsilon, 1.0 - epsilon)
+            outputs = tf.log(tf.div(outputs, 1.0 - outputs))
         if not self.one_hot_train_outputs:
             train_outputs = tf.to_int64(tf.squeeze(train_outputs))
             train_outputs = tf.one_hot(
                 indices=train_outputs, depth=tf.shape(outputs)[1], axis=-1)
-        neg_train_outputs = tf.subtract(1.0, train_outputs)
-        metric = tf.add(
-            -tf.reduce_sum(train_outputs * outputs, axis=1),
-            -tf.reduce_sum(neg_train_outputs * neg_outputs, axis=1))
+        metric = tf.nn.sigmoid_cross_entropy_with_logits(
+            labels=train_outputs, logits=outputs)
         return tf.reduce_mean(metric)

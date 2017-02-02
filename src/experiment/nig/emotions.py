@@ -36,7 +36,7 @@ checkpoint_file_prefix = 'ckpt'
 restore_sequentially = False
 save_trained = False
 optimizer = lambda: tf.train.AdamOptimizer()  # nig.gradient_descent(1e-1, decay_rate=0.99)
-gradients_processor = None  # lambda g: tf.clip_by_norm(g, 1.0)
+gradients_processor = None  # lambda g: tf.clip_by_norm(g, 1e-1)
 
 # optimizer = tf.contrib.opt.ScipyOptimizerInterface
 # optimizer_opts = {'options': {'maxiter': 10000}}
