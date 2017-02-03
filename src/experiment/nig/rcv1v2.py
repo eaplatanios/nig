@@ -15,7 +15,7 @@ __author__ = 'eaplatanios'
 logger = logging.getLogger(__name__)
 
 
-class DeliciousExperiment(experiments.ExperimentBase):
+class RCV1V2Experiment(experiments.ExperimentBase):
     def __init__(self, architectures, activation=tf.nn.relu,
                  labeled_batch_size=100, unlabeled_batch_size=100,
                  test_data_proportion=0.1, max_iter=1000, abs_loss_chg_tol=1e-6,
@@ -39,10 +39,10 @@ class DeliciousExperiment(experiments.ExperimentBase):
             'loss_chg_iter_below_tol': loss_chg_iter_below_tol,
             'grads_processor': gradients_processor}
         models = [nig.MultiLayerPerceptron(
-            500, 983, architecture, activation=activation, softmax_output=False,
-            sigmoid_output=True, log_output=False, train_outputs_one_hot=True,
-            loss=self.loss, loss_summary=False, optimizer=optimizer,
-            optimizer_opts=optimizer_opts)
+            47236, 101, architecture, activation=activation,
+            softmax_output=False, sigmoid_output=True, log_output=False,
+            train_outputs_one_hot=True, loss=self.loss, loss_summary=False,
+            optimizer=optimizer, optimizer_opts=optimizer_opts)
                   for architecture in self.architectures]
         # eval_metric = nig.HammingLoss(log_predictions=False)
         eval_metrics = [
@@ -58,7 +58,7 @@ class DeliciousExperiment(experiments.ExperimentBase):
             nig.F1Score(
                 log_outputs=False, scaled_outputs=True,
                 one_hot_train_outputs=True, thresholds=0.5, macro_average=True)]
-        super(DeliciousExperiment, self).__init__(
+        super(RCV1V2Experiment, self).__init__(
             models=models, eval_metrics=eval_metrics,
             labeled_batch_size=labeled_batch_size,
             unlabeled_batch_size=unlabeled_batch_size,
@@ -75,15 +75,25 @@ class DeliciousExperiment(experiments.ExperimentBase):
             save_trained=save_trained)
 
     def __str__(self):
-        return 'delicious'
+        return 'rcv1v2'
 
     def experiment_information(self):
         return {'architectures': str(self.architectures),
                 'loss': str(self.loss)}
 
     def load_data(self, test_proportion=None):
-        train_data, test_data, _ = loaders.delicious.load(
-            os.path.join(self.working_dir, 'data'))
+        train_data = []
+        test_data = []
+        for i in range(5):
+            train_data_subset, test_data_subset = loaders.mulan.load(
+                os.path.join(self.working_dir, 'data'),
+                'rcv1v2_subset_' + str(i+1))
+            train_data.append(train_data_subset)
+            test_data.append(test_data_subset)
+        train_data = (np.concatenate([d[0] for d in train_data], axis=0),
+                      np.concatenate([d[1] for d in train_data], axis=0))
+        test_data = (np.concatenate([d[0] for d in test_data], axis=0),
+                     np.concatenate([d[1] for d in test_data], axis=0))
         if test_proportion is None:
             return train_data, test_data
         data = (np.concatenate([train_data[0], test_data[0]], axis=0),
@@ -102,31 +112,30 @@ class DeliciousExperiment(experiments.ExperimentBase):
 
 if __name__ == '__main__':
     seed = 9999
-    architectures = [[16], [256],
-                     [16, 16], [256, 256],
-                     [16, 16, 16, 16], [256, 256, 256, 256],
-                     [512, 256], [1024, 512, 256], [16, 16, 16, 16]]
+    architectures = [[1], [8],
+                     [16, 8], [32, 16],
+                     [128, 64, 32, 16], [128, 32, 8], [256, 128]]
     use_one_hot_encoding = True
     activation = nig.leaky_relu(0.01)
     labeled_batch_size = 128
     unlabeled_batch_size = 128
     test_data_proportion = 0.95
-    max_iter = 10000
+    max_iter = 50000
     abs_loss_chg_tol = 1e-6
     rel_loss_chg_tol = 1e-6
     loss_chg_iter_below_tol = 5
-    logging_frequency = 10
+    logging_frequency = 1000
     summary_frequency = -1
     checkpoint_frequency = -1
-    evaluation_frequency = 50
+    evaluation_frequency = 1000
     variable_statistics_frequency = -1
     run_meta_data_frequency = -1
-    working_dir = os.path.join(os.getcwd(), 'working', 'delicious')
+    working_dir = os.path.join(os.getcwd(), 'working', 'rcv1v2')
     checkpoint_file_prefix = 'ckpt'
     restore_sequentially = False
     save_trained = False
-    optimizer = lambda: tf.train.AdamOptimizer()  # nig.gradient_descent(1e-1, decay_rate=0.99)
-    gradients_processor = None  # lambda g: tf.clip_by_norm(g, 1e1)
+    optimizer = lambda: tf.train.AdagradOptimizer(1.0)  # nig.gradient_descent(1e-1, decay_rate=0.99)
+    gradients_processor = None  # lambda g: tf.clip_by_norm(g, 1e-1)
 
     # optimizer = tf.contrib.opt.ScipyOptimizerInterface
     # optimizer_opts = {'options': {'maxiter': 10000}}
@@ -140,11 +149,11 @@ if __name__ == '__main__':
     consensus_loss_metric = None
 
     consensus_configurations = [
-        ('Majority 0.0', {'consensus_method': nig.Vote(
-            trainable=False, hard_vote=False, argmax_vote=False),
-                          'consensus_loss_weight': 0.0,
-                          'consensus_loss_metric': None,
-                          'first_consensus': 10}),
+        # ('Majority 0.0', {'consensus_method': nig.Vote(
+        #     trainable=False, hard_vote=False, argmax_vote=False),
+        #                   'consensus_loss_weight': 0.0,
+        #                   'consensus_loss_metric': None,
+        #                   'first_consensus': 10}),
         # ('Majority 0.1', {'consensus_method': nig.Vote(trainable=False),
         #                   'consensus_loss_weight': 0.1,
         #                   'consensus_loss_metric': None,
@@ -154,11 +163,11 @@ if __name__ == '__main__':
         #                   'consensus_loss_weight': 0.5,
         #                   'consensus_loss_metric': None,
         #                   'first_consensus': 10}),
-        ('Majority 1.0', {'consensus_method': nig.Vote(
-            trainable=False, hard_vote=False, argmax_vote=False),
-                          'consensus_loss_weight': 1.0,
-                          'consensus_loss_metric': None,
-                          'first_consensus': 10}),
+        # ('Majority 1.0', {'consensus_method': nig.Vote(
+        #     trainable=False, hard_vote=False, argmax_vote=False),
+        #                   'consensus_loss_weight': 1.0,
+        #                   'consensus_loss_metric': None,
+        #                   'first_consensus': 10}),
         ('Trainable Majority 0.0', {'consensus_method': nig.Vote(
             trainable=True, hard_vote=False, argmax_vote=False),
                                     'consensus_loss_weight': 0.0,
@@ -212,7 +221,7 @@ if __name__ == '__main__':
         #              'consensus_loss_metric': None,
         #              'first_consensus': 10,
         #              'first_consensus_max_iter': 10000,
-        #              'consensus_update_frequency': 10,
+        #              'consensus_update_frequency': 100,
         #              'consensus_update_max_iter': 500}),
         # ('RBM 0.1', {'consensus_method': nig.RBMConsensus(),
         #              'consensus_loss_weight': 0.1,
@@ -233,12 +242,12 @@ if __name__ == '__main__':
         #              'consensus_loss_metric': None,
         #              'first_consensus': 10,
         #              'first_consensus_max_iter': 10000,
-        #              'consensus_update_frequency': 10,
+        #              'consensus_update_frequency': 100,
         #              'consensus_update_max_iter': 500}),
     ]
 
     with nig.dummy():  # tf.device('/cpu:0'):
-        experiment = experiments.DeliciousExperiment(
+        experiment = experiments.RCV1V2Experiment(
             architectures=architectures, activation=activation,
             labeled_batch_size=labeled_batch_size,
             unlabeled_batch_size=unlabeled_batch_size,
