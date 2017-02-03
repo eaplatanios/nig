@@ -272,14 +272,14 @@ class RBMConsensus(Consensus):
                 # if i_index == 0 and step % 10 == 0:
                 #     logger.info('Loss 0: %11.4e', loss)
                 loss_diff = abs(prev_loss[i] - loss)
-                if loss_diff < i.optimizer_opts['abs_loss_chg_tol'] \
+                if loss_diff < integrators[i].optimizer_opts['abs_loss_chg_tol'] \
                         or abs(loss_diff / prev_loss[i]) \
-                        < i.optimizer_opts['rel_loss_chg_tol']:
+                        < integrators[i].optimizer_opts['rel_loss_chg_tol']:
                     iter_below_tol[i] += 1
                 else:
                     iter_below_tol[i] = 0
                 if iter_below_tol[i] \
-                        >= i.optimizer_opts['loss_chg_iter_below_tol']:
+                        >= integrators[i].optimizer_opts['loss_chg_iter_below_tol']:
                     # logger.info('Integrator %d finished training: Loss value '
                     #             'converged.' % i)
                     untrained_integrators.remove(i)
