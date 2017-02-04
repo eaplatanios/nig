@@ -104,27 +104,28 @@ if __name__ == '__main__':
     seed = 9999
     architectures = [[1], [8],
                      [16, 8], [32, 16],
-                     [128, 64, 32, 16], [128, 32, 8], [256, 128]]
+                     [128, 64, 32, 16], [128, 32, 8], [256, 128],
+                     [512, 256, 128, 64], [32, 4, 2, 4]]
     use_one_hot_encoding = True
     activation = nig.leaky_relu(0.01)
     labeled_batch_size = 64
     unlabeled_batch_size = 64
-    test_data_proportion = 0.85
-    max_iter = 50000
+    test_data_proportion = 0.90
+    max_iter = 5000
     abs_loss_chg_tol = 1e-6
     rel_loss_chg_tol = 1e-6
     loss_chg_iter_below_tol = 5
-    logging_frequency = 1000
+    logging_frequency = 100
     summary_frequency = -1
     checkpoint_frequency = -1
-    evaluation_frequency = 1000
+    evaluation_frequency = 100
     variable_statistics_frequency = -1
     run_meta_data_frequency = -1
     working_dir = os.path.join(os.getcwd(), 'working', 'emotions')
     checkpoint_file_prefix = 'ckpt'
     restore_sequentially = False
     save_trained = False
-    optimizer = lambda: tf.train.AdagradOptimizer(1.0)  # nig.gradient_descent(1e-1, decay_rate=0.99)
+    optimizer = lambda: tf.train.AdamOptimizer()  # nig.gradient_descent(1e-1, decay_rate=0.99)
     gradients_processor = None  # lambda g: tf.clip_by_norm(g, 1e-1)
 
     # optimizer = tf.contrib.opt.ScipyOptimizerInterface
@@ -237,7 +238,7 @@ if __name__ == '__main__':
     ]
 
     with nig.dummy():  # tf.device('/cpu:0'):
-        experiment = experiments.EmotionsExperiment(
+        experiment = EmotionsExperiment(
             architectures=architectures, activation=activation,
             labeled_batch_size=labeled_batch_size,
             unlabeled_batch_size=unlabeled_batch_size,

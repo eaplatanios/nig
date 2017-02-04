@@ -30,10 +30,10 @@ class MNISTExperiment(experiments.ExperimentBase):
                  gradients_processor=None, seed=None):
         self.architectures = architectures
         self.use_one_hot_encoding = use_one_hot_encoding
-        self.loss = nig.L2Loss()
-        # self.loss = nig.CrossEntropy(
-        #     log_predictions=self.use_one_hot_encoding,
-        #     one_hot_truth=self.use_one_hot_encoding)
+        # self.loss = nig.L2Loss()
+        self.loss = nig.CrossEntropy(
+            log_outputs=self.use_one_hot_encoding,
+            one_hot_train_outputs=self.use_one_hot_encoding)
         optimizer_opts = {
             'batch_size': labeled_batch_size,
             'max_iter': max_iter,
@@ -128,7 +128,7 @@ if __name__ == '__main__':
     checkpoint_file_prefix = 'ckpt'
     restore_sequentially = False
     save_trained = False
-    optimizer = lambda: nig.gradient_descent(1e0, decay_rate=0.99)
+    optimizer = lambda: tf.train.AdamOptimizer()  # nig.gradient_descent(1e0, decay_rate=0.99)
     gradients_processor = None  # lambda g: tf.clip_by_norm(g, 0.1)
 
     # optimizer = tf.contrib.opt.ScipyOptimizerInterface
@@ -242,7 +242,7 @@ if __name__ == '__main__':
     ]
 
     with nig.dummy():  # tf.device('/cpu:0'):
-        experiment = experiments.MNISTExperiment(
+        experiment = MNISTExperiment(
             architectures=architectures,
             use_one_hot_encoding=use_one_hot_encoding,
             activation=activation, labeled_batch_size=labeled_batch_size,

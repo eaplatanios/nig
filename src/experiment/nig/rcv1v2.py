@@ -134,7 +134,7 @@ if __name__ == '__main__':
     checkpoint_file_prefix = 'ckpt'
     restore_sequentially = False
     save_trained = False
-    optimizer = lambda: tf.train.AdagradOptimizer(1.0)  # nig.gradient_descent(1e-1, decay_rate=0.99)
+    optimizer = lambda: tf.train.AdamOptimizer()  # nig.gradient_descent(1e-1, decay_rate=0.99)
     gradients_processor = None  # lambda g: tf.clip_by_norm(g, 1e-1)
 
     # optimizer = tf.contrib.opt.ScipyOptimizerInterface
@@ -247,7 +247,7 @@ if __name__ == '__main__':
     ]
 
     with nig.dummy():  # tf.device('/cpu:0'):
-        experiment = experiments.RCV1V2Experiment(
+        experiment = RCV1V2Experiment(
             architectures=architectures, activation=activation,
             labeled_batch_size=labeled_batch_size,
             unlabeled_batch_size=unlabeled_batch_size,
