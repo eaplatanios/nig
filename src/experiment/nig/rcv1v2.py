@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class RCV1V2Experiment(experiments.ExperimentBase):
-    def __init__(self, architectures, activation=tf.nn.relu,
+    def __init__(self, data_subsets, architectures, activation=tf.nn.relu,
                  labeled_batch_size=100, unlabeled_batch_size=100,
                  test_data_proportion=0.1, max_iter=1000, abs_loss_chg_tol=1e-6,
                  rel_loss_chg_tol=1e-6, loss_chg_iter_below_tol=5,
@@ -27,6 +27,9 @@ class RCV1V2Experiment(experiments.ExperimentBase):
                  checkpoint_file_prefix='ckpt', restore_sequentially=False,
                  save_trained=True, optimizer=lambda: tf.train.AdamOptimizer(),
                  gradients_processor=None):
+        if isinstance(data_subsets, int):
+            data_subsets = [data_subsets]
+        self.data_subsets = data_subsets
         self.architectures = architectures
         # self.loss = nig.L2Loss()
         self.loss = nig.BinaryCrossEntropy(
@@ -84,7 +87,7 @@ class RCV1V2Experiment(experiments.ExperimentBase):
     def load_data(self, test_proportion=None):
         train_data = []
         test_data = []
-        for i in range(5):
+        for i in self.data_subsets:
             train_data_subset, test_data_subset = loaders.mulan.load(
                 os.path.join(self.working_dir, 'data'),
                 'rcv1v2_subset_' + str(i+1))
@@ -112,6 +115,7 @@ class RCV1V2Experiment(experiments.ExperimentBase):
 
 if __name__ == '__main__':
     seed = 9999
+    data_subsets = 1
     architectures = [[1], [8],
                      [16, 8], [32, 16],
                      [128, 64, 32, 16], [128, 32, 8], [256, 128]]
@@ -120,14 +124,14 @@ if __name__ == '__main__':
     labeled_batch_size = 128
     unlabeled_batch_size = 128
     test_data_proportion = 0.95
-    max_iter = 50000
+    max_iter = 5000
     abs_loss_chg_tol = 1e-6
     rel_loss_chg_tol = 1e-6
     loss_chg_iter_below_tol = 5
-    logging_frequency = 1000
+    logging_frequency = 100
     summary_frequency = -1
     checkpoint_frequency = -1
-    evaluation_frequency = 1000
+    evaluation_frequency = 100
     variable_statistics_frequency = -1
     run_meta_data_frequency = -1
     working_dir = os.path.join(os.getcwd(), 'working', 'rcv1v2')
