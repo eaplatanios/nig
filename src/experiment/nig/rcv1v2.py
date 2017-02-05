@@ -252,8 +252,8 @@ if __name__ == '__main__':
 
     with nig.dummy():  # tf.device('/cpu:0'):
         experiment = RCV1V2Experiment(
-            architectures=architectures, activation=activation,
-            labeled_batch_size=labeled_batch_size,
+            data_subsets=data_subsets, architectures=architectures,
+            activation=activation, labeled_batch_size=labeled_batch_size,
             unlabeled_batch_size=unlabeled_batch_size,
             test_data_proportion=test_data_proportion, max_iter=max_iter,
             abs_loss_chg_tol=abs_loss_chg_tol,
