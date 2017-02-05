@@ -70,8 +70,7 @@ class L2Loss(Metric):
     @name_scope_context
     def evaluate(self, outputs, train_outputs):
         metric = tf.square(tf.subtract(outputs, train_outputs))
-        num_samples = tf.cast(tf.shape(metric)[0], tf.float32)
-        return tf.reduce_sum(metric) / num_samples
+        return tf.reduce_sum(metric)
 
 
 class Accuracy(Metric):
@@ -277,7 +276,7 @@ class HammingLoss(Metric):
         outputs = tf.nn.relu(tf.sign(outputs - thresholds))
         metric = tf.cast(tf.not_equal(outputs, train_outputs), tf.float32)
         metric = tf.reduce_sum(metric, axis=1)
-        return tf.reduce_mean(metric)
+        return tf.reduce_sum(metric)
 
 
 class CrossEntropy(Metric):
@@ -303,7 +302,7 @@ class CrossEntropy(Metric):
             train_outputs = tf.to_int64(tf.squeeze(train_outputs))
             metric = tf.nn.sparse_softmax_cross_entropy_with_logits(
                 logits=outputs, labels=train_outputs)
-        return tf.reduce_mean(metric)
+        return tf.reduce_sum(metric)
 
 
 class BinaryCrossEntropy(Metric):
@@ -327,4 +326,4 @@ class BinaryCrossEntropy(Metric):
                 indices=train_outputs, depth=tf.shape(outputs)[1], axis=-1)
         metric = tf.nn.sigmoid_cross_entropy_with_logits(
             labels=train_outputs, logits=outputs)
-        return tf.reduce_mean(metric)
+        return tf.reduce_sum(metric)
