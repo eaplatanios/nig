@@ -5,6 +5,7 @@ import nig
 import numpy as np
 import os
 import shutil
+import sys
 import tensorflow as tf
 
 from collections import OrderedDict
@@ -13,7 +14,38 @@ from six import with_metaclass
 
 __author__ = 'eaplatanios'
 
-__all__ = ['ExperimentBase', 'MNISTExperiment', 'DeliciousExperiment']
+__all__ = ['get_consensus_configurations', 'ExperimentBase']
+
+
+def get_consensus_configurations(consensus_loss_weights, multiplier=1.0):
+    configurations = []
+    for weight in consensus_loss_weights:
+        configurations.extend([
+            # ('Majority ' + str(weight), {
+            #     'consensus_method': nig.Vote(
+            #         trainable=False, hard_vote=False, argmax_vote=False),
+            #     'consensus_loss_weight': weight * multiplier,
+            #     'consensus_loss_metric': None,
+            #     'first_consensus': 10}),
+            ('Trainable Majority ' + str(weight), {
+                'consensus_method': nig.Vote(
+                    trainable=True, hard_vote=False, argmax_vote=False),
+                'consensus_loss_weight': weight * multiplier,
+                'consensus_loss_metric': None,
+                'first_consensus': 10,
+                'first_consensus_max_iter': 1000,
+                'consensus_update_frequency': 10,
+                'consensus_update_max_iter': 500}),
+            # ('RBM ' + str(weight), {
+            #     'consensus_method': nig.RBMConsensus(),
+            #     'consensus_loss_weight': weight * multiplier,
+            #     'consensus_loss_metric': None,
+            #     'first_consensus': 10,
+            #     'first_consensus_max_iter': 10000,
+            #     'consensus_update_frequency': 100,
+            #     'consensus_update_max_iter': 500})
+        ])
+    return configurations
 
 
 def stratified_split(labels, test_proportion, seed=None):
@@ -111,7 +143,7 @@ def plot_results(results, metrics=None):
                 metrics = data_metrics
             num_rows = len(metrics) + 1
             with plt.style.context('ggplot'):
-                figure = plt.figure()
+                figure = plt.figure(figsize=[100, 12])
                 figure.suptitle(experiment_name.upper(), fontsize=20)
                 losses = [v['losses'] for v in values]
                 loss_axes = figure.add_subplot(num_rows, 1, 1)
@@ -367,3 +399,8 @@ class ExperimentBase(with_metaclass(abc.ABCMeta, object)):
                      for i, metric in enumerate(self.eval_metrics)])}))
         information = frozenset(self.experiment_information().items())
         return {str(self): {information: OrderedDict(results)}}
+
+
+if __name__ == '__main__':
+    results = load_results(sys.argv[1])
+    plot_results(results, metrics=['f1 score'])
