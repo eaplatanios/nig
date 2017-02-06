@@ -21,7 +21,49 @@ from ..learning.models import Model
 
 __author__ = 'eaplatanios'
 
-__all__ = ['MultiLayerPerceptron']
+__all__ = ['LinearCombination', 'MultiLayerPerceptron']
+
+
+class LinearCombination(Model):
+    def __init__(self, inputs, axis, convex=True, loss=None, loss_summary=False,
+                 optimizer=None, optimizer_opts=None):
+        self.axis = axis
+        self.convex = convex
+        if isinstance(inputs, tf.Tensor):
+            _inputs_shape = inputs.get_shape().as_list()
+        elif not isinstance(inputs, list):
+            _inputs_shape = list(inputs)
+        else:
+            _inputs_shape = inputs
+        self._weights_shape = _inputs_shape.copy()
+        _inputs_shape.pop(self.axis)
+        _train_outputs_shape = _inputs_shape
+        for axis in range(len(self._weights_shape)):
+            if axis != self.axis:
+                self._weights_shape[axis] = 1
+        with tf.name_scope('linear'):
+            if not isinstance(inputs, tf.Tensor):
+                inputs = tf.placeholder(
+                    tf.float32, shape=inputs.get_shape(), name='inputs')
+            outputs = self._output_op(inputs)
+            train_outputs = tf.placeholder(
+                tf.float32, shape=_train_outputs_shape, name='train_outputs')
+        super(LinearCombination, self).__init__(
+            inputs=inputs, outputs=outputs, train_outputs=train_outputs,
+            loss=loss, loss_summary=loss_summary, optimizer=optimizer,
+            optimizer_opts=optimizer_opts)
+
+    def __str__(self):
+        return 'LinearCombination[{}]'.format(self.inputs.get_shape()[1])
+
+    def _output_op(self, inputs):
+        weights = tf.Variable(tf.ones(self._weights_shape), name='weight')
+        if self.convex:
+            weights = tf.square(weights)
+            weights = tf.divide(weights, tf.reduce_sum(weights))
+        outputs = tf.multiply(inputs, weights)
+        outputs = tf.reduce_sum(outputs, axis=self.axis)
+        return outputs
 
 
 class MultiLayerPerceptron(Model):
@@ -81,4 +123,6 @@ class MultiLayerPerceptron(Model):
             return tf.log(tf.sigmoid(outputs))
         elif self.log_output:
             return tf.log(outputs)
+        elif self.sigmoid_output:
+            return tf.sigmoid(outputs)
         return outputs

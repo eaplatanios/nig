@@ -49,15 +49,15 @@ def roll_axis(tensor, axis, target=0):
 
     def _roll_forward():
         return tf.concat(
-            concat_dim=0, values=[tf.range(0, axis),
-                                  tf.range(axis + 1, target + 1), axis[None],
-                                  tf.range(target + 1, rank)])
+            values=[tf.range(0, axis),
+                    tf.range(axis + 1, target + 1), axis[None],
+                    tf.range(target + 1, rank)], axis=0)
 
     def _roll_backward():
         return tf.concat(
-            concat_dim=0, values=[tf.range(0, target), axis[None],
-                                  tf.range(target, axis),
-                                  tf.range(axis + 1, rank)])
+            values=[tf.range(0, target), axis[None],
+                    tf.range(target, axis),
+                    tf.range(axis + 1, rank)], axis=0)
 
     perm = tf.cond(axis < target, _roll_forward, _roll_backward)
     return tf.transpose(tensor, perm=perm)

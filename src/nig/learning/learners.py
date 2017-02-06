@@ -746,7 +746,7 @@ class CrossValidationLearner(Learner):
 #
 #     def _consensus_losses(self):
 #         # TODO: Need to deal with other model outputs formats.
-#         outputs = tf.pack([model.outputs for model in self.models], axis=-1)
+#         outputs = tf.stack([model.outputs for model in self.models], axis=-1)
 #         outputs = tf.expand_dims(outputs, dim=-1)
 #         outputs = tf.tile(outputs, multiples=[1, 1, 1, self.num_models])
 #         disagreement = outputs - tf.transpose(outputs, perm=[0, 1, 3, 2])
@@ -756,7 +756,7 @@ class CrossValidationLearner(Learner):
 #         loss /= tf.reduce_prod(
 #             tf.cast(tf.shape(disagreement), dtype=tf.float32)[:-1])
 #         loss = tf.reshape(loss, [self.num_models])
-#         return tf.unpack(self.consensus_loss_weight * loss, axis=0)
+#         return tf.unstack(self.consensus_loss_weight * loss, axis=0)
 #
 #     def copy(self, new_graph=False):
 #         return NIGLearner(
@@ -983,7 +983,7 @@ class CrossValidationLearner(Learner):
 #     def combined_model(self):
 #         return LinearCombinationModel(
 #             models=self.models,
-#             weights=tf.reduce_mean(self.trust, reduction_indices=[1]),
+#             weights=tf.reduce_mean(self.trust, axis=1),
 #             graph=self.graph)
 
 
@@ -1001,10 +1001,10 @@ class CrossValidationLearner(Learner):
 #     def evaluate(self, outputs, train_outputs):
 #         model_loss = self.model_loss(outputs, train_outputs)
 #         model_output = self.model_outputs[self.model_index]
-#         consensus = tf.mul(self.trust, tf.pack(self.model_outputs, axis=2))
-#         consensus = tf.reduce_sum(consensus, reduction_indices=[2])
+#         consensus = tf.multiply(self.trust, tf.stack(self.model_outputs, axis=2))
+#         consensus = tf.reduce_sum(consensus, axis=2)
 #         consensus_loss = tf.square(model_output - consensus)
-#         consensus_loss = tf.reduce_sum(consensus_loss, reduction_indices=[0, 1])
+#         consensus_loss = tf.reduce_sum(consensus_loss, axis=[0, 1])
 #         consensus_loss *= self.consensus_loss_weight
 #         return tf.add(model_loss, consensus_loss)
 #
@@ -1052,7 +1052,7 @@ class CrossValidationLearner(Learner):
 #
 #     # def _consensus_losses(self):
 #     #     # TODO: Need to deal with other model outputs formats.
-#     #     outputs = tf.pack([model.outputs for model in self.models], axis=-1)
+#     #     outputs = tf.stack([model.outputs for model in self.models], axis=-1)
 #     #     outputs = tf.expand_dims(outputs, dim=-1)
 #     #     outputs = tf.tile(outputs, multiples=[1, 1, 1, self.num_models])
 #     #     disagreement = outputs - tf.transpose(outputs, perm=[0, 1, 3, 2])
@@ -1062,7 +1062,7 @@ class CrossValidationLearner(Learner):
 #     #     loss /= tf.reduce_prod(
 #     #         tf.cast(tf.shape(disagreement), dtype=tf.float32)[:-1])
 #     #     loss = tf.reshape(loss, [self.num_models])
-#     #     return tf.unpack(self.consensus_loss_weight * loss, axis=0)
+#     #     return tf.unstack(self.consensus_loss_weight * loss, axis=0)
 #
 #     def copy(self, new_graph=False):
 #         return TrustBasedLearner(
@@ -1259,7 +1259,7 @@ class CrossValidationLearner(Learner):
 #     @property
 #     @memoize
 #     def combined_model(self):
-#         weights = tf.reduce_mean(self.trust, reduction_indices=[1])
+#         weights = tf.reduce_mean(self.trust, axis=1)
 #         # weights = tf.Print(weights, [weights[1]], summarize=100)
 #         return LinearCombinationModel(
 #             models=self.models, weights=weights, graph=self.graph)

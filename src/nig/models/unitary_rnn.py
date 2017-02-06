@@ -111,7 +111,7 @@ class URNNCell(tf.contrib.rnn.RNNCell):
 #         if len(args) == 1:
 #             res = tf.matmul(args[0], matrix)
 #         else:
-#             res = tf.matmul(tf.concat(1, args), matrix)
+#             res = tf.matmul(tf.concat(values=args, axis=1), matrix)
 #         if not bias:
 #             return res
 #         bias_term = tf.get_variable(

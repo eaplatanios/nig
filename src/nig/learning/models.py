@@ -301,7 +301,7 @@ class Model(with_metaclass(abc.ABCMeta, object)):
                   if input_op not in traversed_ops]))
         elif isinstance(ops, tf.Tensor):
             variables = set()
-            if ops.op.type == 'Variable':
+            if ops.op.type.startswith('Variable'):
                 variables.add(tf_variables[ops.op.name])
             input_ops = list(ops.op.inputs) + list(ops.op.control_inputs)
             if len(input_ops) > 0:
@@ -406,7 +406,7 @@ class LinearCombinationModel(Model):
             loss_summary=False, optimizer=None, optimizer_opts=None,
             graph=self.graph)
         with tf.name_scope('combination'):
-            self.outputs = tf.pack(
+            self.outputs = tf.stack(
                 [model.outputs for model in self.models], axis=-1)
             if weights is None:
                 self.weights = tf.Variable(
@@ -416,10 +416,10 @@ class LinearCombinationModel(Model):
                 self.weights, _ = self._copy_op_to_graph(
                     op=weights, graph=self.graph)
             # TODO: Add support for other output formats.
-            self.outputs = tf.mul(self.weights, self.outputs)
-            self.outputs = tf.reduce_sum(self.outputs, reduction_indices=[-1])
+            self.outputs = tf.multiply(self.weights, self.outputs)
+            self.outputs = tf.reduce_sum(self.outputs, axis=-1)
             self.train_outputs = self.models[0].train_outputs
-            # weights = tf.unpack(self.weights)
+            # weights = tf.unstack(self.weights)
             # self.outputs = tf.add_n(
             #     inputs=[weight * output
             #             for weight, output in zip(weights, self.outputs)])

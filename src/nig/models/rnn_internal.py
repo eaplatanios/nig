@@ -84,7 +84,7 @@ def dynamic_raw_rnn(cell, inputs, sequence_length=None, initial_state=None,
         # Shape validation for sequence_length
         def _assert_has_shape(tensor, shape):
             tensor_shape = tf.shape(tensor)
-            packed_shape = tf.pack(shape)
+            packed_shape = tf.stack(shape)
             return tf.Assert(
                 tf.reduce_all(tf.equal(tensor_shape, packed_shape)),
                 ['Expected shape for Tensor ', tensor.name, ' is ',
@@ -201,7 +201,7 @@ def dynamic_hierarchical_rnn(cells, periods, inputs, sequence_length=None,
         # Shape validation for sequence_length
         def _assert_has_shape(tensor, shape):
             tensor_shape = tf.shape(tensor)
-            packed_shape = tf.pack(shape)
+            packed_shape = tf.stack(shape)
             return tf.Assert(
                 tf.reduce_all(tf.equal(tensor_shape, packed_shape)),
                 ['Expected shape for Tensor ', tensor.name, ' is ',
@@ -298,7 +298,7 @@ def dynamic_rnn(cell, inputs, sequence_length=None, initial_state=None,
         # Shape validation for sequence_length
         def _assert_has_shape(tensor, shape):
             tensor_shape = tf.shape(tensor)
-            packed_shape = tf.pack(shape)
+            packed_shape = tf.stack(shape)
             return tf.Assert(
                 tf.reduce_all(tf.equal(tensor_shape, packed_shape)),
                 ['Expected shape for Tensor ', tensor.name, ' is ',
@@ -362,8 +362,8 @@ def _dynamic_rnn_loop(cell, inputs, initial_state, parallel_iterations,
 
     # Prepare dynamic conditional copying of state & output
     def _create_zero_arrays(size):
-        size = rnn_cell._state_size_with_prefix(size, prefix=[batch_size])
-        return tf.zeros(tf.pack(size), _infer_state_dtype(dtype, state))
+        size = tf.contrib.rnn._state_size_with_prefix(size, prefix=[batch_size])
+        return tf.zeros(tf.stack(size), _infer_state_dtype(dtype, state))
     flat_zero_output = tuple(_create_zero_arrays(output)
                              for output in flat_output_size)
     zero_output = tf.nest.pack_sequence_as(

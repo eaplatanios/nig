@@ -15,25 +15,22 @@ __author__ = 'eaplatanios'
 logger = logging.getLogger(__name__)
 
 
-class MNISTExperiment(experiments.ExperimentBase):
-    def __init__(self, architectures, use_one_hot_encoding=True,
-                 activation=tf.nn.relu, labeled_batch_size=100,
-                 unlabeled_batch_size=100, test_data_proportion=0.1,
-                 max_iter=1000, abs_loss_chg_tol=1e-6, rel_loss_chg_tol=1e-6,
-                 loss_chg_iter_below_tol=5, logging_frequency=10,
-                 summary_frequency=100, checkpoint_frequency=1000,
-                 evaluation_frequency=10, variable_statistics_frequency=-1,
-                 run_meta_data_frequency=-1,
+class EmotionsExperiment(experiments.ExperimentBase):
+    def __init__(self, architectures, activation=tf.nn.relu,
+                 labeled_batch_size=100, unlabeled_batch_size=100,
+                 test_data_proportion=0.1, max_iter=1000, abs_loss_chg_tol=1e-6,
+                 rel_loss_chg_tol=1e-6, loss_chg_iter_below_tol=5,
+                 logging_frequency=10, summary_frequency=100,
+                 checkpoint_frequency=1000, evaluation_frequency=10,
+                 variable_statistics_frequency=-1, run_meta_data_frequency=-1,
                  working_dir=os.path.join(os.getcwd(), 'working'),
                  checkpoint_file_prefix='ckpt', restore_sequentially=False,
                  save_trained=True, optimizer=lambda: tf.train.AdamOptimizer(),
-                 gradients_processor=None, seed=None):
+                 gradients_processor=None):
         self.architectures = architectures
-        self.use_one_hot_encoding = use_one_hot_encoding
         # self.loss = nig.L2Loss()
-        self.loss = nig.CrossEntropy(
-            log_outputs=self.use_one_hot_encoding,
-            one_hot_train_outputs=self.use_one_hot_encoding)
+        self.loss = nig.BinaryCrossEntropy(
+            logit_outputs=False, one_hot_train_outputs=True)
         optimizer_opts = {
             'batch_size': labeled_batch_size,
             'max_iter': max_iter,
@@ -42,14 +39,12 @@ class MNISTExperiment(experiments.ExperimentBase):
             'loss_chg_iter_below_tol': loss_chg_iter_below_tol,
             'grads_processor': gradients_processor}
         models = [nig.MultiLayerPerceptron(
-            784, 10, architecture, activation=activation,
-            softmax_output=True,
-            # log_output=use_one_hot_encoding,
-            log_output=False,
-            train_outputs_one_hot=use_one_hot_encoding, loss=self.loss,
-            loss_summary=False, optimizer=optimizer,
+            72, 6, architecture, activation=activation, softmax_output=False,
+            sigmoid_output=True, log_output=False, train_outputs_one_hot=True,
+            loss=self.loss, loss_summary=False, optimizer=optimizer,
             optimizer_opts=optimizer_opts)
                   for architecture in self.architectures]
+        # eval_metric = nig.HammingLoss(log_predictions=False)
         eval_metrics = [
             nig.Accuracy(
                 log_outputs=False, scaled_outputs=True,
@@ -63,17 +58,8 @@ class MNISTExperiment(experiments.ExperimentBase):
             nig.F1Score(
                 log_outputs=False, scaled_outputs=True,
                 one_hot_train_outputs=True, thresholds=0.5, macro_average=True)]
-        predict_postprocess = lambda l: tf.argmax(l, 1)
-        inputs_pipeline = nig.ColumnsExtractor(list(range(784)))
-        outputs_pipeline = nig.ColumnsExtractor(784)
-        if self.use_one_hot_encoding:
-            outputs_pipeline = outputs_pipeline | \
-                               nig.DataTypeEncoder(np.int8) | \
-                               nig.OneHotEncoder(10)
-        super(MNISTExperiment, self).__init__(
+        super(EmotionsExperiment, self).__init__(
             models=models, eval_metrics=eval_metrics,
-            predict_postprocess=predict_postprocess,
-            inputs_pipeline=inputs_pipeline, outputs_pipeline=outputs_pipeline,
             labeled_batch_size=labeled_batch_size,
             unlabeled_batch_size=unlabeled_batch_size,
             test_data_proportion=test_data_proportion,
@@ -86,54 +72,64 @@ class MNISTExperiment(experiments.ExperimentBase):
             working_dir=working_dir,
             checkpoint_file_prefix=checkpoint_file_prefix,
             restore_sequentially=restore_sequentially,
-            save_trained=save_trained, seed=seed)
+            save_trained=save_trained)
 
     def __str__(self):
-        return 'mnist'
+        return 'emotions'
 
     def experiment_information(self):
         return {'architectures': str(self.architectures),
                 'loss': str(self.loss)}
 
     def load_data(self, test_proportion=None):
-        train_data, test_data = loaders.mnist.load(
-            os.path.join(self.working_dir, 'data'), float_images=True)
+        train_data, test_data = loaders.mulan.load(
+            os.path.join(self.working_dir, 'data'), 'emotions')
         if test_proportion is None:
             return train_data, test_data
-        data = self._merge_data_sets(train_data, test_data)
-        train_indices, test_indices = experiments.stratified_split(
-            labels=data[:, -1], test_proportion=test_proportion, seed=self.seed)
-        return data[train_indices], data[test_indices]
+        data = (np.concatenate([train_data[0], test_data[0]], axis=0),
+                np.concatenate([train_data[1], test_data[1]], axis=0))
+        if isinstance(self.seed, np.random.RandomState):
+            rng = self.seed
+        else:
+            rng = np.random.RandomState(self.seed)
+        indices = rng.permutation(np.arange(data[0].shape[0]))
+        num_samples = len(indices)
+        num_test = int(num_samples * test_proportion)
+        train_data = tuple(d[indices[:-num_test]] for d in data)
+        test_data = tuple(d[indices[-num_test:]] for d in data)
+        return train_data, test_data
 
 
 if __name__ == '__main__':
     seed = 9999
-    architectures = [[16], [128], [128, 64, 32], [512, 256, 128], [1024]]
+    architectures = [[1], [8],
+                     [16, 8], [32, 16],
+                     [128, 64, 32, 16], [128, 32, 8], [256, 128],
+                     [512, 256, 128, 64], [32, 4, 2, 4]]
     use_one_hot_encoding = True
     activation = nig.leaky_relu(0.01)
-    labeled_batch_size = 128
-    unlabeled_batch_size = 128
-    test_data_proportion = 0.95
-    max_iter = 500
+    labeled_batch_size = 64
+    unlabeled_batch_size = 64
+    test_data_proportion = 0.90
+    max_iter = 5000
     abs_loss_chg_tol = 1e-6
     rel_loss_chg_tol = 1e-6
     loss_chg_iter_below_tol = 5
-    logging_frequency = 10
+    logging_frequency = 100
     summary_frequency = -1
     checkpoint_frequency = -1
-    evaluation_frequency = 50
+    evaluation_frequency = 100
     variable_statistics_frequency = -1
     run_meta_data_frequency = -1
-    working_dir = os.path.join(os.getcwd(), 'working', 'mnist')
+    working_dir = os.path.join(os.getcwd(), 'working', 'emotions')
     checkpoint_file_prefix = 'ckpt'
     restore_sequentially = False
     save_trained = False
-    optimizer = lambda: tf.train.AdamOptimizer()  # nig.gradient_descent(1e0, decay_rate=0.99)
-    gradients_processor = None  # lambda g: tf.clip_by_norm(g, 0.1)
+    optimizer = lambda: tf.train.AdamOptimizer()  # nig.gradient_descent(1e-1, decay_rate=0.99)
+    gradients_processor = None  # lambda g: tf.clip_by_norm(g, 1e-1)
 
     # optimizer = tf.contrib.opt.ScipyOptimizerInterface
     # optimizer_opts = {'options': {'maxiter': 10000}}
-
 
     # def consensus_loss_metric(outputs, consensus):
     #     with tf.name_scope('consensus_loss_metric'):
@@ -147,10 +143,9 @@ if __name__ == '__main__':
         multiplier=labeled_batch_size / unlabeled_batch_size)
 
     with nig.dummy():  # tf.device('/cpu:0'):
-        experiment = MNISTExperiment(
-            architectures=architectures,
-            use_one_hot_encoding=use_one_hot_encoding,
-            activation=activation, labeled_batch_size=labeled_batch_size,
+        experiment = EmotionsExperiment(
+            architectures=architectures, activation=activation,
+            labeled_batch_size=labeled_batch_size,
             unlabeled_batch_size=unlabeled_batch_size,
             test_data_proportion=test_data_proportion, max_iter=max_iter,
             abs_loss_chg_tol=abs_loss_chg_tol,
@@ -166,24 +161,13 @@ if __name__ == '__main__':
             checkpoint_file_prefix=checkpoint_file_prefix,
             restore_sequentially=restore_sequentially,
             save_trained=save_trained, optimizer=optimizer,
-            gradients_processor=gradients_processor, seed=seed)
+            gradients_processor=gradients_processor)
         learners = []
         for name, configuration in consensus_configurations:
             learner = partial(nig.ConsensusLearner, **configuration)
             learners.append((name, learner))
         learners = OrderedDict(learners)
         results = experiment.run(learners)
-
-        # maj_trust_based_learner = partial(nig.TrustBasedLearner, first_trust_update=max_iter + 1)
-        # trust_based_learner = partial(
-        #     nig.TrustBasedLearner, first_trust_update=10, trust_update_frequency=10)
-
-        # test_predictions = learner.predict(
-        #     _get_iterator(test_data, False), ckpt=False, working_dir=working_dir,
-        #     ckpt_file_prefix=checkpoint_file_prefix)
-        # test_truth = test_data[:, -1]
-        # logger.info(np.mean(test_predictions == test_truth))
-
     experiments.save_results(
         results, filename=os.path.join(working_dir, 'results.pk'), update=True,
         use_backup=True, delete_backup=False)

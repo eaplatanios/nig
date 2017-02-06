@@ -15,10 +15,16 @@
 from __future__ import absolute_import, division, print_function
 
 from . import array_ops
+from . import variable_ops
+from . import weights_broadcast_ops
 
 from .array_ops import *
+from .variable_ops import *
+from .weights_broadcast_ops import *
 
 __author__ = 'eaplatanios'
 
-__all__ = ['array_ops']
+__all__ = ['array_ops', 'variable_ops', 'weights_broadcast_ops']
 __all__.extend(array_ops.__all__)
+__all__.extend(variable_ops.__all__)
+__all__.extend(weights_broadcast_ops.__all__)
