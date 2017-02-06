@@ -23,7 +23,7 @@ __author__ = 'eaplatanios'
 __all__ = ['URNNCell']
 
 
-class URNNCell(tf.nn.rnn_cell.RNNCell):
+class URNNCell(tf.contrib.rnn.RNNCell):
     def __init__(self, num_units, state_is_tuple=True):
         self._num_units = num_units
         self._state_is_tuple = state_is_tuple
@@ -58,7 +58,7 @@ class URNNCell(tf.nn.rnn_cell.RNNCell):
                     name='B', dtype=tf.float32, shape=[self._num_units],
                     initializer=tf.constant_initializer(0.0)))
             out = tf.concat(
-                concat_dim=1, values=[tf.real(next_state), tf.imag(next_state)])
+                axis=1, values=[tf.real(next_state), tf.imag(next_state)])
             w_out = tf.get_variable(
                 name='W_out', shape=[self._num_units * 2, self.output_size])
             b_out = tf.get_variable(

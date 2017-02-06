@@ -91,7 +91,7 @@ def mod_relu(inputs, bias, eps=1e-5):
         raise ValueError('inputs must be a complex tensor.')
     if bias.dtype.is_complex:
         raise ValueError('bias must be a complex tensor.')
-    mag = tf.complex_abs(inputs)
+    mag = tf.abs(inputs)
     return complex_mul_real(inputs, (tf.nn.relu(mag + bias) / (mag + eps)))
 
 
