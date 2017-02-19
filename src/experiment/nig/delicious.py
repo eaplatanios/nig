@@ -49,6 +49,14 @@ class DeliciousExperiment(experiments.ExperimentBase):
             nig.Accuracy(
                 log_outputs=False, scaled_outputs=True,
                 one_hot_train_outputs=True, thresholds=0.5, macro_average=True),
+            nig.AreaUnderCurve(
+                log_outputs=False, scaled_outputs=True,
+                one_hot_train_outputs=True, curve='pr', name='macro_auc',
+                macro_average=True),
+            nig.AreaUnderCurve(
+                log_outputs=False, scaled_outputs=True,
+                one_hot_train_outputs=True, curve='pr', name='auc',
+                num_thresholds=100, macro_average=False),
             nig.Precision(
                 log_outputs=False, scaled_outputs=True,
                 one_hot_train_outputs=True, thresholds=0.5, macro_average=True),

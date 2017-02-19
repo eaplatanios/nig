@@ -399,8 +399,3 @@ class ExperimentBase(with_metaclass(abc.ABCMeta, object)):
                      for i, metric in enumerate(self.eval_metrics)])}))
         information = frozenset(self.experiment_information().items())
         return {str(self): {information: OrderedDict(results)}}
-
-
-if __name__ == '__main__':
-    results = load_results(sys.argv[1])
-    plot_results(results, metrics=['f1 score'])
