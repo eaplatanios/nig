@@ -52,11 +52,7 @@ class MediaMillExperiment(experiments.ExperimentBase):
             nig.AreaUnderCurve(
                 log_outputs=False, scaled_outputs=True,
                 one_hot_train_outputs=True, curve='pr', num_thresholds=100,
-                name='auc', macro_average=True),
-            nig.AreaUnderCurve(
-                log_outputs=False, scaled_outputs=True,
-                one_hot_train_outputs=True, curve='pr', num_thresholds=100,
-                name='micro_auc', macro_average=False),
+                macro_average=True, name='auc'),
             nig.Precision(
                 log_outputs=False, scaled_outputs=True,
                 one_hot_train_outputs=True, thresholds=0.5, macro_average=True),
@@ -126,7 +122,7 @@ if __name__ == '__main__':
     logging_frequency = 100
     summary_frequency = -1
     checkpoint_frequency = -1
-    evaluation_frequency = 100
+    evaluation_frequency = 50
     variable_statistics_frequency = -1
     run_meta_data_frequency = -1
     working_dir = os.path.join(os.getcwd(), 'working', 'mediamill')

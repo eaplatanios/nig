@@ -54,8 +54,8 @@ class RCV1V2Experiment(experiments.ExperimentBase):
                 one_hot_train_outputs=True, thresholds=0.5, macro_average=True),
             nig.AreaUnderCurve(
                 log_outputs=False, scaled_outputs=True,
-                one_hot_train_outputs=True, curve='pr', name='auc',
-                num_thresholds=100, macro_average=True),
+                one_hot_train_outputs=True, curve='pr', num_thresholds=100,
+                macro_average=True, name='auc'),
             nig.Precision(
                 log_outputs=False, scaled_outputs=True,
                 one_hot_train_outputs=True, thresholds=0.5, macro_average=True),
