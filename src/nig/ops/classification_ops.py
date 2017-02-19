@@ -20,7 +20,7 @@ from .. import ops
 
 __author__ = 'eaplatanios'
 
-__all__ = ['mean', 'accuracy', 'confusion_matrix_at_thresholds']
+__all__ = ['mean', 'accuracy', 'confusion_matrix', 'area_under_curve']
 
 
 def _remove_squeezable_dimensions(predictions, labels, weights=None, name=None):
@@ -367,7 +367,7 @@ def mean(values, weights=None, axis=None, values_collections=None,
 
 
 def accuracy(predictions, labels, thresholds=None, weights=None,
-             macro_average=False, values_collections=None,
+             macro_average=True, values_collections=None,
              updates_collections=None, resets_collections=None, name='accuracy',
              requested_ops=None):
     """Computes the (weighted) accuracy of a set of predictions given the true
@@ -452,6 +452,7 @@ def accuracy(predictions, labels, thresholds=None, weights=None,
             of `predictions`, if any of the provided collections is not a `list`
             or a `tuple`, or if `requested_ops` contains any unsupported ops.
     """
+    # TODO: What happens when the labels dimension is missing?
     # Process the thresholds argument.
     if isinstance(thresholds, tuple) or isinstance(thresholds, list):
         multiple_thresholds = True
@@ -473,20 +474,24 @@ def accuracy(predictions, labels, thresholds=None, weights=None,
             thresholds = [t if isinstance(t, tf.Tensor)
                           else tf.convert_to_tensor(t) for t in thresholds]
             thresholds = tf.stack(thresholds, axis=0)
+            desired_rank = predictions.get_shape().ndims
+            current_rank = thresholds.get_shape().ndims
+            for _ in range(desired_rank - current_rank):
+                thresholds = tf.expand_dims(thresholds, axis=-1)
         if weights is not None:
             weights = tf.expand_dims(weights, axis=0)
             weights = ops.broadcast_weights(tf.to_float(weights), predictions)
 
-        def average_accuracies(accuracies):
+        def average_accuracy(accuracy):
             if not macro_average:
-                return accuracies
+                return accuracy
             if weights is None:
-                return tf.reduce_mean(accuracies, axis=1)
+                return tf.reduce_mean(accuracy, axis=1)
             label_weights = tf.reduce_sum(weights, axis=1)
             label_weights_sum = tf.reduce_sum(label_weights, axis=1)
-            accuracies = tf.multiply(label_weights, weights)
-            accuracies = tf.reduce_sum(accuracies, axis=1)
-            return tf.divide(accuracies, label_weights_sum)
+            accuracy = tf.multiply(label_weights, weights)
+            accuracy = tf.reduce_sum(accuracy, axis=1)
+            return tf.divide(accuracy, label_weights_sum)
 
         # Threshold the predictions.
         predictions = _process_predictions(
@@ -495,23 +500,43 @@ def accuracy(predictions, labels, thresholds=None, weights=None,
         axis = 1 if macro_average else [1, 2]
         return_ops = mean(
             values=is_correct, weights=weights, axis=axis,
-            values_collections=values_collections,
-            updates_collections=updates_collections,
-            resets_collections=resets_collections, name=name,
-            requested_ops=requested_ops)
+            values_collections=None, updates_collections=None,
+            resets_collections=None, name=name, requested_ops=requested_ops)
         multiple_requested_ops = \
             isinstance(requested_ops, tuple) or isinstance(requested_ops, list)
         if multiple_requested_ops:
             for name, op in return_ops.items():
                 if name == 'value' or name == 'update':
-                    op = average_accuracies(op)
+                    op = average_accuracy(op)
                     if not multiple_thresholds:
                         op = op[0]
                     return_ops[name] = op
-                elif name != 'reset':
+                    if name == 'value' and values_collections is not None:
+                        tf.ops.add_to_collections(
+                            names=values_collections, value=op)
+                    if name == 'update' and updates_collections is not None:
+                        tf.ops.add_to_collections(
+                            names=values_collections, value=op)
+                elif name == 'reset':
+                    if resets_collections is not None:
+                        tf.ops.add_to_collections(
+                            names=values_collections, value=op)
+                else:
                     raise ValueError('Unsupported op "%s" encountered.' % op)
         elif requested_ops == 'value' or requested_ops == 'update':
-            return_ops = average_accuracies(return_ops)
+            return_ops = average_accuracy(return_ops)
+            if requested_ops == 'value' and values_collections is not None:
+                tf.ops.add_to_collections(
+                    names=values_collections, value=return_ops)
+            if requested_ops == 'update' and updates_collections is not None:
+                tf.ops.add_to_collections(
+                    names=values_collections, value=return_ops)
+        elif requested_ops == 'reset':
+            if resets_collections is not None:
+                tf.ops.add_to_collections(
+                    names=values_collections, value=return_ops)
+        else:
+            raise ValueError('Unsupported op "%s" encountered.' % requested_ops)
         if not multiple_thresholds:
             return_ops = return_ops[0]
         return return_ops
@@ -685,11 +710,16 @@ def confusion_matrix(
             thresholds = [t if isinstance(t, tf.Tensor)
                           else tf.convert_to_tensor(t) for t in thresholds]
             thresholds = tf.stack(thresholds, axis=0)
+            desired_rank = predictions.get_shape().ndims
+            current_rank = thresholds.get_shape().ndims
+            for _ in range(desired_rank - current_rank):
+                thresholds = tf.expand_dims(thresholds, axis=-1)
         if weights is not None:
             weights = tf.expand_dims(weights, axis=0)
             weights = ops.broadcast_weights(tf.to_float(weights), predictions)
 
         # Threshold the predictions.
+        labels = tf.cast(labels, dtype=tf.bool)
         pos_predictions = _process_predictions(
             predictions=predictions, labels=labels, thresholds=thresholds)
         if 'fn' in includes or 'tn' in includes:
@@ -756,3 +786,174 @@ def confusion_matrix(
         if multiple_includes:
             return return_ops
         return return_ops[includes[0]]
+
+
+def area_under_curve(
+        predictions, labels, weights=None, num_thresholds=200,
+        macro_average=False, curve='pr', values_collections=None,
+        updates_collections=None, resets_collections=None, name='auc',
+        requested_ops=None):
+    """Computes the approximate AUC via a Riemann sum.
+    The `auc` function creates four local variables, `true_positives`,
+    `true_negatives`, `false_positives` and `false_negatives` that are used to
+    compute the AUC. To discretize the AUC curve, a linearly spaced set of
+    thresholds is used to compute pairs of recall and precision values. The area
+    under the ROC-curve is therefore computed using the height of the recall
+    values by the false positive rate, while the area under the PR-curve is the
+    computed using the height of the precision values by the recall.
+    This value is ultimately returned as `auc`, an idempotent operation that
+    computes the area under a discretized curve of precision versus recall values
+    (computed using the aforementioned variables). The `num_thresholds` variable
+    controls the degree of discretization with larger numbers of thresholds more
+    closely approximating the true AUC. The quality of the approximation may vary
+    dramatically depending on `num_thresholds`.
+    For best results, `predictions` should be distributed approximately uniformly
+    in the range [0, 1] and not peaked around 0 or 1. The quality of the AUC
+    approximation may be poor if this is not the case.
+    For estimation of the metric over a stream of data, the function creates an
+    `update_op` operation that updates these variables and returns the `auc`.
+    If `weights` is `None`, weights default to 1. Use weights of 0 to mask values.
+    Args:
+      labels: A `bool` `Tensor` whose shape matches `predictions`.
+      predictions: A floating point `Tensor` of arbitrary shape and whose values
+        are in the range `[0, 1]`.
+      weights: Optional `Tensor` whose rank is either 0, or the same rank as
+        `labels`, and must be broadcastable to `labels` (i.e., all dimensions must
+        be either `1`, or the same as the corresponding `labels` dimension).
+      num_thresholds: The number of thresholds to use when discretizing the roc
+        curve.
+      metrics_collections: An optional list of collections that `auc` should be
+        added to.
+      updates_collections: An optional list of collections that `update_op` should
+        be added to.
+      curve: Specifies the name of the curve to be computed, 'ROC' [default] or
+      'PR' for the Precision-Recall-curve.
+      name: An optional variable_scope name.
+    Returns:
+      auc: A scalar `Tensor` representing the current area-under-curve.
+      update_op: An operation that increments the `true_positives`,
+        `true_negatives`, `false_positives` and `false_negatives` variables
+        appropriately and whose value matches `auc`.
+    Raises:
+      ValueError: If `predictions` and `labels` have mismatched shapes, or if
+        `weights` is not `None` and its shape doesn't match `predictions`, or if
+        either `metrics_collections` or `updates_collections` are not a list or
+        tuple.
+    """
+    curve = curve.lower()
+    if curve != 'roc' and curve != 'pr':
+        raise ValueError('Invalid curve type "%s". Supported types are "ROC" '
+                         'and "PR".' % curve)
+
+    with tf.variable_scope(name, 'auc', (predictions, labels, weights)):
+        # Create the thresholds for the confusion matrix.
+        epsilon = 1e-7  # Used to account for floating point imprecision.
+        thresholds = [(i + 1) * 1.0 / (num_thresholds - 1)
+                      for i in range(num_thresholds - 2)]
+        thresholds = [0.0 - epsilon] + thresholds + [1.0 + epsilon]
+
+        # Reshape predictions, labels, thresholds, and weights.
+        # num_thresholds = 1 if thresholds is None else len(thresholds)
+        # predictions = tf.expand_dims(predictions, axis=0)
+        # predictions = tf.tile(predictions, multiples=[num_thresholds, 1, 1])
+        # labels = tf.expand_dims(labels, axis=0)
+        # labels = tf.tile(labels, multiples=[num_thresholds, 1, 1])
+        # thresholds = [tf.convert_to_tensor(t) for t in thresholds]
+        # thresholds = tf.stack(thresholds, axis=0)
+        # if weights is not None:
+        #     weights = tf.expand_dims(weights, axis=0)
+        #     weights = ops.broadcast_weights(tf.to_float(weights), predictions)
+
+        axis = 1 if macro_average else [1, 2]
+        confusion_matrix_ops = confusion_matrix(
+            predictions, labels, thresholds=thresholds, weights=weights,
+            axis=axis, includes=['tp', 'fn', 'tn', 'fp'],
+            values_collections=None, updates_collections=None,
+            resets_collections=None, name='confusion_matrix',
+            requested_ops=requested_ops)
+
+        def compute_auc(tp, fn, tn, fp):
+            """Computes the ROC curve AUC or the PR curve AUC based on the
+            confusion matrix counts."""
+            recall = tf.divide(tp + epsilon, tp + fn + epsilon)
+            if curve == 'roc':
+                false_positive_rate = tf.divide(fp, fp + tn + epsilon)
+                x = false_positive_rate
+                y = recall
+            elif curve == 'pr':
+                precision = tf.divide(tp + epsilon, tp + fp + epsilon)
+                x = recall
+                y = precision
+            else:
+                raise ValueError('Invalid curve type "%s". Supported types are '
+                                 '"ROC" and "PR".' % curve)
+            return tf.reduce_sum(tf.multiply(
+                x[:num_thresholds - 1] - x[1:],
+                (y[:num_thresholds - 1] + y[1:]) / 2.0), axis=0,
+                name='riemann_sum')
+
+        def average_auc(auc):
+            if not macro_average:
+                return auc
+            if weights is None:
+                return tf.reduce_mean(auc, axis=0)
+            label_weights = tf.reduce_sum(weights, axis=0)
+            label_weights_sum = tf.reduce_sum(label_weights, axis=0)
+            auc = tf.multiply(label_weights, weights)
+            auc = tf.reduce_sum(auc, axis=0)
+            return tf.divide(auc, label_weights_sum)
+
+        multiple_requested_ops = \
+            isinstance(requested_ops, tuple) or isinstance(requested_ops, list)
+        if multiple_requested_ops:
+            return_ops = dict()
+            for op in requested_ops:
+                if op == 'value' or op == 'update':
+                    tp = confusion_matrix_ops['tp'][op]
+                    fn = confusion_matrix_ops['fn'][op]
+                    tn = confusion_matrix_ops['tn'][op]
+                    fp = confusion_matrix_ops['fp'][op]
+                    auc = compute_auc(tp=tp, fn=fn, tn=tn, fp=fp)
+                    return_ops[op] = average_auc(auc)
+                    if op == 'value' and values_collections is not None:
+                        tf.ops.add_to_collections(
+                            names=values_collections, value=return_ops[op])
+                    if op == 'update' and updates_collections is not None:
+                        tf.ops.add_to_collections(
+                            names=values_collections, value=return_ops[op])
+                elif op == 'reset':
+                    tp = confusion_matrix_ops['tp'][op]
+                    fn = confusion_matrix_ops['fn'][op]
+                    tn = confusion_matrix_ops['tn'][op]
+                    fp = confusion_matrix_ops['fp'][op]
+                    return_ops[op] = tf.group(tp, fn, tn, fp, name='reset')
+                    if resets_collections is not None:
+                        tf.ops.add_to_collections(
+                            names=values_collections, value=return_ops[op])
+                else:
+                    raise ValueError('Unsupported op "%s" encountered.' % op)
+        elif requested_ops == 'value' or requested_ops == 'update':
+            tp = confusion_matrix_ops['tp']
+            fn = confusion_matrix_ops['fn']
+            tn = confusion_matrix_ops['tn']
+            fp = confusion_matrix_ops['fp']
+            auc = compute_auc(tp=tp, fn=fn, tn=tn, fp=fp)
+            return_ops = average_auc(auc)
+            if requested_ops == 'value' and values_collections is not None:
+                tf.ops.add_to_collections(
+                    names=values_collections, value=return_ops)
+            if requested_ops == 'update' and updates_collections is not None:
+                tf.ops.add_to_collections(
+                    names=values_collections, value=return_ops)
+        elif requested_ops == 'reset':
+            tp = confusion_matrix_ops['tp']
+            fn = confusion_matrix_ops['fn']
+            tn = confusion_matrix_ops['tn']
+            fp = confusion_matrix_ops['fp']
+            return_ops = tf.group(tp, fn, tn, fp, name='reset')
+            if resets_collections is not None:
+                tf.ops.add_to_collections(
+                    names=values_collections, value=return_ops)
+        else:
+            raise ValueError('Unsupported op "%s" encountered.' % requested_ops)
+        return return_ops

@@ -26,7 +26,7 @@ class MediaMillExperiment(base.Experiment):
                  save_trained=True, optimizer=lambda: tf.train.AdamOptimizer(),
                  gradients_processor=None):
         self.architectures = architectures
-        loss = nig.CrossEntropy(log_predictions=True, one_hot_truth=True)
+        loss = nig.CrossEntropy(log_outputs=True, one_hot_train_outputs=True)
         optimizer_opts = {
             'batch_size': labeled_batch_size,
             'max_iter': max_iter,

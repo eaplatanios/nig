@@ -20,14 +20,14 @@ import tensorflow as tf
 
 from six import with_metaclass
 
-from ..ops.classification_ops import accuracy
+from ..ops.classification_ops import accuracy, area_under_curve
 from ..utilities.tensorflow import name_scope_context
 
 __author__ = 'eaplatanios'
 
 __all__ = [
-    'Metric', 'CombinedMetric', 'L2Loss', 'Accuracy', 'Precision', 'Recall',
-    'F1Score', 'HammingLoss', 'CrossEntropy']
+    'Metric', 'CombinedMetric', 'L2Loss', 'Accuracy', 'AreaUnderCurve',
+    'Precision', 'Recall', 'F1Score', 'HammingLoss', 'CrossEntropy']
 
 __EPS__ = np.finfo(np.float32).eps
 
@@ -101,7 +101,39 @@ class Accuracy(Metric):
             thresholds = self.thresholds
         return accuracy(
             predictions=outputs, labels=train_outputs, thresholds=thresholds,
-            weights=None, macro_average=self.macro_average,
+            weights=None, macro_average=self.macro_average, name=self.name,
+            requested_ops='value')
+
+
+class AreaUnderCurve(Metric):
+    def __init__(self, log_outputs=True, scaled_outputs=False,
+                 one_hot_train_outputs=False, curve='pr', num_thresholds=200,
+                 macro_average=True, name=None):
+        if name is None:
+            name = 'auc_' + curve
+        super(AreaUnderCurve, self).__init__(name=name)
+        self.log_outputs = log_outputs
+        self.scaled_outputs = scaled_outputs
+        self.one_hot_train_outputs = one_hot_train_outputs
+        self.curve = curve
+        self.num_thresholds = num_thresholds
+        self.macro_average = macro_average
+
+    @name_scope_context
+    def evaluate(self, outputs, train_outputs):
+        if not self.scaled_outputs:
+            if self.log_outputs:
+                outputs = tf.nn.log_softmax(outputs)
+                outputs = tf.exp(outputs)
+            else:
+                outputs = tf.nn.softmax(outputs)
+        if not self.one_hot_train_outputs:
+            train_outputs = tf.one_hot(
+                indices=train_outputs, depth=tf.shape(outputs)[1])
+        return area_under_curve(
+            predictions=outputs, labels=train_outputs, weights=None,
+            num_thresholds=self.num_thresholds,
+            macro_average=self.macro_average, curve=self.curve, name=self.name,
             requested_ops='value')
 
 
