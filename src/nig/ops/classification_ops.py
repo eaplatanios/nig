@@ -64,7 +64,7 @@ def _remove_squeezable_dimensions(predictions, labels, weights=None, name=None):
         predictions_rank = predictions_shape.ndims
         labels_shape = labels.get_shape()
         labels_rank = labels_shape.ndims
-        if predictions_shape is not None and labels_rank is not None:
+        if predictions_rank is not None and labels_rank is not None:
             # Use static shape if known.
             rank_diff = predictions_rank - labels_rank
             if rank_diff == 1:
