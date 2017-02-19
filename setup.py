@@ -18,6 +18,7 @@ setup(
         'cython', 'numpy', 'pandas', 'pyyaml', 'six', 'tensorflow',
         'jnius==1.1-dev'],
     extras_require={
+        'data': ['liac-arff', 'patool'],
         'plotting': ['matplotlib']},
     # dependency_links=[
     #     'git+https://github.com/kivy/pyjnius.git#egg=jnius-1.1-dev'],

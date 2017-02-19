@@ -246,7 +246,7 @@ class SemiSupervisedRBM(Model):
             return -tf.add(cond_term, bias_term)
         v_bias_term = tf.matmul(v, self.vb[:, None])
         h_bias_term = tf.matmul(h, self.hb[:, None])
-        w_term = tf.batch_matmul(
+        w_term = tf.matmul(
             h[:, None, :], tf.matmul(v, self.w)[:, :, None])[:, :, 0]
         return -tf.add_n((v_bias_term, h_bias_term, w_term))
 

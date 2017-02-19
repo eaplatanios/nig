@@ -31,7 +31,7 @@ def _has_valid_dims(weights_shape, values_shape, name=None):
     with tf.name_scope(
             name, 'has_invalid_dims', (weights_shape, values_shape)) as scope:
         values_shape_2d = tf.expand_dims(values_shape, -1)
-        valid_dims = tf.concat_v2(
+        valid_dims = tf.concat(
             values=(values_shape_2d, tf.ones_like(values_shape_2d)), axis=1)
         weights_shape_2d = tf.expand_dims(weights_shape, -1)
         invalid_dims = tf.sets.set_difference(weights_shape_2d, valid_dims)

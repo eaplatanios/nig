@@ -15,7 +15,7 @@
 from __future__ import absolute_import, division, print_function
 
 import tensorflow as tf
-
+# from tensorflow.python.ops import rnn_cell_impl as rnn_cell
 
 def _infer_state_dtype(explicit_dtype, state):
     if explicit_dtype is not None:
@@ -36,8 +36,8 @@ def _infer_state_dtype(explicit_dtype, state):
 def dynamic_raw_rnn(cell, inputs, sequence_length=None, initial_state=None,
                     dtype=None, parallel_iterations=None, swap_memory=False,
                     time_major=False, scope=None):
-    if not isinstance(cell, tf.nn.rnn_cell.RNNCell):
-        raise TypeError('cell must be an instance of tf.nn.rnn_cell.RNNCell.')
+    if not isinstance(cell, tf.contrib.rnn.RNNCell):
+        raise TypeError('cell must be an instance of tf.contrib.rnn.RNNCell.')
     flat_input = tf.nest.flatten(inputs)
     parallel_iterations = parallel_iterations or 32
     if sequence_length is not None:
@@ -139,10 +139,10 @@ def dynamic_hierarchical_rnn(cells, periods, inputs, sequence_length=None,
                              time_major=False, scope=None):
     # Check validity of provided cells and periods
     if not isinstance(cells, list):
-        raise TypeError('cells must be a list of tf.nn.rnn_cell.RNNCells.')
+        raise TypeError('cells must be a list of tf.contrib.rnn.RNNCells.')
     for cell in cells:
-        if not isinstance(cell, tf.nn.rnn_cell.RNNCell):
-            raise TypeError('cells must be a list of tf.nn.rnn_cell.RNNCells.')
+        if not isinstance(cell, tf.contrib.rnn.RNNCell):
+            raise TypeError('cells must be a list of tf.contrib.rnn.RNNCells.')
     if not isinstance(periods, list):
         raise TypeError('periods must be a list of ints.')
     for period in periods:
@@ -255,8 +255,8 @@ def dynamic_hierarchical_rnn(cells, periods, inputs, sequence_length=None,
 def dynamic_rnn(cell, inputs, sequence_length=None, initial_state=None,
                 dtype=None, parallel_iterations=None, swap_memory=False,
                 time_major=False, scope=None):
-    if not isinstance(cell, tf.nn.rnn_cell.RNNCell):
-        raise TypeError('cell must be an instance of tf.nn.rnn_cell.RNNCell.')
+    if not isinstance(cell, tf.contrib.rnn.RNNCell):
+        raise TypeError('cell must be an instance of tf.contrib.rnn.RNNCell.')
     flat_input = tf.nest.flatten(inputs)
 
     # By default, the inputs are batch-major shaped: [batch, time, depth].
@@ -419,7 +419,7 @@ def _dynamic_rnn_loop(cell, inputs, initial_state, parallel_iterations,
 
     # Restore some shape information
     for output, output_size in zip(final_outputs, flat_output_size):
-        output.set_shape(tf.nn.rnn_cell._state_size_with_prefix(
+        output.set_shape(tf.contrib.core_rnn._state_size_with_prefix(
             output_size, prefix=[const_time_steps, const_batch_size]))
     final_outputs = tf.nest.pack_sequence_as(
         structure=cell.output_size, flat_sequence=final_outputs)
@@ -652,8 +652,8 @@ def raw_rnn(cell, loop_function, parallel_iterations=None, swap_memory=False,
         a `callable`.
     """
 
-    if not isinstance(cell, tf.nn.rnn_cell.RNNCell):
-        raise TypeError('cell must be an instance of tf.nn.rnn_cell.RNNCell')
+    if not isinstance(cell, tf.contrib.rnn.RNNCell):
+        raise TypeError('cell must be an instance of tf.contrib.rnn.RNNCell')
     if not callable(loop_function):
         raise TypeError('loop_function must be a callable.')
     parallel_iterations = parallel_iterations or 32
@@ -707,7 +707,8 @@ def raw_rnn(cell, loop_function, parallel_iterations=None, swap_memory=False,
         emit_ta = tf.nest.pack_sequence_as(
             structure=emit_structure, flat_sequence=flat_emit_ta)
         flat_zero_emit = [tf.zeros(
-            tf.nn.rnn_cell._state_size_with_prefix(size, prefix=[batch_size]),
+            tf.contrib.core_rnn._state_size_with_prefix(
+                size, prefix=[batch_size]),
             dtype) for size, dtype in zip(flat_emit_size, flat_emit_dtypes)]
         zero_emit = tf.nest.pack_sequence_as(
             structure=emit_structure, flat_sequence=flat_zero_emit)

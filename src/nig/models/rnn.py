@@ -117,8 +117,8 @@ def dynamic_hierarchical_rnn(cells, periods, inputs, sequence_length=None,
             return tf.stack(outputs[::step], axis=time_axis)
         if isinstance(in_levels, list):
             if inputs_reduction is None:
-                inputs_ = tf.concat_v2(
-                    axis=2, values=[_get_level_output(l) for l in in_levels])
+                inputs_ = tf.concat(
+                    values=[_get_level_output(l) for l in in_levels], axis=2)
             else:
                 inputs_ = tf.stack(
                     [_get_level_output(l) for l in in_levels], axis=0)

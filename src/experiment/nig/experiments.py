@@ -5,16 +5,47 @@ import nig
 import numpy as np
 import os
 import shutil
+import sys
 import tensorflow as tf
 
 from collections import OrderedDict
 from matplotlib import pyplot as plt
-from nig.data import loaders
 from six import with_metaclass
 
 __author__ = 'eaplatanios'
 
-__all__ = ['ExperimentBase', 'MNISTExperiment', 'DeliciousExperiment']
+__all__ = ['get_consensus_configurations', 'ExperimentBase']
+
+
+def get_consensus_configurations(consensus_loss_weights, multiplier=1.0):
+    configurations = []
+    for weight in consensus_loss_weights:
+        configurations.extend([
+            # ('Majority ' + str(weight), {
+            #     'consensus_method': nig.Vote(
+            #         trainable=False, hard_vote=False, argmax_vote=False),
+            #     'consensus_loss_weight': weight * multiplier,
+            #     'consensus_loss_metric': None,
+            #     'first_consensus': 10}),
+            ('Trainable Majority ' + str(weight), {
+                'consensus_method': nig.Vote(
+                    trainable=True, hard_vote=False, argmax_vote=False),
+                'consensus_loss_weight': weight * multiplier,
+                'consensus_loss_metric': None,
+                'first_consensus': 10,
+                'first_consensus_max_iter': 1000,
+                'consensus_update_frequency': 10,
+                'consensus_update_max_iter': 500}),
+            # ('RBM ' + str(weight), {
+            #     'consensus_method': nig.RBMConsensus(),
+            #     'consensus_loss_weight': weight * multiplier,
+            #     'consensus_loss_metric': None,
+            #     'first_consensus': 10,
+            #     'first_consensus_max_iter': 10000,
+            #     'consensus_update_frequency': 100,
+            #     'consensus_update_max_iter': 500})
+        ])
+    return configurations
 
 
 def stratified_split(labels, test_proportion, seed=None):
@@ -112,7 +143,7 @@ def plot_results(results, metrics=None):
                 metrics = data_metrics
             num_rows = len(metrics) + 1
             with plt.style.context('ggplot'):
-                figure = plt.figure()
+                figure = plt.figure(figsize=[100, 12])
                 figure.suptitle(experiment_name.upper(), fontsize=20)
                 losses = [v['losses'] for v in values]
                 loss_axes = figure.add_subplot(num_rows, 1, 1)
@@ -370,175 +401,6 @@ class ExperimentBase(with_metaclass(abc.ABCMeta, object)):
         return {str(self): {information: OrderedDict(results)}}
 
 
-class MNISTExperiment(ExperimentBase):
-    def __init__(self, architectures, use_one_hot_encoding=True,
-                 activation=tf.nn.relu, labeled_batch_size=100,
-                 unlabeled_batch_size=100, test_data_proportion=0.1,
-                 max_iter=1000, abs_loss_chg_tol=1e-6, rel_loss_chg_tol=1e-6,
-                 loss_chg_iter_below_tol=5, logging_frequency=10,
-                 summary_frequency=100, checkpoint_frequency=1000,
-                 evaluation_frequency=10, variable_statistics_frequency=-1,
-                 run_meta_data_frequency=-1,
-                 working_dir=os.path.join(os.getcwd(), 'working'),
-                 checkpoint_file_prefix='ckpt', restore_sequentially=False,
-                 save_trained=True, optimizer=lambda: tf.train.AdamOptimizer(),
-                 gradients_processor=None, seed=None):
-        self.architectures = architectures
-        self.use_one_hot_encoding = use_one_hot_encoding
-        self.loss = nig.L2Loss()
-        # self.loss = nig.CrossEntropy(
-        #     log_predictions=self.use_one_hot_encoding,
-        #     one_hot_truth=self.use_one_hot_encoding)
-        optimizer_opts = {
-            'batch_size': labeled_batch_size,
-            'max_iter': max_iter,
-            'abs_loss_chg_tol': abs_loss_chg_tol,
-            'rel_loss_chg_tol': rel_loss_chg_tol,
-            'loss_chg_iter_below_tol': loss_chg_iter_below_tol,
-            'grads_processor': gradients_processor}
-        models = [nig.MultiLayerPerceptron(
-            784, 10, architecture, activation=activation,
-            softmax_output=True,
-            # log_output=use_one_hot_encoding,
-            log_output=False,
-            train_outputs_one_hot=use_one_hot_encoding, loss=self.loss,
-            loss_summary=False, optimizer=optimizer,
-            optimizer_opts=optimizer_opts)
-                  for architecture in self.architectures]
-        eval_metrics = [
-            nig.Accuracy(
-                log_outputs=False, scaled_outputs=True,
-                one_hot_train_outputs=True, thresholds=0.5, macro_average=True),
-            nig.Precision(
-                log_outputs=False, scaled_outputs=True,
-                one_hot_train_outputs=True, thresholds=0.5, macro_average=True),
-            nig.Recall(
-                log_outputs=False, scaled_outputs=True,
-                one_hot_train_outputs=True, thresholds=0.5, macro_average=True),
-            nig.F1Score(
-                log_outputs=False, scaled_outputs=True,
-                one_hot_train_outputs=True, thresholds=0.5, macro_average=True)]
-        predict_postprocess = lambda l: tf.argmax(l, 1)
-        inputs_pipeline = nig.ColumnsExtractor(list(range(784)))
-        outputs_pipeline = nig.ColumnsExtractor(784)
-        if self.use_one_hot_encoding:
-            outputs_pipeline = outputs_pipeline | \
-                               nig.DataTypeEncoder(np.int8) | \
-                               nig.OneHotEncoder(10)
-        super(MNISTExperiment, self).__init__(
-            models=models, eval_metrics=eval_metrics,
-            predict_postprocess=predict_postprocess,
-            inputs_pipeline=inputs_pipeline, outputs_pipeline=outputs_pipeline,
-            labeled_batch_size=labeled_batch_size,
-            unlabeled_batch_size=unlabeled_batch_size,
-            test_data_proportion=test_data_proportion,
-            logging_frequency=logging_frequency,
-            summary_frequency=summary_frequency,
-            checkpoint_frequency=checkpoint_frequency,
-            evaluation_frequency=evaluation_frequency,
-            variable_statistics_frequency=variable_statistics_frequency,
-            run_meta_data_frequency=run_meta_data_frequency,
-            working_dir=working_dir,
-            checkpoint_file_prefix=checkpoint_file_prefix,
-            restore_sequentially=restore_sequentially,
-            save_trained=save_trained, seed=seed)
-
-    def __str__(self):
-        return 'mnist'
-
-    def experiment_information(self):
-        return {'architectures': str(self.architectures),
-                'loss': str(self.loss)}
-
-    def load_data(self, test_proportion=None):
-        train_data, test_data = loaders.mnist.load(
-            os.path.join(self.working_dir, 'data'), float_images=True)
-        if test_proportion is None:
-            return train_data, test_data
-        data = self._merge_data_sets(train_data, test_data)
-        train_indices, test_indices = stratified_split(
-            labels=data[:, -1], test_proportion=test_proportion, seed=self.seed)
-        return data[train_indices], data[test_indices]
-
-
-class DeliciousExperiment(ExperimentBase):
-    def __init__(self, architectures, activation=tf.nn.relu,
-                 labeled_batch_size=100, unlabeled_batch_size=100,
-                 test_data_proportion=0.1, max_iter=1000, abs_loss_chg_tol=1e-6,
-                 rel_loss_chg_tol=1e-6, loss_chg_iter_below_tol=5,
-                 logging_frequency=10, summary_frequency=100,
-                 checkpoint_frequency=1000, evaluation_frequency=10,
-                 variable_statistics_frequency=-1, run_meta_data_frequency=-1,
-                 working_dir=os.path.join(os.getcwd(), 'working'),
-                 checkpoint_file_prefix='ckpt', restore_sequentially=False,
-                 save_trained=True, optimizer=lambda: tf.train.AdamOptimizer(),
-                 gradients_processor=None):
-        self.architectures = architectures
-        # self.loss = nig.L2Loss()
-        self.loss = nig.CrossEntropy(
-            log_outputs=False, one_hot_train_outputs=True)
-        optimizer_opts = {
-            'batch_size': labeled_batch_size,
-            'max_iter': max_iter,
-            'abs_loss_chg_tol': abs_loss_chg_tol,
-            'rel_loss_chg_tol': rel_loss_chg_tol,
-            'loss_chg_iter_below_tol': loss_chg_iter_below_tol,
-            'grads_processor': gradients_processor}
-        models = [nig.MultiLayerPerceptron(
-            500, 983, architecture, activation=activation, softmax_output=False,
-            sigmoid_output=True, log_output=False, train_outputs_one_hot=True,
-            loss=self.loss, loss_summary=False, optimizer=optimizer,
-            optimizer_opts=optimizer_opts)
-                  for architecture in self.architectures]
-        # eval_metric = nig.HammingLoss(log_predictions=False)
-        eval_metrics = [
-            nig.Accuracy(
-                log_outputs=False, scaled_outputs=True,
-                one_hot_train_outputs=True, thresholds=0.5, macro_average=True),
-            nig.AreaUnderCurve(
-                log_outputs=False, scaled_outputs=True,
-                one_hot_train_outputs=True, curve='pr', name='macro_auc', macro_average=True),
-            nig.AreaUnderCurve(
-                log_outputs=False, scaled_outputs=True,
-                one_hot_train_outputs=True, curve='pr', name='auc',
-                num_thresholds=100, macro_average=False),
-            # nig.Precision(
-            #     log_outputs=False, scaled_outputs=True,
-            #     one_hot_train_outputs=True, thresholds=0.5, macro_average=True),
-            # nig.Recall(
-            #     log_outputs=False, scaled_outputs=True,
-            #     one_hot_train_outputs=True, thresholds=0.5, macro_average=True),
-            # nig.F1Score(
-            #     log_outputs=False, scaled_outputs=True,
-            #     one_hot_train_outputs=True, thresholds=0.5, macro_average=True)
-        ]
-        super(DeliciousExperiment, self).__init__(
-            models=models, eval_metrics=eval_metrics,
-            labeled_batch_size=labeled_batch_size,
-            unlabeled_batch_size=unlabeled_batch_size,
-            test_data_proportion=test_data_proportion,
-            logging_frequency=logging_frequency,
-            summary_frequency=summary_frequency,
-            checkpoint_frequency=checkpoint_frequency,
-            evaluation_frequency=evaluation_frequency,
-            variable_statistics_frequency=variable_statistics_frequency,
-            run_meta_data_frequency=run_meta_data_frequency,
-            working_dir=working_dir,
-            checkpoint_file_prefix=checkpoint_file_prefix,
-            restore_sequentially=restore_sequentially,
-            save_trained=save_trained)
-
-    def __str__(self):
-        return 'delicious'
-
-    def experiment_information(self):
-        return {'architectures': str(self.architectures),
-                'loss': str(self.loss)}
-
-    def load_data(self, test_proportion=None):
-        train_data, test_data, _ = loaders.delicious.load(
-            os.path.join(self.working_dir, 'data'))
-        if test_proportion is None:
-            return train_data, test_data
-        # TODO: Use test_proportion.
-        return train_data, test_data
+if __name__ == '__main__':
+    results = load_results(sys.argv[1])
+    plot_results(results, metrics=['f1 score'])

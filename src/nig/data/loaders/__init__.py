@@ -17,9 +17,9 @@ from __future__ import absolute_import, division, print_function
 from . import dbpedia
 from . import delicious
 from . import glove
-from . import mediamill
 from . import mnist
+from . import mulan
 
 __author__ = 'eaplatanios'
 
-__all__ = ['dbpedia', 'delicious', 'glove', 'mediamill', 'mnist']
+__all__ = ['dbpedia', 'delicious', 'glove', 'mnist', 'mulan']

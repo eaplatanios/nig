@@ -70,8 +70,7 @@ class L2Loss(Metric):
     @name_scope_context
     def evaluate(self, outputs, train_outputs):
         metric = tf.square(tf.subtract(outputs, train_outputs))
-        num_samples = tf.cast(tf.shape(metric)[0], tf.float32)
-        return tf.reduce_sum(metric) / num_samples
+        return tf.reduce_sum(metric)
 
 
 class Accuracy(Metric):
@@ -309,7 +308,7 @@ class HammingLoss(Metric):
         outputs = tf.nn.relu(tf.sign(outputs - thresholds))
         metric = tf.cast(tf.not_equal(outputs, train_outputs), tf.float32)
         metric = tf.reduce_sum(metric, axis=1)
-        return tf.reduce_mean(metric)
+        return tf.reduce_sum(metric)
 
 
 class CrossEntropy(Metric):
@@ -335,4 +334,28 @@ class CrossEntropy(Metric):
             train_outputs = tf.to_int64(tf.squeeze(train_outputs))
             metric = tf.nn.sparse_softmax_cross_entropy_with_logits(
                 logits=outputs, labels=train_outputs)
-        return tf.reduce_mean(metric)
+        return tf.reduce_sum(metric)
+
+
+class BinaryCrossEntropy(Metric):
+    def __init__(self, logit_outputs=True, one_hot_train_outputs=False,
+                 name='binary cross entropy'):
+        super(BinaryCrossEntropy, self).__init__(name=name)
+        self.logit_outputs = logit_outputs
+        self.one_hot_train_outputs = one_hot_train_outputs
+        # self.numerically_robust = numerically_robust
+
+    @name_scope_context
+    def evaluate(self, outputs, train_outputs):
+        if not self.logit_outputs:
+            epsilon = tf.convert_to_tensor(
+                __EPS__, dtype=outputs.dtype.base_dtype)
+            outputs = tf.clip_by_value(outputs, epsilon, 1.0 - epsilon)
+            outputs = tf.log(tf.div(outputs, 1.0 - outputs))
+        if not self.one_hot_train_outputs:
+            train_outputs = tf.to_int64(tf.squeeze(train_outputs))
+            train_outputs = tf.one_hot(
+                indices=train_outputs, depth=tf.shape(outputs)[1], axis=-1)
+        metric = tf.nn.sigmoid_cross_entropy_with_logits(
+            labels=train_outputs, logits=outputs)
+        return tf.reduce_sum(metric)
