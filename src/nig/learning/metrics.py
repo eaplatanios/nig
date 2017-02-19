@@ -27,7 +27,8 @@ __author__ = 'eaplatanios'
 
 __all__ = [
     'Metric', 'CombinedMetric', 'L2Loss', 'Accuracy', 'AreaUnderCurve',
-    'Precision', 'Recall', 'F1Score', 'HammingLoss', 'CrossEntropy']
+    'Precision', 'Recall', 'F1Score', 'HammingLoss', 'CrossEntropy',
+    'BinaryCrossEntropy']
 
 __EPS__ = np.finfo(np.float32).eps
 
