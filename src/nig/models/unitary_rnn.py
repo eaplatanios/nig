@@ -58,7 +58,7 @@ class URNNCell(tf.contrib.rnn.RNNCell):
                     name='B', dtype=tf.float32, shape=[self._num_units],
                     initializer=tf.constant_initializer(0.0)))
             out = tf.concat(
-                axis=1, values=[tf.real(next_state), tf.imag(next_state)])
+                values=[tf.real(next_state), tf.imag(next_state)], axis=1)
             w_out = tf.get_variable(
                 name='W_out', shape=[self._num_units * 2, self.output_size])
             b_out = tf.get_variable(

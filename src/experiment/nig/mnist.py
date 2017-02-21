@@ -45,7 +45,7 @@ class MNISTExperiment(experiments.ExperimentBase):
             784, 10, architecture, activation=activation,
             softmax_output=True,
             # log_output=use_one_hot_encoding,
-            log_output=False,
+            log_output=self.use_one_hot_encoding,
             train_outputs_one_hot=use_one_hot_encoding, loss=self.loss,
             loss_summary=False, optimizer=optimizer,
             optimizer_opts=optimizer_opts)
@@ -54,6 +54,10 @@ class MNISTExperiment(experiments.ExperimentBase):
             nig.Accuracy(
                 log_outputs=False, scaled_outputs=True,
                 one_hot_train_outputs=True, thresholds=0.5, macro_average=True),
+            nig.AreaUnderCurve(
+                log_outputs=False, scaled_outputs=True,
+                one_hot_train_outputs=True, curve='pr', num_thresholds=100,
+                macro_average=True, name='auc'),
             nig.Precision(
                 log_outputs=False, scaled_outputs=True,
                 one_hot_train_outputs=True, thresholds=0.5, macro_average=True),
@@ -114,7 +118,7 @@ if __name__ == '__main__':
     labeled_batch_size = 128
     unlabeled_batch_size = 128
     test_data_proportion = 0.95
-    max_iter = 500
+    max_iter = 1000
     abs_loss_chg_tol = 1e-6
     rel_loss_chg_tol = 1e-6
     loss_chg_iter_below_tol = 5
