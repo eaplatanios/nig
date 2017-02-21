@@ -201,7 +201,8 @@ class LeavePLabelsOut(_Base):
             raise StopIteration()
         self._remaining_combinations -= 1
         test_mask = self._empty_mask()
-        test_combination = np.array(self._test_combinations.next())
+        #TODO: make this "next" function call compatible with Python 2
+        test_combination = np.array(next(self._test_combinations))
         for label in self.unique_labels[test_combination]:
             test_mask[self.labels == label] = True
         train_mask = np.logical_not(test_mask)
