@@ -96,7 +96,7 @@ class Accuracy(Metric):
             train_outputs = tf.one_hot(
                 indices=train_outputs, depth=tf.shape(outputs)[1])
         if self.log_outputs:
-            thresholds = tf.log(self.thresholds)
+            thresholds = np.log(self.thresholds).astype(np.float32)
         else:
             thresholds = self.thresholds
         return accuracy(
@@ -124,9 +124,10 @@ class AreaUnderCurve(Metric):
         if not self.scaled_outputs:
             if self.log_outputs:
                 outputs = tf.nn.log_softmax(outputs)
-                outputs = tf.exp(outputs)
             else:
                 outputs = tf.nn.softmax(outputs)
+        if self.log_outputs:
+            outputs = tf.exp(outputs)
         if not self.one_hot_train_outputs:
             train_outputs = tf.one_hot(
                 indices=train_outputs, depth=tf.shape(outputs)[1])
@@ -159,7 +160,7 @@ class _ClassificationMetric(Metric):
             train_outputs = tf.one_hot(
                 indices=train_outputs, depth=tf.shape(outputs)[1])
         if self.log_outputs:
-            thresholds = tf.log(self.thresholds)
+            thresholds = np.log(self.thresholds).astype(np.float32)
         else:
             thresholds = self.thresholds
         outputs = tf.nn.relu(tf.sign(outputs - thresholds))

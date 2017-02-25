@@ -32,7 +32,7 @@ class MNISTExperiment(experiments.ExperimentBase):
         self.use_one_hot_encoding = use_one_hot_encoding
         # self.loss = nig.L2Loss()
         self.loss = nig.CrossEntropy(
-            log_outputs=True, scaled_outputs=True,
+            log_outputs=False, scaled_outputs=True,
             one_hot_train_outputs=self.use_one_hot_encoding)
         optimizer_opts = {
             'batch_size': labeled_batch_size,
@@ -47,27 +47,27 @@ class MNISTExperiment(experiments.ExperimentBase):
         models = [nig.MultiLayerPerceptron(
             input_size=num_features, output_size=num_labels,
             hidden_layer_sizes=architecture, activation=activation,
-            softmax_output=True, log_output=True,
+            softmax_output=True, log_output=False,
             train_outputs_one_hot=use_one_hot_encoding, loss=self.loss,
             loss_summary=False, optimizer=optimizer,
             optimizer_opts=optimizer_opts)
                   for architecture in self.architectures]
         eval_metrics = [
             nig.Accuracy(
-                log_outputs=True, scaled_outputs=True,
+                log_outputs=False, scaled_outputs=True,
                 one_hot_train_outputs=True, thresholds=0.5, macro_average=True),
             nig.AreaUnderCurve(
-                log_outputs=True, scaled_outputs=True,
+                log_outputs=False, scaled_outputs=True,
                 one_hot_train_outputs=True, curve='pr', num_thresholds=100,
                 macro_average=True, name='auc'),
             nig.Precision(
-                log_outputs=True, scaled_outputs=True,
+                log_outputs=False, scaled_outputs=True,
                 one_hot_train_outputs=True, thresholds=0.5, macro_average=True),
             nig.Recall(
-                log_outputs=True, scaled_outputs=True,
+                log_outputs=False, scaled_outputs=True,
                 one_hot_train_outputs=True, thresholds=0.5, macro_average=True),
             nig.F1Score(
-                log_outputs=True, scaled_outputs=True,
+                log_outputs=False, scaled_outputs=True,
                 one_hot_train_outputs=True, thresholds=0.5, macro_average=True)]
         predict_postprocess = lambda l: tf.argmax(l, 1)
         inputs_pipeline = nig.ColumnsExtractor(list(range(num_features)))
@@ -114,7 +114,7 @@ class MNISTExperiment(experiments.ExperimentBase):
 
 if __name__ == '__main__':
     seed = 9999
-    architectures = [[16], [128], [128, 64, 32], [512, 256, 128], [1024]]
+    architectures = [[128, 64, 32]]  # [[16], [128], [128, 64, 32], [512, 256, 128], [1024]]
     use_one_hot_encoding = True
     activation = nig.leaky_relu(0.01)
     labeled_batch_size = 128

@@ -34,7 +34,7 @@ class YahooExperiment(experiments.ExperimentBase):
         self.architectures = architectures
         # self.loss = nig.L2Loss()
         self.loss = nig.BinaryCrossEntropy(
-            logit_outputs=True, one_hot_train_outputs=True)
+            logit_outputs=False, one_hot_train_outputs=True)
         optimizer_opts = {
             'batch_size': labeled_batch_size,
             'max_iter': max_iter,
@@ -48,27 +48,27 @@ class YahooExperiment(experiments.ExperimentBase):
         models = [nig.MultiLayerPerceptron(
             input_size=num_features, output_size=num_labels,
             hidden_layer_sizes=architecture, activation=activation,
-            softmax_output=False, sigmoid_output=True, log_output=True,
+            softmax_output=False, sigmoid_output=True, log_output=False,
             train_outputs_one_hot=True, loss=self.loss, loss_summary=False,
             optimizer=optimizer, optimizer_opts=optimizer_opts)
                   for architecture in self.architectures]
         # eval_metric = nig.HammingLoss(log_predictions=False)
         eval_metrics = [
             nig.Accuracy(
-                log_outputs=True, scaled_outputs=True,
+                log_outputs=False, scaled_outputs=True,
                 one_hot_train_outputs=True, thresholds=0.5, macro_average=True),
             nig.AreaUnderCurve(
-                log_outputs=True, scaled_outputs=True,
+                log_outputs=False, scaled_outputs=True,
                 one_hot_train_outputs=True, curve='pr', num_thresholds=100,
                 macro_average=True, name='auc'),
             nig.Precision(
-                log_outputs=True, scaled_outputs=True,
+                log_outputs=False, scaled_outputs=True,
                 one_hot_train_outputs=True, thresholds=0.5, macro_average=True),
             nig.Recall(
-                log_outputs=True, scaled_outputs=True,
+                log_outputs=False, scaled_outputs=True,
                 one_hot_train_outputs=True, thresholds=0.5, macro_average=True),
             nig.F1Score(
-                log_outputs=True, scaled_outputs=True,
+                log_outputs=False, scaled_outputs=True,
                 one_hot_train_outputs=True, thresholds=0.5, macro_average=True)]
         super(YahooExperiment, self).__init__(
             models=models, eval_metrics=eval_metrics,
@@ -184,5 +184,5 @@ if __name__ == '__main__':
         results, filename=os.path.join(working_dir, 'results.yaml'),
         update=True, use_backup=True, delete_backup=False, yaml_format=True)
     # results = experiments.load_results(
-    #     filename=os.path.join(working_dir, 'results.yaml'), yaml_format=True)
+    #     filename=os.path.join(working_dir, 'results.yaml'), yaml_format=True
     experiments.plot_results(results)
