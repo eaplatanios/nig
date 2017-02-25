@@ -114,12 +114,12 @@ class MNISTExperiment(experiments.ExperimentBase):
 
 if __name__ == '__main__':
     seed = 9999
-    architectures = [[128, 64, 32]]  # [[16], [128], [128, 64, 32], [512, 256, 128], [1024]]
+    architectures = [[16], [128], [128, 64, 32], [512, 256, 128], [1024]]
     use_one_hot_encoding = True
     activation = nig.leaky_relu(0.01)
     labeled_batch_size = 128
     unlabeled_batch_size = 128
-    test_data_proportion = 0.05
+    test_data_proportion = 0.95
     max_iter = 1000
     abs_loss_chg_tol = 1e-6
     rel_loss_chg_tol = 1e-6
