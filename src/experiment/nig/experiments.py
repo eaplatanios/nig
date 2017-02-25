@@ -153,9 +153,9 @@ def log_results_summary(results, metrics=None):
                 logger.info('\tMetric "%s":' % metric.lower())
                 for name, train_eval, test_eval \
                         in zip(names, train_evaluations, test_evaluations):
-                    name += " " * (20 - len(name))
-                    logger.info("\t\t%s: Train = %.4f , Test = %.4f"
-                                % (name, train_eval, test_eval))
+                    name += ":" + " " * (30 - len(name))
+                    logger.info("\t\t%s Train = %.4f , Test = %.4f"
+                                % (name, train_eval[1], test_eval[1]))
 
 
 def plot_results(results, metrics=None):

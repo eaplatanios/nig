@@ -191,8 +191,8 @@ if __name__ == '__main__':
         # logger.info(np.mean(test_predictions == test_truth))
 
     experiments.save_results(
-        results, filename=os.path.join(working_dir, 'results.yaml'),
-        update=True, use_backup=True, delete_backup=False, yaml_format=True)
+        results, filename=os.path.join(working_dir, 'results.pk'),
+        update=True, use_backup=True, delete_backup=False, yaml_format=False)
     # results = experiments.load_results(
-    #     filename=os.path.join(working_dir, 'results.yaml'), yaml_format=True)
+    #     filename=os.path.join(working_dir, 'results.pk'), yaml_format=False)
     experiments.plot_results(results)
