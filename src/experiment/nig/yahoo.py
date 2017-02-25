@@ -39,7 +39,7 @@ class YahooExperiment(experiments.ExperimentBase):
             'loss_chg_iter_below_tol': loss_chg_iter_below_tol,
             'grads_processor': gradients_processor}
         models = [nig.MultiLayerPerceptron(
-            32786, 31, architecture, activation=activation,
+            23146, 26, architecture, activation=activation,
             softmax_output=False, sigmoid_output=True, log_output=False,
             train_outputs_one_hot=True, loss=self.loss, loss_summary=False,
             optimizer=optimizer, optimizer_opts=optimizer_opts)
