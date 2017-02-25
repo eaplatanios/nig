@@ -23,6 +23,8 @@ from . import utilities
 
 __author__ = 'eaplatanios'
 
+__all__ = ['dataset_info', 'load']
+
 SOURCE_URL = 'http://yann.lecun.com/exdb/mnist/'
 # VALIDATION_SIZE = 5000
 TRAIN_IMAGES = 'train-images-idx3-ubyte.gz'
@@ -33,12 +35,18 @@ TEST_LABELS = 't10k-labels-idx1-ubyte.gz'
 logger = logging.getLogger(__name__)
 
 
+dataset_info = {
+    'num_features': 784,
+    'num_labels': 10
+}
+
+
 def _read32(bytestream):
     dtype = np.dtype(np.uint32).newbyteorder('>')
     return np.frombuffer(bytestream.read(4), dtype=dtype)[0]
 
 
-def extract_images(filename):
+def _extract_images(filename):
     logger.info('Extracting ' + filename)
     with open(filename, 'rb') as f, gzip.GzipFile(fileobj=f) as bytestream:
         magic = _read32(bytestream)
@@ -54,7 +62,7 @@ def extract_images(filename):
         return data
 
 
-def extract_labels(filename):
+def _extract_labels(filename):
     logger.info('Extracting ' + filename)
     with open(filename, 'rb') as f, gzip.GzipFile(fileobj=f) as bytestream:
         magic = _read32(bytestream)
@@ -68,7 +76,6 @@ def extract_labels(filename):
 
 
 def load(working_dir, float_images=True):
-    working_dir = os.path.join(working_dir, 'mnist')
     if float_images:
         train_data_file = os.path.join(working_dir, 'train_data.npy')
         test_data_file = os.path.join(working_dir, 'test_data.npy')
@@ -78,16 +85,16 @@ def load(working_dir, float_images=True):
     if not (os.path.isfile(train_data_file) and os.path.isfile(test_data_file)):
         local_file = utilities.maybe_download(TRAIN_IMAGES, working_dir,
                                               SOURCE_URL + TRAIN_IMAGES)
-        train_images = extract_images(local_file)
+        train_images = _extract_images(local_file)
         local_file = utilities.maybe_download(TRAIN_LABELS, working_dir,
                                               SOURCE_URL + TRAIN_LABELS)
-        train_labels = extract_labels(local_file)
+        train_labels = _extract_labels(local_file)
         local_file = utilities.maybe_download(TEST_IMAGES, working_dir,
                                               SOURCE_URL + TEST_IMAGES)
-        test_images = extract_images(local_file)
+        test_images = _extract_images(local_file)
         local_file = utilities.maybe_download(TEST_LABELS, working_dir,
                                               SOURCE_URL + TEST_LABELS)
-        test_labels = extract_labels(local_file)
+        test_labels = _extract_labels(local_file)
         train_images = train_images.reshape(train_images.shape[0],
                                             train_images.shape[1] *
                                             train_images.shape[2])

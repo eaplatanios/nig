@@ -38,8 +38,12 @@ class MediaMillExperiment(experiments.ExperimentBase):
             'rel_loss_chg_tol': rel_loss_chg_tol,
             'loss_chg_iter_below_tol': loss_chg_iter_below_tol,
             'grads_processor': gradients_processor}
+        dataset_info = loaders.mulan.dataset_info['mediamill']
+        num_features = dataset_info['num_features']
+        num_labels = dataset_info['num_labels']
         models = [nig.MultiLayerPerceptron(
-            120, 101, architecture, activation=activation,
+            input_size=num_features, output_size=num_labels,
+            hidden_layer_sizes=architecture, activation=activation,
             softmax_output=False, sigmoid_output=True, log_output=False,
             train_outputs_one_hot=True, loss=self.loss, loss_summary=False,
             optimizer=optimizer, optimizer_opts=optimizer_opts)
@@ -90,8 +94,7 @@ class MediaMillExperiment(experiments.ExperimentBase):
             os.path.join(self.working_dir, 'data'), 'mediamill')
         if test_proportion is None:
             return train_data, test_data
-        data = (np.concatenate([train_data[0], test_data[0]], axis=0),
-                np.concatenate([train_data[1], test_data[1]], axis=0))
+        data = self._merge_datasets(train_data, test_data)
         if isinstance(self.seed, np.random.RandomState):
             rng = self.seed
         else:

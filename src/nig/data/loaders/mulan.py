@@ -28,39 +28,92 @@ from ..utilities import serialize_data, deserialize_data
 
 __author__ = 'eaplatanios'
 
+__all__ = ['dataset_info', 'load']
+
 SOURCE_URL = 'http://sourceforge.net/projects/mulan/files/datasets/'
 
-DATA_SETS = {
-    'BIBTEX': 'bibtex.rar',
-    'BIRDS': 'birds.rar',
-    'BOOKMARKS': 'bookmarks.rar',
-    'CAL500': 'CAL500.rar',
-    'COREL5K': 'corel5k.rar',
-    'COREL16K': 'corel16k.rar',
-    'DELICIOUS': 'delicious.rar',
-    'EMOTIONS': 'emotions.rar',
-    'ENRON': 'enron.rar',
-    # 'FLAGS': 'flags.zip',
-    'GENBASE': 'genbase.rar',
-    'MEDIAMILL': 'mediamill.rar',
-    'MEDICAL': 'medical.rar',
-    # 'NUSWIDE_CVLAD_PLUS': 'nuswide-cVLADplus.rar',
-    # 'NUSWIDE_BOW': 'nuswide-bow.rar',
-    'RCV1V2_SUBSET_1': 'rcv1subset1.rar',
-    'RCV1V2_SUBSET_2': 'rcv1subset2.rar',
-    'RCV1V2_SUBSET_3': 'rcv1subset3.rar',
-    'RCV1V2_SUBSET_4': 'rcv1subset4.rar',
-    'RCV1V2_SUBSET_5': 'rcv1subset5.rar',
-    'SCENE': 'scene.rar',
-    'TMC2007': 'tmc2007.rar',
-    'YAHOO': 'yahoo.rar',
-    'YEAST': 'yeast.rar'
+DATASETS = {
+    'bibtex': 'bibtex.rar',
+    'birds': 'birds.rar',
+    'bookmarks': 'bookmarks.rar',
+    'cal500': 'CAL500.rar',
+    'corel5k': 'corel5k.rar',
+    'corel16k': 'corel16k.rar',
+    'delicious': 'delicious.rar',
+    'emotions': 'emotions.rar',
+    'enron': 'enron.rar',
+    # 'flags': 'flags.zip',
+    'genbase': 'genbase.rar',
+    'mediamill': 'mediamill.rar',
+    'medical': 'medical.rar',
+    # 'nuswide_cvlad_plus': 'nuswide-cVLADplus.rar',
+    # 'nuswide_bow': 'nuswide-bow.rar',
+    'rcv1v2_subset_1': 'rcv1subset1.rar',
+    'rcv1v2_subset_2': 'rcv1subset2.rar',
+    'rcv1v2_subset_3': 'rcv1subset3.rar',
+    'rcv1v2_subset_4': 'rcv1subset4.rar',
+    'rcv1v2_subset_5': 'rcv1subset5.rar',
+    'scene': 'scene.rar',
+    'tmc2007': 'tmc2007.rar',
+    'yahoo': 'yahoo.rar',
+    'yeast': 'yeast.rar'
+}
+
+dataset_info = {
+    # TODO: Add information for more datasets.
+    'delicious': {
+        'num_features': 500,
+        'num_labels': 983},
+    'emotions': {
+        'num_features': 72,
+        'num_labels': 6},
+    'mediamill': {
+        'num_features': 120,
+        'num_labels': 101},
+    'rcv1v2': {
+        'num_features': 47236,
+        'num_labels': 101},
+    'scene': {
+        'num_features': 294,
+        'num_labels': 6},
+    'yahoo': {
+        'arts1': {
+            'num_features': 23146,
+            'num_labels': 26},
+        'business1': {
+            'num_features': -1,
+            'num_labels': -1},
+        'computers1': {
+            'num_features': -1,
+            'num_labels': -1},
+        'education1': {
+            'num_features': -1,
+            'num_labels': -1},
+        'entertainment1': {
+            'num_features': -1,
+            'num_labels': -1},
+        'health1': {
+            'num_features': -1,
+            'num_labels': -1},
+        'reference1': {
+            'num_features': -1,
+            'num_labels': -1},
+        'science1': {
+            'num_features': -1,
+            'num_labels': -1},
+        'social1': {
+            'num_features': -1,
+            'num_labels': -1},
+        'society1': {
+            'num_features': -1,
+            'num_labels': -1}
+    }
 }
 
 logger = logging.getLogger(__name__)
 
 
-def extract_data(filename, data_set_part_name=None):
+def _extract_data(filename, dataset_part_name=None):
     def separate_labels(data, labels):
         label_indices = [i[0].replace('\\\'', '\'') for i in data['attributes']]
         label_indices = [i in labels for i in label_indices]
@@ -93,7 +146,7 @@ def extract_data(filename, data_set_part_name=None):
             if dataset_name not in dataset_files:
                 dataset_files[dataset_name] = dict()
             dataset_files[dataset_name]['test'] = data_file
-    if data_set_part_name is None:
+    if dataset_part_name is None:
         datasets = dict()
         for name, files in six.iteritems(dataset_files):
             train_data = arff.load(open(files['train'], 'r'))
@@ -104,9 +157,9 @@ def extract_data(filename, data_set_part_name=None):
         if len(datasets) == 1:
             datasets = six.next(six.itervalues(datasets))
         return datasets
-    if data_set_part_name not in dataset_files:
-        raise ValueError('Dataset part "%s" not found.' % data_set_part_name)
-    files = dataset_files[data_set_part_name]
+    if dataset_part_name not in dataset_files:
+        raise ValueError('Dataset part "%s" not found.' % dataset_part_name)
+    files = dataset_files[dataset_part_name]
     train_data = arff.load(open(files['train'], 'r'))
     test_data = arff.load(open(files['test'], 'r'))
     train_data = separate_labels(train_data, labels)
@@ -114,30 +167,29 @@ def extract_data(filename, data_set_part_name=None):
     return train_data, test_data
 
 
-def load(working_dir, data_set, data_set_part_name=None):
-    data_set = data_set.upper()
-    if data_set not in DATA_SETS:
-        raise ValueError('Unsupported data set name %s.' % data_set)
-
-    working_dir = os.path.join(working_dir, data_set.lower())
-    if data_set_part_name is None:
+def load(working_dir, dataset, dataset_part_name=None):
+    dataset = dataset.lower()
+    if dataset not in DATASETS:
+        raise ValueError('Unsupported data set name %s.' % dataset)
+    if dataset_part_name is None:
         train_data_file = os.path.join(working_dir, 'train_data.npy')
         test_data_file = os.path.join(working_dir, 'test_data.npy')
     else:
         train_data_file = os.path.join(
-            working_dir, 'train_data_%s.npy' % data_set_part_name)
+            working_dir, 'train_data_%s.npy' % dataset_part_name)
         test_data_file = os.path.join(
-            working_dir, 'test_data_%s.npy' % data_set_part_name)
+            working_dir, 'test_data_%s.npy' % dataset_part_name)
     if not (os.path.isfile(train_data_file) and os.path.isfile(test_data_file)):
-        filename = DATA_SETS[data_set]
+        filename = DATASETS[dataset]
         local_file = utilities.maybe_download(
             filename=filename, working_dir=working_dir,
             source_url=SOURCE_URL + filename)
-        datasets = extract_data(local_file)
-        if data_set_part_name is None:
+        datasets = _extract_data(
+            filename=local_file, dataset_part_name=dataset_part_name)
+        if dataset_part_name is None:
             train_data, test_data = datasets
         else:
-            train_data, test_data = datasets[data_set_part_name]
+            train_data, test_data = datasets[dataset_part_name]
         serialize_data(data=train_data, path=train_data_file)
         serialize_data(data=test_data, path=test_data_file)
     else:

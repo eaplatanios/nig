@@ -37,10 +37,9 @@ def maybe_download(working_dir):
 
 
 def load(working_dir):
-    data_dir = os.path.join(working_dir, 'dbpedia')
-    maybe_download(data_dir)
-    train_data_file = os.path.join(data_dir, 'dbpedia_csv', 'train.csv')
-    test_data_file = os.path.join(data_dir, 'dbpedia_csv', 'test.csv')
+    maybe_download(working_dir)
+    train_data_file = os.path.join(working_dir, 'dbpedia_csv', 'train.csv')
+    test_data_file = os.path.join(working_dir, 'dbpedia_csv', 'test.csv')
     train_data = utilities.load_csv(train_data_file, 0, False)
     val_data = train_data[:VALIDATION_SIZE]
     train_data = train_data[VALIDATION_SIZE:]

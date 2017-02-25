@@ -260,33 +260,33 @@ class ExperimentBase(with_metaclass(abc.ABCMeta, object)):
         pass
 
     @staticmethod
-    def _merge_data_sets(*data_sets):
-        data_set_type = type(data_sets[0])
-        for data_set in data_sets:
-            if not isinstance(data_set, data_set_type):
+    def _merge_datasets(*datasets):
+        dataset_type = type(datasets[0])
+        for dataset in datasets:
+            if not isinstance(dataset, dataset_type):
                 raise TypeError('All data sets being merged must have the same '
                                 'data type.')
-        if data_set_type == np.ndarray:
-            return np.concatenate(data_sets)
-        if data_set_type == tuple:
-            return tuple(np.concatenate(d) for d in zip(*data_sets))
-        if data_set_type == list:
-            return [np.concatenate(d) for d in zip(*data_sets)]
-        if data_set_type == dict:
-            keys = set(data_sets[0].keys)
-            for data_set in data_sets:
-                if set(data_set.keys()) != keys:
+        if dataset_type == np.ndarray:
+            return np.concatenate(datasets)
+        if dataset_type == tuple:
+            return tuple(np.concatenate(d) for d in zip(*datasets))
+        if dataset_type == list:
+            return [np.concatenate(d) for d in zip(*datasets)]
+        if dataset_type == dict:
+            keys = set(datasets[0].keys)
+            for dataset in datasets:
+                if set(dataset.keys()) != keys:
                     raise ValueError('All data sets must contain the same '
                                      'dictionary keys.')
-            return {k: np.concatenate(tuple(d[k] for d in data_sets))
+            return {k: np.concatenate(tuple(d[k] for d in datasets))
                     for k in keys}
-        raise TypeError('Unsupported data sets type %s.' % data_set_type)
+        raise TypeError('Unsupported data sets type %s.' % dataset_type)
 
     # @staticmethod
-    # def _split_data_set(data_set, test_proportion=0.1):
+    # def _split_dataset(dataset, test_proportion=0.1):
     #     # TODO: Guarantee even label split using our cross-validation module.
-    #     num_train = int(np.floor((1 - test_proportion) * data_set.shape[0]))
-    #     return data_set[:num_train], data_set[num_train:]
+    #     num_train = int(np.floor((1 - test_proportion) * dataset.shape[0]))
+    #     return dataset[:num_train], dataset[num_train:]
 
     def _get_iterator(self, data, include_outputs=True):
         if self.inputs_pipeline is not None:

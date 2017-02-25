@@ -41,8 +41,12 @@ class MNISTExperiment(experiments.ExperimentBase):
             'rel_loss_chg_tol': rel_loss_chg_tol,
             'loss_chg_iter_below_tol': loss_chg_iter_below_tol,
             'grads_processor': gradients_processor}
+        dataset_info = loaders.mnist.dataset_info
+        num_features = dataset_info['num_features']
+        num_labels = dataset_info['num_labels']
         models = [nig.MultiLayerPerceptron(
-            784, 10, architecture, activation=activation,
+            input_size=num_features, output_size=num_labels,
+            hidden_layer_sizes=architecture, activation=activation,
             softmax_output=True,
             # log_output=use_one_hot_encoding,
             log_output=self.use_one_hot_encoding,
@@ -104,7 +108,7 @@ class MNISTExperiment(experiments.ExperimentBase):
             os.path.join(self.working_dir, 'data'), float_images=True)
         if test_proportion is None:
             return train_data, test_data
-        data = self._merge_data_sets(train_data, test_data)
+        data = self._merge_datasets(train_data, test_data)
         train_indices, test_indices = experiments.stratified_split(
             labels=data[:, -1], test_proportion=test_proportion, seed=self.seed)
         return data[train_indices], data[test_indices]

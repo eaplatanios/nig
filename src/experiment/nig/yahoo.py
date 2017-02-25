@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class YahooExperiment(experiments.ExperimentBase):
-    def __init__(self, architectures, activation=tf.nn.relu,
+    def __init__(self, dataset, architectures, activation=tf.nn.relu,
                  labeled_batch_size=100, unlabeled_batch_size=100,
                  test_data_proportion=0.1, max_iter=1000, abs_loss_chg_tol=1e-6,
                  rel_loss_chg_tol=1e-6, loss_chg_iter_below_tol=5,
@@ -27,6 +27,10 @@ class YahooExperiment(experiments.ExperimentBase):
                  checkpoint_file_prefix='ckpt', restore_sequentially=False,
                  save_trained=True, optimizer=lambda: tf.train.AdamOptimizer(),
                  gradients_processor=None):
+        # Valid data set names: arts1, business1, computers1, education1,
+        # entertainment1, health1, recreation1, reference1, science1, social1,
+        # society1.
+        self.dataset = dataset
         self.architectures = architectures
         # self.loss = nig.L2Loss()
         self.loss = nig.BinaryCrossEntropy(
@@ -38,8 +42,12 @@ class YahooExperiment(experiments.ExperimentBase):
             'rel_loss_chg_tol': rel_loss_chg_tol,
             'loss_chg_iter_below_tol': loss_chg_iter_below_tol,
             'grads_processor': gradients_processor}
+        dataset_info = loaders.mulan.dataset_info['yahoo'][self.dataset]
+        num_features = dataset_info['num_features']
+        num_labels = dataset_info['num_labels']
         models = [nig.MultiLayerPerceptron(
-            23146, 26, architecture, activation=activation,
+            input_size=num_features, output_size=num_labels,
+            hidden_layer_sizes=architecture, activation=activation,
             softmax_output=False, sigmoid_output=True, log_output=False,
             train_outputs_one_hot=True, loss=self.loss, loss_summary=False,
             optimizer=optimizer, optimizer_opts=optimizer_opts)
@@ -79,7 +87,7 @@ class YahooExperiment(experiments.ExperimentBase):
             save_trained=save_trained)
 
     def __str__(self):
-        return 'yahoo'
+        return 'yahoo_%s' % self.dataset
 
     def experiment_information(self):
         return {'architectures': str(self.architectures),
@@ -87,15 +95,11 @@ class YahooExperiment(experiments.ExperimentBase):
 
     def load_data(self, test_proportion=None):
         train_data, test_data = loaders.mulan.load(
-            os.path.join(self.working_dir, 'data'), data_set='yahoo',
-            data_set_part_name='arts1')
-        # Valid data set part names: arts1, business1, computers1, education1,
-        # entertainment1, health1, recreation1, reference1, science1, social1,
-        # society1.
+            os.path.join(self.working_dir, 'data'), dataset='yahoo',
+            dataset_part_name=self.dataset)
         if test_proportion is None:
             return train_data, test_data
-        data = (np.concatenate([train_data[0], test_data[0]], axis=0),
-                np.concatenate([train_data[1], test_data[1]], axis=0))
+        data = self._merge_datasets(train_data, test_data)
         if isinstance(self.seed, np.random.RandomState):
             rng = self.seed
         else:
@@ -110,6 +114,7 @@ class YahooExperiment(experiments.ExperimentBase):
 
 if __name__ == '__main__':
     seed = 9999
+    dataset = 'arts1'
     architectures = [[1], [8],
                      [16, 8], [32, 16],
                      [128, 64, 32, 16], [128, 32, 8], [256, 128]]
@@ -151,7 +156,7 @@ if __name__ == '__main__':
 
     with nig.dummy():  # tf.device('/cpu:0'):
         experiment = YahooExperiment(
-            architectures=architectures, activation=activation,
+            dataset=dataset, architectures=architectures, activation=activation,
             labeled_batch_size=labeled_batch_size,
             unlabeled_batch_size=unlabeled_batch_size,
             test_data_proportion=test_data_proportion, max_iter=max_iter,
@@ -176,7 +181,7 @@ if __name__ == '__main__':
         learners = OrderedDict(learners)
         results = experiment.run(learners)
     experiments.save_results(
-        results, filename=os.path.join(working_dir, 'results.pk'), update=True,
+        results, filename=os.path.join(working_dir, 'results_%s.pk'), update=True,
         use_backup=True, delete_backup=False)
     # results = experiments.load_results(
     #     filename=os.path.join(working_dir, 'results.pk'))
