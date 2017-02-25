@@ -5,7 +5,6 @@ import nig
 import numpy as np
 import os
 import shutil
-import sys
 import tensorflow as tf
 
 from collections import OrderedDict
@@ -36,14 +35,14 @@ def get_consensus_configurations(consensus_loss_weights, multiplier=1.0):
                 'first_consensus_max_iter': 1000,
                 'consensus_update_frequency': 10,
                 'consensus_update_max_iter': 500}),
-            # ('RBM ' + str(weight), {
-            #     'consensus_method': nig.RBMConsensus(),
-            #     'consensus_loss_weight': weight * multiplier,
-            #     'consensus_loss_metric': None,
-            #     'first_consensus': 10,
-            #     'first_consensus_max_iter': 10000,
-            #     'consensus_update_frequency': 100,
-            #     'consensus_update_max_iter': 500})
+            ('RBM ' + str(weight), {
+                'consensus_method': nig.RBMConsensus(),
+                'consensus_loss_weight': weight * multiplier,
+                'consensus_loss_metric': None,
+                'first_consensus': 10,
+                'first_consensus_max_iter': 10000,
+                'consensus_update_frequency': 100,
+                'consensus_update_max_iter': 1000})
         ])
     return configurations
 
