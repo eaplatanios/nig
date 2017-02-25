@@ -15,6 +15,7 @@
 from __future__ import absolute_import, division, print_function
 
 import abc
+import numpy as np
 
 from six import with_metaclass
 
@@ -84,3 +85,61 @@ class ZipIterator(Iterator):
 
     def remaining_length(self):
         return self._iterators[0].remaining_length()
+
+
+class NonOverlappingCombinations(Iterator):
+    """
+    Returns p-length combinations of elements in {0,...,n-1} in the iterable,
+    where the groups are non-overlapping. The groups are randomly generated.
+
+    Example:
+        NonOverlappingCombinations(7, 3) --> (0,5,2), (1,7,3)
+    """
+    def __init__(self, n, p, seed=None):
+        assert p <= n
+        # The total number of elements.
+        self._n = n
+        # The size of the groups.
+        self._p = p
+        # Initialize the random number generator.
+        self._seed = seed
+        if seed is not None:
+            self._rng = np.random.RandomState(seed)
+        else:
+            self._rng = np.random.RandomState()
+        # Generate a random permutation of all n elements, out of which we will
+        # take out p at a time.
+        self._permutation = self._rng.permutation(n)
+        self._start_index = 0
+        # Keep track of the number of remaining combinations.
+        self._remaining_combinations = n // p
+
+    def next(self):
+        if self._remaining_combinations <= 0:
+            raise StopIteration()
+        self._remaining_combinations -= 1
+        self._start_index += self._p
+        return self._permutation[self._start_index - self._p: self._start_index]
+
+    def reset(self, n=None, p=None, seed=None):
+        self._n = n if n is not None else self._n
+        self._p = p if p is not None else self._p
+        assert self._p <= self._n
+        if seed and seed != self._seed:
+            self._seed = seed
+            self._rng = np.random.RandomState(self._seed)
+            self._permutation = self._rng.permutation(n)
+        self._start_index = 0
+        self._remaining_combinations = self._n // self._p
+
+    def reset_copy(self, n=None, p=None, seed=None):
+        n = n if n is not None else self._n
+        p = p if p is not None else self._p
+        seed = seed if seed is not None else self._seed
+        return NonOverlappingCombinations(n=n, p=p, seed=seed)
+
+    def __len__(self):
+        return self._n // self._p
+
+    def remaining_length(self):
+        return self._remaining_combinations

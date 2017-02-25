@@ -21,7 +21,7 @@ from itertools import combinations
 from math import factorial
 from six import with_metaclass
 
-from ...utilities.iterators import Iterator
+from ...utilities.iterators import Iterator, NonOverlappingCombinations
 
 __author__ = 'eaplatanios'
 
@@ -119,32 +119,53 @@ class LeaveOneOut(_Base):
 
 
 class LeavePOut(_Base):
-    def __init__(self, data_size, p=1):
+    def __init__(self, data_size, p=1, non_overlapping_folds=False, seed=None):
         super(LeavePOut, self).__init__(data_size, shuffle=False)
+        self.data_size = data_size
         self.p = p
-        self._test_combinations = combinations(range(data_size), p)
-        self._total_combinations = int(
-            factorial(data_size) / (factorial(data_size - p) * factorial(p)))
+        self.non_overlapping_folds = non_overlapping_folds
+        if non_overlapping_folds:
+            self._test_combinations = NonOverlappingCombinations(
+                n=data_size, p=p, seed=seed)
+            self._total_combinations = \
+                self._test_combinations.remaining_length()
+        else:
+            self._test_combinations = combinations(range(data_size), p)
+            self._total_combinations = int(factorial(data_size) /
+                (factorial(data_size - p) * factorial(p)))
         self._remaining_combinations = self._total_combinations
+        self.seed = seed
 
     def _next_test(self):
         if self._remaining_combinations <= 0:
             raise StopIteration()
         self._remaining_combinations -= 1
-        return np.array(self._test_combinations.next())
+        # TODO: Make this "next" function call compatible with Python 2.
+        return np.array(next(self._test_combinations))
 
-    def reset(self, p=None):
-        if p is not None:
-            self.p = p
-        self._test_combinations = combinations(range(self.data_size), self.p)
-        self._total_combinations = int(
-            factorial(self.data_size)
-            / (factorial(self.data_size - self.p) * factorial(self.p)))
+    def reset(self, p=None, non_overlapping_folds=False, seed=None):
+        self.p = p if p is not None else self.p
+        self.non_overlapping_folds = non_overlapping_folds \
+            if non_overlapping_folds is not None else self.non_overlapping_folds
+        self.seed = seed if seed is not None else self.seed
+        if self.non_overlapping_folds:
+            self._test_combinations = NonOverlappingCombinations(
+                n=self.data_size, p=self.p, seed=self.seed)
+            self._total_combinations = \
+                self._test_combinations.remaining_length()
+        else:
+            self._test_combinations = \
+                combinations(range(self.data_size), self.p)
+            self._total_combinations = int(factorial(self.data_size) /
+                (factorial(self.data_size - self.p) * factorial(self.p)))
         self._remaining_combinations = self._total_combinations
 
-    def reset_copy(self, p=None):
+    def reset_copy(self, p=None, non_overlapping_folds=False, seed=None):
         p = p if p is not None else self.p
-        return LeavePOut(self.data_size, p)
+        non_overlapping_folds = non_overlapping_folds \
+            if non_overlapping_folds is not None else self.non_overlapping_folds
+        seed = seed if seed is not None else self.seed
+        return LeavePOut(self.data_size, p, non_overlapping_folds, seed)
 
     def __len__(self):
         return self._total_combinations
@@ -181,16 +202,26 @@ class LeaveOneLabelOut(_Base):
 
 
 class LeavePLabelsOut(_Base):
-    def __init__(self, labels, p=1):
+    def __init__(self, labels, p=1, non_overlapping_folds=False, seed=None):
         super(LeavePLabelsOut, self).__init__(len(labels), shuffle=False)
         self.labels = np.asarray(labels)
         self.unique_labels = np.unique(labels)
         self.num_unique_labels = len(self.unique_labels)
         self.p = p
-        self._test_combinations = combinations(range(self.num_unique_labels), p)
-        self._total_combinations = int(
-            factorial(self.num_unique_labels)
-            / (factorial(self.num_unique_labels - p) * factorial(p)))
+        self.non_overlapping_folds = non_overlapping_folds
+        self.seed = seed
+
+        if non_overlapping_folds:
+            self._test_combinations = NonOverlappingCombinations(
+                n=self.num_unique_labels, p=p, seed=seed)
+            self._total_combinations = \
+                self._test_combinations.remaining_length()
+        else:
+            self._test_combinations = \
+                combinations(range(self.num_unique_labels), p)
+            self._total_combinations = int(
+                factorial(self.num_unique_labels)
+                / (factorial(self.num_unique_labels - p) * factorial(p)))
         self._remaining_combinations = self._total_combinations
 
     def _next_test(self):
@@ -201,7 +232,7 @@ class LeavePLabelsOut(_Base):
             raise StopIteration()
         self._remaining_combinations -= 1
         test_mask = self._empty_mask()
-        #TODO: make this "next" function call compatible with Python 2
+        # TODO: Make this "next" function call compatible with Python 2.
         test_combination = np.array(next(self._test_combinations))
         for label in self.unique_labels[test_combination]:
             test_mask[self.labels == label] = True
@@ -211,16 +242,24 @@ class LeavePLabelsOut(_Base):
     def reset(self, p=None):
         if p is not None:
             self.p = p
-        self._test_combinations = combinations(
-            range(self.num_unique_labels), self.p)
-        self._total_combinations = int(
-            factorial(self.num_unique_labels)
-            / (factorial(self.num_unique_labels - self.p) * factorial(self.p)))
+        if self.non_overlapping_folds:
+            self._test_combinations = NonOverlappingCombinations(
+                n=self.num_unique_labels, p=p, seed=self.seed)
+            self._total_combinations = \
+                self._test_combinations.remaining_length()
+        else:
+            self._test_combinations = \
+                combinations(range(self.num_unique_labels), p)
+            self._total_combinations = int(
+                factorial(self.num_unique_labels)
+                / (factorial(self.num_unique_labels - p) * factorial(p)))
         self._remaining_combinations = self._total_combinations
 
     def reset_copy(self, p=None):
         p = p if p is not None else self.p
-        return LeavePLabelsOut(self.labels, p)
+        return LeavePLabelsOut(
+            labels=self.labels, p=p,
+            non_overlapping_folds=self.non_overlapping_folds, seed=self.seed)
 
     def __len__(self):
         return self._total_combinations
