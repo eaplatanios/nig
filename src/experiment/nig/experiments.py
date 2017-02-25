@@ -6,6 +6,7 @@ import numpy as np
 import os
 import shutil
 import tensorflow as tf
+import yaml
 
 from collections import OrderedDict
 from matplotlib import pyplot as plt
@@ -184,18 +185,26 @@ def plot_results(results, metrics=None):
 
 
 def save_results(results, filename, update=True, use_backup=True,
-                 delete_backup=False):
+                 delete_backup=False, yaml_format=True):
     if update and os.path.isfile(filename):
         if use_backup:
             shutil.copy2(filename, filename + '.bak')
-        old_results = nig.deserialize_data(filename)
+        if yaml_format:
+            old_results = nig.load_yaml(filename, ordered=True)
+        else:
+            old_results = nig.deserialize_data(filename)
         results = merge_results(old_results, results)
-    nig.serialize_data(results, filename)
+    if yaml_format:
+        nig.save_yaml(results, filename, ordered=True)
+    else:
+        nig.serialize_data(results, filename)
     if use_backup and delete_backup:
         os.remove(filename + '.bak')
 
 
-def load_results(filename):
+def load_results(filename, yaml_format=True):
+    if yaml_format:
+        return nig.load_yaml(filename, ordered=True)
     return nig.deserialize_data(filename)
 
 
