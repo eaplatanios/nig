@@ -186,10 +186,7 @@ def load(working_dir, dataset, dataset_part_name=None):
             source_url=SOURCE_URL + filename)
         datasets = _extract_data(
             filename=local_file, dataset_part_name=dataset_part_name)
-        if dataset_part_name is None:
-            train_data, test_data = datasets
-        else:
-            train_data, test_data = datasets[dataset_part_name]
+        train_data, test_data = datasets
         serialize_data(data=train_data, path=train_data_file)
         serialize_data(data=test_data, path=test_data_file)
     else:
