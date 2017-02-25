@@ -60,19 +60,19 @@ def deserialize_data(path):
 def save_yaml(data, path, ordered=False, append=True):
     if not os.path.isfile(path):
         append = False
-    with open(path, 'at' if append else 'wt') as f:
+    with open(path, 'at' if append else 'wt') as file:
         if ordered:
-            yaml_ordered_dump(data, f.read(), loader=yaml.SafeLoader)
+            yaml_ordered_dump(data, file, loader=yaml.SafeLoader)
         else:
-            yaml.safe_dump(data, f.read())
+            yaml.safe_dump(data, file)
 
 
 def load_yaml(path, ordered=False):
-    with open(path, 'rt') as f:
+    with open(path, 'rt') as file:
         if ordered:
-            data = yaml_ordered_load(f.read(), loader=yaml.SafeLoader)
+            data = yaml_ordered_load(file, loader=yaml.SafeLoader)
         else:
-            data = yaml.safe_load(f.read())
+            data = yaml.safe_load(file)
     return data
 
 
