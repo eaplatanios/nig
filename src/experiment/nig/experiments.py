@@ -1,12 +1,12 @@
 from __future__ import absolute_import, division, print_function
 
 import abc
+import logging
 import nig
 import numpy as np
 import os
 import shutil
 import tensorflow as tf
-import yaml
 
 from collections import OrderedDict
 from matplotlib import pyplot as plt
@@ -15,6 +15,9 @@ from six import with_metaclass
 __author__ = 'eaplatanios'
 
 __all__ = ['get_consensus_configurations', 'ExperimentBase']
+
+
+logger = logging.getLogger(__name__)
 
 
 def get_consensus_configurations(consensus_loss_weights, multiplier=1.0):
@@ -129,6 +132,30 @@ def _approximate_hypergeometric_mode(label_counts, num_samples, seed=None):
             if need_to_add == 0:
                 break
     return floored.astype(np.int)
+
+
+def log_results_summary(results, metrics=None):
+    for experiment_name, experiments_results in results.items():
+        for experiment_info, experiment_results in experiments_results.items():
+            names = list(experiment_results.keys())
+            values = list(experiment_results.values())
+            data_metrics = list(values[0]['evaluations'].keys())
+            if metrics is not None:
+                metrics = [m for m in metrics if m in data_metrics]
+            else:
+                metrics = data_metrics
+            logger.info('Results for "%s":.' % experiment_name.lower())
+            for metric in metrics:
+                train_evaluations = [v['evaluations'][metric][0][-1]
+                                     for v in values]
+                test_evaluations = [v['evaluations'][metric][1][-1]
+                                    for v in values]
+                logger.info('\tMetric "%s":' % metric.lower())
+                for name, train_eval, test_eval \
+                        in zip(names, train_evaluations, test_evaluations):
+                    name += " " * (20 - len(name))
+                    logger.info("\t\t%s: Train = %.4f , Test = %.4f"
+                                % (name, train_eval, test_eval))
 
 
 def plot_results(results, metrics=None):
