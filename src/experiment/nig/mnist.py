@@ -32,7 +32,7 @@ class MNISTExperiment(experiments.ExperimentBase):
         self.use_one_hot_encoding = use_one_hot_encoding
         # self.loss = nig.L2Loss()
         self.loss = nig.CrossEntropy(
-            log_outputs=self.use_one_hot_encoding,
+            log_outputs=True, scaled_outputs=True,
             one_hot_train_outputs=self.use_one_hot_encoding)
         optimizer_opts = {
             'batch_size': labeled_batch_size,
@@ -47,33 +47,31 @@ class MNISTExperiment(experiments.ExperimentBase):
         models = [nig.MultiLayerPerceptron(
             input_size=num_features, output_size=num_labels,
             hidden_layer_sizes=architecture, activation=activation,
-            softmax_output=True,
-            # log_output=use_one_hot_encoding,
-            log_output=self.use_one_hot_encoding,
+            softmax_output=True, log_output=True,
             train_outputs_one_hot=use_one_hot_encoding, loss=self.loss,
             loss_summary=False, optimizer=optimizer,
             optimizer_opts=optimizer_opts)
                   for architecture in self.architectures]
         eval_metrics = [
             nig.Accuracy(
-                log_outputs=False, scaled_outputs=True,
+                log_outputs=True, scaled_outputs=True,
                 one_hot_train_outputs=True, thresholds=0.5, macro_average=True),
             nig.AreaUnderCurve(
-                log_outputs=False, scaled_outputs=True,
+                log_outputs=True, scaled_outputs=True,
                 one_hot_train_outputs=True, curve='pr', num_thresholds=100,
                 macro_average=True, name='auc'),
             nig.Precision(
-                log_outputs=False, scaled_outputs=True,
+                log_outputs=True, scaled_outputs=True,
                 one_hot_train_outputs=True, thresholds=0.5, macro_average=True),
             nig.Recall(
-                log_outputs=False, scaled_outputs=True,
+                log_outputs=True, scaled_outputs=True,
                 one_hot_train_outputs=True, thresholds=0.5, macro_average=True),
             nig.F1Score(
-                log_outputs=False, scaled_outputs=True,
+                log_outputs=True, scaled_outputs=True,
                 one_hot_train_outputs=True, thresholds=0.5, macro_average=True)]
         predict_postprocess = lambda l: tf.argmax(l, 1)
-        inputs_pipeline = nig.ColumnsExtractor(list(range(784)))
-        outputs_pipeline = nig.ColumnsExtractor(784)
+        inputs_pipeline = nig.ColumnsExtractor(list(range(num_features)))
+        outputs_pipeline = nig.ColumnsExtractor(num_features)
         if self.use_one_hot_encoding:
             outputs_pipeline = outputs_pipeline | \
                                nig.DataTypeEncoder(np.int8) | \
@@ -121,7 +119,7 @@ if __name__ == '__main__':
     activation = nig.leaky_relu(0.01)
     labeled_batch_size = 128
     unlabeled_batch_size = 128
-    test_data_proportion = 0.95
+    test_data_proportion = 0.05
     max_iter = 1000
     abs_loss_chg_tol = 1e-6
     rel_loss_chg_tol = 1e-6
