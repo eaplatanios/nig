@@ -94,7 +94,7 @@ def extract_data(filename):
                 dataset_files[dataset_name] = dict()
             dataset_files[dataset_name]['test'] = data_file
     datasets = dict()
-    for name, files in dataset_files:
+    for name, files in six.iteritems(dataset_files):
         train_data = arff.load(open(files['train'], 'r'))
         test_data = arff.load(open(files['test'], 'r'))
         train_data = separate_labels(train_data, labels)
