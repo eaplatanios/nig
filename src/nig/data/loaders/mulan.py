@@ -20,6 +20,7 @@ import logging
 import numpy as np
 import os
 import patoolib
+import six
 import xml.etree.ElementTree
 
 from . import utilities
@@ -78,29 +79,56 @@ def extract_data(filename):
                      if label.tag.endswith('label'))
     else:
         raise ValueError('Missing the XML header file.')
-    train_data_file = glob.glob(os.path.join(directory, '*-train.arff'))[0]
-    test_data_file = glob.glob(os.path.join(directory, '*-test.arff'))[0]
-    train_data = arff.load(open(train_data_file, 'r'))
-    test_data = arff.load(open(test_data_file, 'r'))
-    train_data = separate_labels(train_data, labels)
-    test_data = separate_labels(test_data, labels)
-    return train_data, test_data
+    dataset_files = dict()
+    for filename in os.listdir(directory):
+        if filename.endswith('-train.arff'):
+            dataset_name = filename[:-11].lower()
+            data_file = os.path.join(directory, filename)
+            if dataset_name not in dataset_files:
+                dataset_files[dataset_name] = dict()
+            dataset_files[dataset_name]['train'] = data_file
+        if filename.endswith('-test.arff'):
+            dataset_name = filename[:-10].lower()
+            data_file = os.path.join(directory, filename)
+            if dataset_name not in dataset_files:
+                dataset_files[dataset_name] = dict()
+            dataset_files[dataset_name]['test'] = data_file
+    datasets = dict()
+    for name, files in dataset_files:
+        train_data = arff.load(open(files['train'], 'r'))
+        test_data = arff.load(open(files['test'], 'r'))
+        train_data = separate_labels(train_data, labels)
+        test_data = separate_labels(test_data, labels)
+        datasets[name] = (train_data, test_data)
+    if len(datasets) == 1:
+        datasets = six.next(six.itervalues(datasets))
+    return datasets
 
 
-def load(working_dir, data_set):
+def load(working_dir, data_set, data_set_part_name=None):
     data_set = data_set.upper()
     if data_set not in DATA_SETS:
         raise ValueError('Unsupported data set name %s.' % data_set)
 
     working_dir = os.path.join(working_dir, data_set.lower())
-    train_data_file = os.path.join(working_dir, 'train_data.npy')
-    test_data_file = os.path.join(working_dir, 'test_data.npy')
+    if data_set_part_name is None:
+        train_data_file = os.path.join(working_dir, 'train_data.npy')
+        test_data_file = os.path.join(working_dir, 'test_data.npy')
+    else:
+        train_data_file = os.path.join(
+            working_dir, 'train_data_%s.npy' % data_set_part_name)
+        test_data_file = os.path.join(
+            working_dir, 'test_data_%s.npy' % data_set_part_name)
     if not (os.path.isfile(train_data_file) and os.path.isfile(test_data_file)):
         filename = DATA_SETS[data_set]
         local_file = utilities.maybe_download(
             filename=filename, working_dir=working_dir,
             source_url=SOURCE_URL + filename)
-        train_data, test_data = extract_data(local_file)
+        datasets = extract_data(local_file)
+        if data_set_part_name is None:
+            train_data, test_data = datasets
+        else:
+            train_data, test_data = datasets[data_set_part_name]
         serialize_data(data=train_data, path=train_data_file)
         serialize_data(data=test_data, path=test_data_file)
     else:

@@ -87,7 +87,11 @@ class YahooExperiment(experiments.ExperimentBase):
 
     def load_data(self, test_proportion=None):
         train_data, test_data = loaders.mulan.load(
-            os.path.join(self.working_dir, 'data'), 'yahoo')
+            os.path.join(self.working_dir, 'data'), data_set='yahoo',
+            data_set_part_name='arts1')
+        # Valid data set part names: arts1, business1, computers1, education1,
+        # entertainment1, health1, recreation1, reference1, science1, social1,
+        # society1.
         if test_proportion is None:
             return train_data, test_data
         data = (np.concatenate([train_data[0], test_data[0]], axis=0),
