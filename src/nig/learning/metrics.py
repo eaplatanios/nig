@@ -324,6 +324,9 @@ class CrossEntropy(Metric):
     @name_scope_context
     def evaluate(self, outputs, train_outputs):
         if not self.log_outputs:
+            epsilon = tf.convert_to_tensor(
+                __EPS__, dtype=outputs.dtype.base_dtype)
+            outputs = tf.clip_by_value(outputs, epsilon, 1.0 - epsilon)
             outputs = tf.log(outputs)
         if self.one_hot_train_outputs:
             if self.scaled_outputs:
