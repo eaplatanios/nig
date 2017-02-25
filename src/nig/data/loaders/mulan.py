@@ -60,7 +60,7 @@ DATA_SETS = {
 logger = logging.getLogger(__name__)
 
 
-def extract_data(filename):
+def extract_data(filename, data_set_part_name=None):
     def separate_labels(data, labels):
         label_indices = [i[0].replace('\\\'', '\'') for i in data['attributes']]
         label_indices = [i in labels for i in label_indices]
@@ -93,16 +93,25 @@ def extract_data(filename):
             if dataset_name not in dataset_files:
                 dataset_files[dataset_name] = dict()
             dataset_files[dataset_name]['test'] = data_file
-    datasets = dict()
-    for name, files in six.iteritems(dataset_files):
-        train_data = arff.load(open(files['train'], 'r'))
-        test_data = arff.load(open(files['test'], 'r'))
-        train_data = separate_labels(train_data, labels)
-        test_data = separate_labels(test_data, labels)
-        datasets[name] = (train_data, test_data)
-    if len(datasets) == 1:
-        datasets = six.next(six.itervalues(datasets))
-    return datasets
+    if data_set_part_name is None:
+        datasets = dict()
+        for name, files in six.iteritems(dataset_files):
+            train_data = arff.load(open(files['train'], 'r'))
+            test_data = arff.load(open(files['test'], 'r'))
+            train_data = separate_labels(train_data, labels)
+            test_data = separate_labels(test_data, labels)
+            datasets[name] = (train_data, test_data)
+        if len(datasets) == 1:
+            datasets = six.next(six.itervalues(datasets))
+        return datasets
+    if data_set_part_name not in dataset_files:
+        raise ValueError('Dataset part "%s" not found.' % data_set_part_name)
+    files = dataset_files[data_set_part_name]
+    train_data = arff.load(open(files['train'], 'r'))
+    test_data = arff.load(open(files['test'], 'r'))
+    train_data = separate_labels(train_data, labels)
+    test_data = separate_labels(test_data, labels)
+    return train_data, test_data
 
 
 def load(working_dir, data_set, data_set_part_name=None):
