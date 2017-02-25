@@ -114,8 +114,8 @@ if __name__ == '__main__':
     activation = nig.leaky_relu(0.01)
     labeled_batch_size = 128
     unlabeled_batch_size = 128
-    test_data_proportion = 0.99
-    max_iter = 5000
+    test_data_proportion = 0.95
+    max_iter = 2000
     abs_loss_chg_tol = 1e-6
     rel_loss_chg_tol = 1e-6
     loss_chg_iter_below_tol = 5

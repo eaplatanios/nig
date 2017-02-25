@@ -112,10 +112,10 @@ if __name__ == '__main__':
                      [512, 256, 128, 64], [32, 4, 2, 4]]
     use_one_hot_encoding = True
     activation = nig.leaky_relu(0.01)
-    labeled_batch_size = 64
-    unlabeled_batch_size = 64
-    test_data_proportion = 0.90
-    max_iter = 5000
+    labeled_batch_size = 128
+    unlabeled_batch_size = 128
+    test_data_proportion = 0.95
+    max_iter = 2000
     abs_loss_chg_tol = 1e-6
     rel_loss_chg_tol = 1e-6
     loss_chg_iter_below_tol = 5
