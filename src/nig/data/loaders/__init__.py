@@ -15,11 +15,10 @@
 from __future__ import absolute_import, division, print_function
 
 from . import dbpedia
-from . import delicious
 from . import glove
 from . import mnist
 from . import mulan
 
 __author__ = 'eaplatanios'
 
-__all__ = ['dbpedia', 'delicious', 'glove', 'mnist', 'mulan']
+__all__ = ['dbpedia', 'glove', 'mnist', 'mulan']
