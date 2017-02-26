@@ -62,7 +62,7 @@ def save_yaml(data, path, ordered=False, append=True):
         append = False
     with open(path, 'at' if append else 'wt') as file:
         if ordered:
-            yaml_ordered_dump(data, file, loader=yaml.SafeLoader)
+            yaml_ordered_dump(data, file, dumper=yaml.SafeDumper)
         else:
             yaml.safe_dump(data, file)
 
