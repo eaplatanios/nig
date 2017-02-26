@@ -81,32 +81,32 @@ dataset_info = {
             'num_features': 23146,
             'num_labels': 26},
         'business1': {
-            'num_features': -1,
-            'num_labels': -1},
+            'num_features': 21924,
+            'num_labels': 30},
         'computers1': {
-            'num_features': -1,
-            'num_labels': -1},
+            'num_features': 34099,
+            'num_labels': 30},
         'education1': {
-            'num_features': -1,
-            'num_labels': -1},
+            'num_features': 27537,
+            'num_labels': 30},
         'entertainment1': {
-            'num_features': -1,
-            'num_labels': -1},
+            'num_features': 32001,
+            'num_labels': 21},
         'health1': {
-            'num_features': -1,
-            'num_labels': -1},
+            'num_features': 30607,
+            'num_labels': 30},
         'reference1': {
-            'num_features': -1,
-            'num_labels': -1},
+            'num_features': 39682,
+            'num_labels': 30},
         'science1': {
-            'num_features': -1,
-            'num_labels': -1},
+            'num_features': 37197,
+            'num_labels': 30},
         'social1': {
-            'num_features': -1,
-            'num_labels': -1},
+            'num_features': 52359,
+            'num_labels': 30},
         'society1': {
-            'num_features': -1,
-            'num_labels': -1}
+            'num_features': 31802,
+            'num_labels': 27}
     }
 }
 
@@ -170,7 +170,7 @@ def _extract_data(filename, dataset_part_name=None):
 def load(working_dir, dataset, dataset_part_name=None):
     dataset = dataset.lower()
     if dataset not in DATASETS:
-        raise ValueError('Unsupported data set name %s.' % dataset)
+        raise ValueError('Unsupported dataset name %s.' % dataset)
     if dataset_part_name is None:
         train_data_file = os.path.join(working_dir, 'train_data.npy')
         test_data_file = os.path.join(working_dir, 'test_data.npy')
@@ -184,9 +184,11 @@ def load(working_dir, dataset, dataset_part_name=None):
         local_file = utilities.maybe_download(
             filename=filename, working_dir=working_dir,
             source_url=SOURCE_URL + filename)
-        datasets = _extract_data(
+        dataset = _extract_data(
             filename=local_file, dataset_part_name=dataset_part_name)
-        train_data, test_data = datasets
+        if isinstance(dataset, dict):
+            raise ValueError('Only one dataset can be requested at a time.')
+        train_data, test_data = dataset
         serialize_data(data=train_data, path=train_data_file)
         serialize_data(data=test_data, path=test_data_file)
     else:
