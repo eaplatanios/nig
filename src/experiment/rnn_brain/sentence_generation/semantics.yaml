@@ -1,37 +1,44 @@
 predicate:
     - buy:
+        root: buy
         active: buys
         passive: bought
         agent: person
         patient: [food, object, instrument]
     - chop:
+        root: chop
         active: chops
         passive: chopped
         agent: person
         patient: choppable
     - eat:
+        root: eat
         active: eats
         passive: eaten
         agent: person
         patient: food
     - play:
+        root: play
         active: plays
         passive: played
         agent: person
         patient: instrument
     - purchase:
+        root: purchase
         active: purchases
         passive: purchased
         agent: person
         patient: [food, object, instrument]
     - read:
+        root: read
         active: reads
         passive: read
         agent: person
         patient: readable
     - drink:
+        root: drink
         active: drinks
-        passive: drank
+        passive: drunk
         agent: person
         patient: beverage
 
@@ -114,17 +121,15 @@ argument:
     - brocolli: [food, choppable]
     - cucumbers: [food, choppable]
     - peppers: [food, choppable]
-    - tomatos: [food, choppable]
-    - potatos: [food, choppable]
+    - tomatoes: [food, choppable]
+    - potatoes: [food, choppable]
     - lemons: [food, choppable]
-    - mushroooms: [food, choppable]
-    - carrots: [food, choppable]
+    - mushrooms: [food, choppable]
+    - carrot: [food, choppable]
     - coffee: [beverage]
     - tea: [beverage]
     - latte: [beverage]
     - cappuccino: [beverage]
-    - water: [beverage]
-    - wine: [beverage]
     - whiskey: [beverage]
     - beer: [beverage]
     - cider: [beverage]
@@ -134,7 +139,6 @@ argument:
     - sake: [beverage]
     - soda: [beverage]
     - juice: [beverage]
-    - furniture: [object]
     - candles: [object]
     - flowers: [object]
     - clothes: [object]

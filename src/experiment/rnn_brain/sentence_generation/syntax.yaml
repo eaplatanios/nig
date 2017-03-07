@@ -1,0 +1,12 @@
+rules:
+  - S[active]: ['DP[singular]', 'V[singular]', 'DP']
+  - S[active]: ['DP[plural]', 'V[plural]', 'DP']
+  - S[passive]: ['DP[singular]', 'IS[singular]', 'V[participle]', "by", 'DP']
+  - S[passive]: ['DP[plural]', 'IS[plural]', 'V[participle]', "by", 'DP']
+  - DP[singular]: ["the", 'NP[singular,common]']
+  - DP[singular]: ["a", 'NP[singular,common,cons]']
+  - DP[singular]: ["an", 'NP[singular,common,vowel]']
+  - DP[singular]: ['NP[singular,proper]']
+  - DP[plural]: ['NP[plural]']
+  - IS[singular]: ["is"]
+  - IS[plural]: ["are"]
