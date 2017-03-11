@@ -17,14 +17,11 @@ from __future__ import absolute_import, division, print_function
 import logging
 import os
 import six.moves.cPickle as pickle
-import yaml
-
-from collections import OrderedDict
+import ruamel.yaml as yaml
 
 __author__ = 'eaplatanios'
 
-__all__ = ['serialize_data', 'deserialize_data', 'save_yaml', 'load_yaml',
-           'yaml_ordered_dump', 'yaml_ordered_load']
+__all__ = ['serialize_data', 'deserialize_data', 'save_yaml', 'load_yaml']
 
 logger = logging.getLogger(__name__)
 
@@ -57,48 +54,14 @@ def deserialize_data(path):
     return data
 
 
-def save_yaml(data, path, ordered=False, append=True):
+def save_yaml(data, path, append=True):
     if not os.path.isfile(path):
         append = False
     with open(path, 'at' if append else 'wt') as file:
-        if ordered:
-            yaml_ordered_dump(data, file, dumper=yaml.SafeDumper)
-        else:
-            yaml.safe_dump(data, file)
+        file.write(yaml.dump(data, Dumper=yaml.RoundTripDumper))
 
 
-def load_yaml(path, ordered=False):
+def load_yaml(path):
     with open(path, 'rt') as file:
-        if ordered:
-            data = yaml_ordered_load(file, loader=yaml.SafeLoader)
-        else:
-            data = yaml.safe_load(file)
+        data = yaml.load(file, yaml.RoundTripLoader)
     return data
-
-
-def yaml_ordered_dump(data, stream=None, dumper=yaml.Dumper, **kwargs):
-    class OrderedDumper(dumper):
-        pass
-
-    def _dict_representer(dumper, data):
-        return dumper.represent_mapping(
-            yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
-            data.items())
-
-    OrderedDumper.add_representer(OrderedDict, _dict_representer)
-    return yaml.dump(data, stream, OrderedDumper, **kwargs)
-
-
-def yaml_ordered_load(
-        stream, loader=yaml.Loader, object_pairs_hook=OrderedDict):
-    class OrderedLoader(loader):
-        pass
-
-    def _construct_mapping(loader, node):
-        loader.flatten_mapping(node)
-        return object_pairs_hook(loader.construct_pairs(node))
-
-    OrderedLoader.add_constructor(
-        yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
-        _construct_mapping)
-    return yaml.load(stream, OrderedLoader)
