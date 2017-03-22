@@ -90,8 +90,8 @@ class DeliciousExperiment(experiments.ExperimentBase):
                 'loss': str(self.loss)}
 
     def load_data(self, test_proportion=None):
-        train_data, test_data, _ = loaders.delicious.load(
-            os.path.join(self.working_dir, 'data'))
+        train_data, test_data = loaders.mulan.load(
+            os.path.join(self.working_dir, 'data'), 'delicious')
         if test_proportion is None:
             return train_data, test_data
         data = self._merge_datasets(train_data, test_data)

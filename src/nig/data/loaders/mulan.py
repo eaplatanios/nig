@@ -81,14 +81,14 @@ dataset_info = {
             'num_features': 23146,
             'num_labels': 26},
         'business1': {
-            'num_features': 21924,
-            'num_labels': 30},
+            'num_features': 21927,
+            'num_labels': 27},
         'computers1': {
             'num_features': 34099,
             'num_labels': 30},
         'education1': {
-            'num_features': 27537,
-            'num_labels': 30},
+            'num_features': 27540,
+            'num_labels': 27},
         'entertainment1': {
             'num_features': 32001,
             'num_labels': 21},
