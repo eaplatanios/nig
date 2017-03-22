@@ -123,7 +123,7 @@ class RCV1V2Experiment(experiments.ExperimentBase):
 
 if __name__ == '__main__':
     seed = 9999
-    data_subsets = 1
+    data_subsets = [0, 1, 2, 3, 4]
     architectures = [[1], [8],
                      [16, 8], [32, 16],
                      [128, 64, 32, 16], [128, 32, 8], [256, 128]]
