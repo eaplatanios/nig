@@ -1,0 +1,156 @@
+noun:
+    - Obama: [singular, proper, vowel]
+    - Michelle: [singular, proper, cons]
+    - Hillary: [singular, proper, cons]
+    - Trump: [singular, proper, cons]
+    - Sinatra: [singular, proper, cons]
+    - Elvis: [singular, proper, cons]
+    - Ringo: [singular, proper, cons]
+    - Oprah: [singular, proper, vowel]
+    - Shakespeare: [singular, proper, cons]
+    - Hemingway: [singular, proper, cons]
+    - Twain: [singular, proper, cons]
+    - Dickens: [singular, proper, cons]
+    - Mozart: [singular, proper, cons]
+    - Bach: [singular, proper, cons]
+    - Beethoven: [singular, proper, cons]
+    - Chopin: [singular, proper, cons]
+    - Merlin: [singular, proper, cons]
+    - Cher: [singular, proper, cons]
+    - Madonna: [singular, proper, cons]
+    - Seinfeld: [singular, proper, cons]
+    - Cupid: [singular, proper, cons]
+    - Snoopy: [singular, proper, cons]
+    - E.T.: [singular, proper, vowel]
+    - Batman: [singular, proper, cons]
+    - Popeye: [singular, proper, cons]
+    - Beyonce: [singular, proper, cons]
+    - Jesus: [singular, proper, cons]
+    - Superman: [singular, proper, cons]
+    - Kramer: [singular, proper, cons]
+    - Bilbo: [singular, proper, cons]
+    - Aladdin: [singular, proper, vowel]
+    - Dumbledore: [singular, proper, cons]
+    - Kanye: [singular, proper, cons]
+    - Romeo: [singular, proper, cons]
+    - Ziggy: [singular, proper, cons]
+    - Zeus: [singular, proper, cons]
+    - Goofy: [singular, proper, cons]
+    - Garfield: [singular, proper, cons]
+    - Wolverine: [singular, proper, cons]
+    - Spock: [singular, proper, cons]
+    - Spiderman: [singular, proper, cons]
+    - Oprah: [singular, proper, vowel]
+    - Reagan: [singular, proper, cons]
+    - Hagrid: [singular, proper, cons]
+    - Mr.T: [singular, proper, cons]
+    - Hodor: [singular, proper, cons]
+    - Bluto: [singular, proper, cons]
+    - Travolta: [singular, proper, cons]
+    - Odie: [singular, proper, vowel]
+    - Rihanna: [singular, proper, cons]
+    - Superman: [singular, proper, cons]
+    - Paddington: [singular, proper, cons]
+    - Tweety: [singular, proper, cons]
+    - Hermione: [singular, proper, cons]
+    - Odie: [singular, proper, vowel]
+    - Dickens: [singular, proper, cons]
+    - pizza: [singular, common, cons]
+    - soup: [singular, common, cons]
+    - cheesecake: [singular, common, cons]
+    - ice-cream: [singular, common, vowel]
+    - steak: [singular, common, cons]
+    - cookies: [plural, cons]
+    - cheese: [singular, common, cons]
+    - fondue: [singular, common, cons]
+    - bread: [singular, common, cons]
+    - onions: [plural, vowel]
+    - brocolli: [singular, common, cons]
+    - cucumbers: [plural, cons]
+    - peppers: [plural, cons]
+    - tomatoes: [plural, cons]
+    - potatoes: [plural, cons]
+    - lemons: [plural, cons]
+    - mushrooms: [plural, cons]
+    - carrot: [singular, common, cons]
+    - coffee: [singular, common, cons]
+    - tea: [singular, common, cons]
+    - latte: [singular, common, cons]
+    - cappuccino: [singular, common, cons]
+    - whiskey: [singular, common, cons]
+    - beer: [singular, common, cons]
+    - cider: [singular, common, cons]
+    - espresso: [singular, common, vowel]
+    - rum: [singular, common, cons]
+    - lemonade: [singular, common, cons]
+    - sake: [singular, common, cons]
+    - soda: [singular, common, cons]
+    - juice: [singular, common, cons]
+    - candles: [plural, cons]
+    - flowers: [plural, cons]
+    - clothes: [plural, cons]
+    - car: [singular, common, cons]
+    - shirt: [singular, common, cons]
+    - shoes: [plural, cons]
+    - violin: [singular, common, cons]
+    - piano: [singular, common, cons]
+    - guitar: [singular, common, cons]
+    - clarinet: [singular, common, cons]
+    - drum: [singular, common, cons]
+    - flute: [singular, common, cons]
+    - oboe: [singular, common, vowel]
+    - trombone: [singular, common, cons]
+    - trumpet: [singular, common, cons]
+    - xylophone: [singular, common, cons]
+    - mandolin: [singular, common, cons]
+    - cello: [singular, common, cons]
+    - saxophone: [singular, common, cons]
+    - viola: [singular, common, cons]
+    - harmonica: [singular, common, cons]
+    - harp: [singular, common, cons]
+    - banjo: [singular, common, cons]
+    - book: [singular, common, cons]
+    - magazine: [singular, common, cons]
+    - newspaper: [singular, common, cons]
+    - paper: [singular, common, cons]
+    - notebook: [singular, common, cons]
+    - calendar: [singular, common, cons]
+    - post-it: [singular, common, cons]
+    - article: [singular, common, cons]
+    - report: [singular, common, cons]
+    - card: [singular, common, cons]
+    - review: [singular, common, cons]
+    - story: [singular, common, cons]
+    - text: [singular, common, cons]
+    - sentence: [singular, common, cons]
+    
+verb:
+    - buy:
+        root: buy
+        active: buys
+        passive: bought
+    - chop:
+        root: chop
+        active: chops
+        passive: chopped
+    - eat:
+        root: eat
+        active: eats
+        passive: eaten
+    - play:
+        root: play
+        active: plays
+        passive: played
+    - purchase:
+        root: purchase
+        active: purchases
+        passive: purchased
+    - read:
+        root: read
+        active: reads
+        passive: read
+    - drink:
+        root: drink
+        active: drinks
+        passive: drunk
+

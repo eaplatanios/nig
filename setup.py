@@ -15,7 +15,7 @@ setup(
     long_description=read('README.md'),
     url='https://github.com/eaplatanios/nig',
     install_requires=[
-        'cython', 'numpy', 'pandas', 'pyyaml', 'six', 'tensorflow',
+        'cython', 'numpy', 'pandas', 'ruamel.yaml', 'six', 'tensorflow',
         'jnius==1.1-dev'],
     extras_require={
         'data': ['liac-arff', 'patool'],

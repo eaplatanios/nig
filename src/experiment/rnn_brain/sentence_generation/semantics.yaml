@@ -1,0 +1,178 @@
+predicate:
+    - buy:
+        root: buy
+        active: buys
+        passive: bought
+        agent: person
+        patient: [food, object, instrument]
+    - chop:
+        root: chop
+        active: chops
+        passive: chopped
+        agent: person
+        patient: choppable
+    - eat:
+        root: eat
+        active: eats
+        passive: eaten
+        agent: person
+        patient: food
+    - play:
+        root: play
+        active: plays
+        passive: played
+        agent: person
+        patient: instrument
+    - purchase:
+        root: purchase
+        active: purchases
+        passive: purchased
+        agent: person
+        patient: [food, object, instrument]
+    - read:
+        root: read
+        active: reads
+        passive: read
+        agent: person
+        patient: readable
+    - drink:
+        root: drink
+        active: drinks
+        passive: drunk
+        agent: person
+        patient: beverage
+
+type:
+    - person
+    - food
+    - choppable
+    - beverage
+    - instrument
+    - object
+    - readable
+
+argument:
+    - Obama: [person]
+    - Michelle: [person]
+    - Hillary: [person]
+    - Trump: [person]
+    - Sinatra: [person]
+    - Elvis: [person]
+    - Ringo: [person]
+    - Oprah: [person]
+    - Shakespeare: [person]
+    - Hemingway: [person]
+    - Twain: [person]
+    - Dickens: [person]
+    - Mozart: [person]
+    - Bach: [person]
+    - Beethoven: [person]
+    - Chopin: [person]
+    - Merlin: [person]
+    - Cher: [person]
+    - Madonna: [person]
+    - Seinfeld: [person]
+    - Cupid: [person]
+    - Snoopy: [person]
+    - E.T.: [person]
+    - Batman: [person]
+    - Popeye: [person]
+    - Beyonce: [person]
+    - Jesus: [person]
+    - Superman: [person]
+    - Kramer: [person]
+    - Bilbo: [person]
+    - Aladdin: [person]
+    - Dumbledore: [person]
+    - Kanye: [person]
+    - Romeo: [person]
+    - Ziggy: [person]
+    - Zeus: [person]
+    - Goofy: [person]
+    - Garfield: [person]
+    - Wolverine: [person]
+    - Spock: [person]
+    - Spiderman: [person]
+    - Oprah: [person]
+    - Reagan: [person]
+    - Hagrid: [person]
+    - Mr.T: [person]
+    - Hodor: [person]
+    - Bluto: [person]
+    - Travolta: [person]
+    - Odie: [person]
+    - Rihanna: [person]
+    - Superman: [person]
+    - Paddington: [person]
+    - Tweety: [person]
+    - Hermione: [person]
+    - Odie: [person]
+    - Dickens: [person]
+    - pizza: [food]
+    - soup: [food]
+    - cheesecake: [food]
+    - ice-cream: [food]
+    - steak: [food]
+    - cookies: [food]
+    - cheese: [food]
+    - fondue: [food]
+    - bread: [food]
+    - onions: [food, choppable]
+    - brocolli: [food, choppable]
+    - cucumbers: [food, choppable]
+    - peppers: [food, choppable]
+    - tomatoes: [food, choppable]
+    - potatoes: [food, choppable]
+    - lemons: [food, choppable]
+    - mushrooms: [food, choppable]
+    - carrot: [food, choppable]
+    - coffee: [beverage]
+    - tea: [beverage]
+    - latte: [beverage]
+    - cappuccino: [beverage]
+    - whiskey: [beverage]
+    - beer: [beverage]
+    - cider: [beverage]
+    - espresso: [beverage]
+    - rum: [beverage]
+    - lemonade: [beverage]
+    - sake: [beverage]
+    - soda: [beverage]
+    - juice: [beverage]
+    - candles: [object]
+    - flowers: [object]
+    - clothes: [object]
+    - car: [object]
+    - shirt: [object]
+    - shoes: [object]
+    - violin: [object, instrument]
+    - piano: [object, instrument]
+    - guitar: [object, instrument]
+    - clarinet: [object, instrument]
+    - drum: [object, instrument]
+    - flute: [object, instrument]
+    - oboe: [object, instrument]
+    - trombone: [object, instrument]
+    - trumpet: [object, instrument]
+    - xylophone: [object, instrument]
+    - mandolin: [object, instrument]
+    - cello: [object, instrument]
+    - saxophone: [object, instrument]
+    - viola: [object, instrument]
+    - harmonica: [object, instrument]
+    - harp: [object, instrument]
+    - banjo: [object, instrument]
+    - book: [object, readable]
+    - magazine: [object, readable]
+    - newspaper: [object, readable]
+    - paper: [readable]
+    - notebook: [object, readable]
+    - calendar: [readable]
+    - post-it: [readable]
+    - article: [readable]
+    - report: [readable]
+    - card: [readable]
+    - review: [readable]
+    - story: [readable]
+    - text: [readable]
+    - sentence: [readable]
