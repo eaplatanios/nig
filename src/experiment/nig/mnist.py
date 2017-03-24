@@ -177,6 +177,7 @@ if __name__ == '__main__':
         for name, configuration in consensus_configurations:
             learner = partial(nig.ConsensusLearner, **configuration)
             learners.append((name, learner))
+        learners.append(('CV', nig.CrossValidationLearner))
         learners = OrderedDict(learners)
         results = experiment.run(learners)
 

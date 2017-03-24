@@ -217,12 +217,12 @@ def save_results(results, filename, update=True, use_backup=True,
         if use_backup:
             shutil.copy2(filename, filename + '.bak')
         if yaml_format:
-            old_results = nig.load_yaml(filename, ordered=True)
+            old_results = nig.load_yaml(filename)
         else:
             old_results = nig.deserialize_data(filename)
         results = merge_results(old_results, results)
     if yaml_format:
-        nig.save_yaml(results, filename, ordered=True)
+        nig.save_yaml(results, filename)
     else:
         nig.serialize_data(results, filename)
     if use_backup and delete_backup:
@@ -231,7 +231,7 @@ def save_results(results, filename, update=True, use_backup=True,
 
 def load_results(filename, yaml_format=True):
     if yaml_format:
-        return nig.load_yaml(filename, ordered=True)
+        return nig.load_yaml(filename)
     return nig.deserialize_data(filename)
 
 
@@ -402,9 +402,14 @@ class ExperimentBase(with_metaclass(abc.ABCMeta, object)):
                 labeled_pipelines.append(lambda x: x)
             else:
                 labeled_pipelines.append(self.outputs_pipeline)
-            learner = learner(
-                models=self.models, new_graph=True,
-                predict_postprocess=self.predict_postprocess)
+            if isinstance(learner, nig.CrossValidationLearner):
+                learner = learner(
+                    models=self.models,
+                    predict_postprocess=self.predict_postprocess)
+            else:
+                learner = learner(
+                    models=self.models, new_graph=True,
+                    predict_postprocess=self.predict_postprocess)
             labeled_data = nig.get_iterator(
                 data=train_data, batch_size=self.labeled_batch_size,
                 shuffle=True, cycle=True, cycle_shuffle=True,
