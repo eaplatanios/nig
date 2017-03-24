@@ -432,7 +432,7 @@ class ExperimentBase(with_metaclass(abc.ABCMeta, object)):
                     unlabeled_data=unlabeled_data)
             else:
                 learner.train(
-                    data=labeled_data, pipelines=labeled_pipelines,
+                    data=train_data, pipelines=labeled_pipelines,
                     cross_val=nig.KFold(len(train_data[0]), k=5),
                     init_option=True, callbacks=callbacks,
                     working_dir=self.working_dir,
