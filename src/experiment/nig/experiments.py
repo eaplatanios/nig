@@ -402,10 +402,12 @@ class ExperimentBase(with_metaclass(abc.ABCMeta, object)):
                 labeled_pipelines.append(lambda x: x)
             else:
                 labeled_pipelines.append(self.outputs_pipeline)
+            consensus_learner = False
             try:
                 learner = learner(
                     models=self.models, new_graph=True,
                     predict_postprocess=self.predict_postprocess)
+                consensus_learner = True
             except TypeError:
                 learner = learner(
                     models=self.models,
@@ -418,14 +420,24 @@ class ExperimentBase(with_metaclass(abc.ABCMeta, object)):
                 data=test_data, batch_size=self.unlabeled_batch_size,
                 shuffle=True, cycle=True, cycle_shuffle=True,
                 pipelines=unlabeled_pipelines)
-            learner.train(
-                labeled_data=labeled_data, pipelines=labeled_pipelines,
-                init_option=True, per_model_callbacks=None,
-                combined_model_callbacks=callbacks,
-                working_dir=self.working_dir,
-                ckpt_file_prefix=self.checkpoint_file_prefix,
-                restore_sequentially=self.restore_sequentially,
-                save_trained=self.save_trained, unlabeled_data=unlabeled_data)
+            if consensus_learner:
+                learner.train(
+                    labeled_data=labeled_data, pipelines=labeled_pipelines,
+                    init_option=True, per_model_callbacks=None,
+                    combined_model_callbacks=callbacks,
+                    working_dir=self.working_dir,
+                    ckpt_file_prefix=self.checkpoint_file_prefix,
+                    restore_sequentially=self.restore_sequentially,
+                    save_trained=self.save_trained,
+                    unlabeled_data=unlabeled_data)
+            else:
+                learner.train(
+                    data=labeled_data, pipelines=labeled_pipelines,
+                    init_option=True, callbacks=callbacks,
+                    working_dir=self.working_dir,
+                    ckpt_file_prefix=self.checkpoint_file_prefix,
+                    restore_sequentially=self.restore_sequentially,
+                    save_trained=self.save_trained)
             return losses, train_evals, test_evals
 
         results = []
