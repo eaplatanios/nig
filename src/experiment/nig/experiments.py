@@ -402,13 +402,13 @@ class ExperimentBase(with_metaclass(abc.ABCMeta, object)):
                 labeled_pipelines.append(lambda x: x)
             else:
                 labeled_pipelines.append(self.outputs_pipeline)
-            if isinstance(learner, nig.CrossValidationLearner):
-                learner = learner(
-                    models=self.models,
-                    predict_postprocess=self.predict_postprocess)
-            else:
+            try:
                 learner = learner(
                     models=self.models, new_graph=True,
+                    predict_postprocess=self.predict_postprocess)
+            except TypeError:
+                learner = learner(
+                    models=self.models,
                     predict_postprocess=self.predict_postprocess)
             labeled_data = nig.get_iterator(
                 data=train_data, batch_size=self.labeled_batch_size,
