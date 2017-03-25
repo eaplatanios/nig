@@ -9,6 +9,7 @@ import shutil
 import tensorflow as tf
 
 from collections import OrderedDict
+from functools import partial
 from matplotlib import pyplot as plt
 from six import with_metaclass
 
@@ -409,6 +410,11 @@ class ExperimentBase(with_metaclass(abc.ABCMeta, object)):
                     predict_postprocess=self.predict_postprocess)
                 consensus_learner = True
             except TypeError:
+                # TODO: Fix this hacky way for using AUC here.
+                for metric in self.eval_metrics:
+                    if metric.name == 'auc':
+                        learner = partial(learner, val_loss=metric)
+                        break
                 learner = learner(
                     models=self.models,
                     predict_postprocess=self.predict_postprocess)

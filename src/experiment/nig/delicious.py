@@ -112,7 +112,7 @@ if __name__ == '__main__':
     architectures = [[16], [256],
                      [16, 16], [256, 256],
                      [16, 16, 16, 16], [256, 256, 256, 256],
-                     [512, 256], [1024, 512, 256], [16, 16, 16, 16]]
+                     [512, 256], [1024, 512, 256]]
     use_one_hot_encoding = True
     activation = nig.leaky_relu(0.01)
     labeled_batch_size = 128
