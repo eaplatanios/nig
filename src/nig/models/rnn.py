@@ -190,3 +190,50 @@ def rolling_window_rnn(cells, window_length, window_offset, inputs,
         window_states.append(state)
 
     return [tf.stack(o, axis=time_axis) for o in window_outputs], window_states
+
+
+def dynamic_multimodality_rnn(modality_cells, combination_cell, modality_names,
+        modality_inputs, modality_join_times, modality_sequence_lengths=None,
+        initial_states=None, dtype=None, parallel_iterations=None,
+        swap_memory=False, time_major=False, scope=None):
+
+    if initial_states is not None:
+        if len(modality_cells) != len(initial_states):
+            raise ValueError('The number of cells must match that of '
+                             'initial states.')
+    else:
+        initial_states = [None] * len(modality_cells)
+
+    # Determine the time axis in the input tensors.
+    time_axis = 1 if not time_major else 0
+
+    # Create an RNN for the each modality.
+    unpacked_inputs = [tf.unstack(input, axis=time_axis)
+        for input in modality_inputs]
+    modality_outputs = []
+    modality_states = []
+    for cell, initial_state, inputs, sequence_length, name in \
+            zip(modality_cells, initial_states, unpacked_inputs,
+                modality_sequence_lengths, modality_names):
+        outputs, states = tf.nn.dynamic_rnn(
+            cell=cell, inputs=inputs, sequence_length=sequence_length,
+            initial_state=initial_state, dtype=dtype,
+            parallel_iterations=parallel_iterations, swap_memory=swap_memory,
+            time_major=time_major, scope=scope + '/%s' % name)
+        modality_outputs.append(tf.unstack(outputs, axis=time_axis))
+        modality_states.append(states)
+
+    # Create an RNN that combines the modalities.
+    inputs = []
+    for t in range(len(modality_join_times)):
+        inputs.append(tf.concat(
+            values=[modality_outputs[modality][modality_join_times[t]]
+                for modality in range(len(modality_names))], axis=2))
+    outputs, states = tf.nn.dynamic_rnn(
+        cell=combination_cell, inputs=inputs,
+        sequence_length=len(modality_join_times),
+        initial_state=None, dtype=dtype,
+        parallel_iterations=parallel_iterations, swap_memory=swap_memory,
+        time_major=time_major, scope=scope + '/combined_modalities')
+
+    return [tf.stack(o, axis=time_axis) for o in outputs], states
