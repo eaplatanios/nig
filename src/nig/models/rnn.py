@@ -208,32 +208,35 @@ def dynamic_multimodality_rnn(modality_cells, combination_cell, modality_names,
     time_axis = 1 if not time_major else 0
 
     # Create an RNN for the each modality.
-    unpacked_inputs = [tf.unstack(input, axis=time_axis)
-        for input in modality_inputs]
+    #unpacked_inputs = [tf.unstack(input, axis=time_axis)
+    #    for input in modality_inputs]
     modality_outputs = []
     modality_states = []
     for cell, initial_state, inputs, sequence_length, name in \
-            zip(modality_cells, initial_states, unpacked_inputs,
+            zip(modality_cells, initial_states, modality_inputs,
                 modality_sequence_lengths, modality_names):
         outputs, states = tf.nn.dynamic_rnn(
             cell=cell, inputs=inputs, sequence_length=sequence_length,
             initial_state=initial_state, dtype=dtype,
             parallel_iterations=parallel_iterations, swap_memory=swap_memory,
-            time_major=time_major, scope=scope + '/%s' % name)
+            time_major=time_major, scope=scope + '_' + str(name))
         modality_outputs.append(tf.unstack(outputs, axis=time_axis))
         modality_states.append(states)
 
     # Create an RNN that combines the modalities.
     inputs = []
-    for t in range(len(modality_join_times)):
+    for t in range(len(modality_join_times[0])):
         inputs.append(tf.concat(
-            values=[modality_outputs[modality][modality_join_times[t]]
-                for modality in range(len(modality_names))], axis=2))
+            values=[modality_outputs[modality][modality_join_times[modality][t]]
+                for modality in range(len(modality_names))], axis=1)) #TODO: should I create a new dimension?
+    inputs = tf.stack(inputs, axis=time_axis)
     outputs, states = tf.nn.dynamic_rnn(
         cell=combination_cell, inputs=inputs,
-        sequence_length=len(modality_join_times),
+        sequence_length=tf.ones_like(sequence_length) *
+                        tf.constant(len(modality_join_times)),
         initial_state=None, dtype=dtype,
         parallel_iterations=parallel_iterations, swap_memory=swap_memory,
         time_major=time_major, scope=scope + '/combined_modalities')
 
-    return [tf.stack(o, axis=time_axis) for o in outputs], states
+    #[tf.stack(o, axis=time_axis) for o in outputs]
+    return outputs, states
