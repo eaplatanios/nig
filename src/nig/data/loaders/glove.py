@@ -15,6 +15,7 @@
 from __future__ import absolute_import, division, print_function
 
 import codecs
+import hdf5storage
 import numpy as np
 
 from nig.data.utilities import deserialize_data, serialize_data
@@ -30,6 +31,12 @@ def load_map(path):
         return {l[0]: np.array([float(v) for v in l[1:]]) for l in lines}
     elif ext == 'bin':
         return deserialize_data(path)
+    elif ext == 'mat':
+        mat_contents = hdf5storage.loadmat(path)
+        words = mat_contents['words'][0]
+        word_embedding = mat_contents['word_embeddings'][0]
+        return {np.array_str(words[i][0]): word_embedding[i][0]
+                for i in range(len(words))}
     raise ValueError('Unsupported file extension %s.' % ext)
 
 
